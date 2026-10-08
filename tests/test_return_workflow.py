@@ -54,7 +54,7 @@ def test_documents_populate_return_with_provenance(fam):
     assert v["result"]["forms"]["f1040"]["25a"] == "7000"
 
 
-def test_workflow_gates_and_durable_states(fam):
+def test_workflow_gates_and_durable_states(fam, monkeypatch):
     R = Returns(fam.conn, fam.kb)
     rid = R.create("rivera", 2026, "maya", household())
     R.populate_from_documents(rid, "maya")
@@ -78,6 +78,13 @@ def test_workflow_gates_and_durable_states(fam):
     R.record_signature(rid, "taxpayer", method="kba_esign", return_hash=approved_hash, kba_transaction_id="kba-123")
     with pytest.raises(TransitionError, match="e-file is not enabled"):
         R.transmit(rid, "lee", "cpa", efile_ready=False, submit=lambda: {"submission_id": "x"})
+    with pytest.raises(TransitionError, match="coverage does not allow filing: f1040 is manual-assisted"):
+        R.transmit(rid, "lee", "cpa", efile_ready=True, submit=lambda: {"submission_id": "x"})
+    # From here on, simulate a future registry in which these forms and the MeF channel are filing-approved.
+    from veritas import coverage
+
+    monkeypatch.setattr(coverage, "lookup", lambda cap, year, jurisdiction="US-FED", path=None: {"id": cap, "status": "filing-approved"})
+    R.compute(rid, "lee")
     calls = []
 
     def submit():
@@ -162,3 +169,14 @@ def test_return_api_dev_mode(home, monkeypatch):
     assert "inputs" not in mine and mine["forms"]["f1040"]["35a"] == "977" and mine["status"] == "approved"
     assert c.post(f"/api/returns/{rid}/approve", headers=jordan).status_code == 403
     assert c.get(f"/api/returns/{rid}", headers={"Authorization": "Bearer dev-ortiz"}).status_code == 403
+
+
+def test_coverage_is_published_and_pinned(fam):
+    R = Returns(fam.conn, fam.kb)
+    rid = R.create("rivera", 2026, "maya", household())
+    R.populate_from_documents(rid, "maya")
+    res = R.latest(rid)["result"]
+    assert res["coverage"]["lowest"] == "manual-assisted"
+    assert {"form": "mef_1040", "status": "unsupported", "need": "filing-approved", "limits": res["coverage"]["filing_blockers"][-1]["limits"]} in res["coverage"]["filing_blockers"]
+    assert res["pinned"]["kb_version"] == fam.kb.version() and res["pinned"]["engine"]
+    assert all(s["source"] for s in res["sources"])   # every rule value used is recorded, so the run reproduces

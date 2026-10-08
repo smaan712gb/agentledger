@@ -1,5 +1,10 @@
 # Alignment with the production specification (v1.0, 2026-10-08)
 
+> **Update, same day:** the owner made the specification the source of truth. The "keep" and "defer"
+> decisions below on PostgreSQL, orchestration, identity and the frontend are **superseded** by
+> ADR-0002 to ADR-0005, and those items are now wave F work. See `docs/adr/` and
+> `docs/inception/backlog.md`.
+
 This compares `unified-accounting-tax-production-spec.md` with the AgentLedger codebase as of commit `67cb5ec`.
 Each item records a decision: **adopt** (the spec's approach is better and we switch), **keep** (our design
 already meets the requirement or does better), or **defer** (adopt at a named milestone).

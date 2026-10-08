@@ -616,6 +616,16 @@ def compute_individual_return(body: dict[str, Any] = Body(...), user=Depends(me)
         raise HTTPException(400, str(e))
 
 
+@app.get("/api/coverage")
+def get_coverage(year: int | None = None, user=Depends(me)) -> dict[str, Any]:
+    """What the product actually supports, per form, year and jurisdiction (spec §7)."""
+    from .. import coverage
+
+    data = coverage.load()
+    caps = [c for c in data["capabilities"] if year is None or year in c.get("years", [])]
+    return {"owner": data.get("owner"), "reviewed_at": data.get("reviewed_at"), "states": list(coverage.STATES), "capabilities": caps}
+
+
 @app.get("/api/staleness")
 def staleness(user=Depends(me)) -> list[dict[str, Any]]:
     return staleness_scan(A(user).kb, date.today())

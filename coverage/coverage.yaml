@@ -1,0 +1,78 @@
+# Published coverage registry (spec §7, ADR-0008). The API, the UI and the return workflow all read this file.
+#
+# States, lowest to highest:
+#   unsupported            the product does not do this; preparation is blocked
+#   manual-assisted        the engine assists; a preparer must verify every amount from source
+#   planning-only          estimates for planning; never used on a return
+#   preparation-validated  independent fixtures pass and the tax-content owner signed off; can be prepared
+#   export-validated       the export imports correctly into the named target software (verified)
+#   filing-approved        the agency approved this form (e.g. IRS ATS) for this tax year; can be transmitted
+#   suspended              withdrawn pending a fix; behaves like unsupported
+#
+# A status may only move up with evidence recorded here. Code checking its own output is not evidence.
+
+owner: null            # named tax-content owner; required before anything is preparation-validated
+reviewed_at: null
+
+capabilities:
+  # ---------------------------------------------------------------- individual, federal, 2026
+  - {id: f1040,      name: "Form 1040",                         jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     evidence: ["tests/test_returns_1040.py (hand-worked)", "tests/test_returns_oracle.py (PolicyEngine)", "golden/scenarios.yaml"]}
+  - {id: sch_1,      name: "Schedule 1",                        jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_1a,     name: "Schedule 1-A (tips, overtime, vehicle interest, seniors)", jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_2,      name: "Schedule 2",                        jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_3,      name: "Schedule 3",                        jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_3a,     name: "Schedule 3-A (federal public benefit)", jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_a,      name: "Schedule A",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["IRC §68 limitation from statute; 2026 Itemized Deductions Worksheet not final",
+              "mortgage interest $750,000 limit not computed", "investment interest (Form 4952) not computed"]}
+  - {id: sch_b,      name: "Schedule B",                        jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_c,      name: "Schedule C",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["at-risk (6198) and excess business loss (461) not computed", "regular-method home office (8829) not supported"]}
+  - {id: sch_d,      name: "Schedule D",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["capital loss carryover to 2027 not computed"]}
+  - {id: f8949,      name: "Form 8949",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_e,      name: "Schedule E",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["passive loss limits (8582) approximated", "depreciation entered, not computed"]}
+  - {id: sch_se,     name: "Schedule SE",                       jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_8812,   name: "Schedule 8812",                     jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: sch_eic,    name: "Earned income credit",              jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f8995,      name: "Form 8995",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f8995a,     name: "Form 8995-A",                       jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["aggregation elections and patron reductions not supported"]}
+  - {id: f6251,      name: "Form 6251",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f8959,      name: "Form 8959",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f8960,      name: "Form 8960",                         jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["investment expense allocations (line 9) not computed"]}
+  - {id: f2441,      name: "Form 2441",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f8863,      name: "Form 8863",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  # Known gaps on the 1040: the engine raises a blocking diagnostic when a return needs one of these.
+  - {id: f1116,      name: "Form 1116 (foreign tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8880,      name: "Form 8880 (saver's credit)",        jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8962,      name: "Form 8962 (premium tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8606,      name: "Form 8606 (nondeductible IRAs)",    jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8889,      name: "Form 8889 (HSA)",                   jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f4797,      name: "Form 4797 (business property)",     jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: sch_f,      name: "Schedule F",                        jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f2210,      name: "Form 2210 (underpayment penalty)",  jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8582,      name: "Form 8582 (passive activity loss)", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1040x,     name: "Form 1040-X (amended)",             jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1040nr,    name: "Form 1040-NR",                      jurisdiction: US-FED, years: [2026], status: unsupported}
+  # ---------------------------------------------------------------- business, federal (owner priority: certify next)
+  - {id: f1120s,     name: "Form 1120-S and K-1s",              jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1065,      name: "Form 1065 and K-1s",                jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1120,      name: "Form 1120",                         jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1041,      name: "Form 1041",                         jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f990,       name: "Form 990 family",                   jurisdiction: US-FED, years: [2026], status: unsupported}
+  # ---------------------------------------------------------------- information returns (owner priority)
+  - {id: f1099_nec,  name: "1099-NEC/MISC filing (IRIS/FIRE)",  jurisdiction: US-FED, years: [2026], status: unsupported}
+  # ---------------------------------------------------------------- states (owner to name the first states)
+  - {id: state_any,  name: "Any state income or franchise tax return", jurisdiction: US-STATES, years: [2026], status: unsupported}
+  # ---------------------------------------------------------------- filing channels
+  - {id: mef_1040,   name: "IRS MeF transmission, 1040 family", jurisdiction: US-FED, years: [2026], status: unsupported,
+     limits: ["requires EFIN/ETIN, ATS approval and A2A credentials (docs/GO_LIVE.md Part A)"]}
+  # ---------------------------------------------------------------- exports to other software
+  - {id: export_tax_tb, name: "Trial-balance export for tax software", jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["CSV layout not yet verified against Drake, UltraTax, Lacerte/ProConnect or CCH imports"]}
+  - {id: export_qb_iif, name: "QuickBooks IIF export",           jurisdiction: US-FED, years: [2026], status: manual-assisted}

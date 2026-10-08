@@ -56,7 +56,12 @@ Status key: **done** (built and tested) · **partial** · **todo**.
 | Returns | 1120-S, 1065, 1120 with K-1s | todo | M6 |
 | Returns | State income tax returns | todo | M11 |
 
-## Part C: engineering milestones (dependency order)
+## Part C: engineering plan
+
+The plan now follows the production specification's waves (F, A1, A2, T1, T2, V, S1, S2). The
+dependency-ordered tickets are in [inception/backlog.md](inception/backlog.md). The architecture decisions
+are in [adr/](adr/). Acceptance status by Q-test is in [inception/acceptance-map.md](inception/acceptance-map.md),
+and supported forms are in [coverage/coverage.yaml](../coverage/coverage.yaml) (also `GET /api/coverage`).
 
 Progress log:
 - 2026-10-08: M1 core done. Form 1040 and Schedules 1, 1-A, 2, 3, 3-A, A, B, C, D, E, SE, 8812, 8995/8995-A,
@@ -72,35 +77,12 @@ Progress log:
 
 Each milestone ends with: full test suite green, golden scenarios green, a commit.
 
-- **M1: individual return engine, TY2026.** Form 1040, Schedules 1, 1-A, 2, 3, A, B, C, D/8949, SE, 8812,
-  8995/8995-A, EIC, 8959, 8960, 6251. Computation uses semantic line names. A per-year form map (data)
-  binds them to line numbers, PDF fields and MeF elements. Every parameter is cited to Rev. Proc. 2025-32 or
-  P.L. 119-21. policyengine-us serves as an independent oracle.
-- **M2: SaaS foundation.** Firms, clients and users with tenant isolation. Argon2 passwords, TOTP, then
-  WebAuthn. RBAC. AES-256-GCM envelope encryption (per-firm data keys) for PII and the vault. A PostgreSQL
-  backend.
-- **M3: return workflow and durable execution.** Event-sourced workflow (prepare → review → sign →
-  transmit → acknowledge) with durable pauses and replay. Intake documents (W-2, 1099) flow into return
-  inputs. Preparer diagnostics.
-- **M4: forms.** Official IRS fillable PDFs populated from the form map, flattened, and hashed.
-- **M5: e-file.** MeF XML return builder, XSD validation, A2A client, acknowledgment processing,
-  8879 + KBA workflow, ATS scenario harness.
-- **M6: business returns.** 1120-S, 1065, 1120, K-1s, Schedule L/M-1/M-2/M-3, fixed-asset register.
-- **M7: vertical engines.** 835, cores, fuel, insurance trust.
-- **M8: entity governance.** BOIR, SOS, SS-4, NASBA CPE.
-- **M9: privacy.** §7216 redaction engine, consent forms, Pub 1345 controls.
-- **M10: interoperability.** Trial-balance exports for every major package, plus QBO/Xero connectors.
-- **M11: states.** Ordered by client volume.
-- **M12: deployment.** Docker, Caddy (TLS 1.3), PostgreSQL, encrypted backups with restore tests,
-  monitoring, vulnerability scanning.
 
 ## Part D: honest constraints
 
 - No return is transmitted until the IRS has accepted the ATS results (A5). The engine, forms and XML
   can be finished first.
-- Durable execution is built as an event-sourced workflow engine on the platform database. It gives the
-  BL.md guarantees (durable pause, deterministic replay, no re-run of completed steps) without operating
-  a Temporal cluster. A Temporal backend can be added behind the same interface when volume requires it.
+- Durable execution: Cloudflare Workflows orchestrates, while domain state machines stay in PostgreSQL (ADR-0003).
 - FinCEN's March 2025 interim final rule removed BOI reporting for domestic companies. BOIR is built for
   foreign reporting companies and remains driven by rules, so it switches back on if the law changes.
 - BL.md cites Rev. Proc. 2008-35 for §7216 consents. The current consent rules are in Treas. Reg.

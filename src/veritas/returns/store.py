@@ -56,6 +56,7 @@ BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 """
 
 CPA = ("cpa",)
+ENGINE_VERSION = "1040-2026.1"
 
 
 def _g_review(st: State, c: dict[str, Any]) -> list[str]:
@@ -254,6 +255,8 @@ class Returns:
         ret = IndividualReturn.model_validate(cur["inputs"])
         res = compute_individual(Ctx(self.kb), ret)
         result = res.to_dict()
+        result["coverage"] = self._coverage(list(result["forms"]), ret.tax_year)
+        result["pinned"] = {"kb_version": self.kb.version(), "engine": ENGINE_VERSION}
         cc = None
         if oracle:
             try:
@@ -268,6 +271,16 @@ class Returns:
         self._save(rid, cur["inputs"], cur["provenance"], actor, "computed", result=result, crosscheck=cc)
         return result
 
+    @staticmethod
+    def _coverage(forms: list[str], year: int) -> dict[str, Any]:
+        from .. import coverage
+
+        statuses = {coverage.form_id(f): coverage.lookup(coverage.form_id(f), year)["status"] for f in forms if coverage.form_id(f)}
+        lowest = min(statuses.values(), key=lambda x: coverage.RANK[x]) if statuses else "unsupported"
+        return {"forms": statuses, "lowest": lowest,
+                "below_preparation": coverage.check_forms(forms, year, need="manual-assisted"),
+                "filing_blockers": coverage.check_forms(forms + ["mef_1040"], year, need="filing-approved")}
+
     # ------------------------------------------------------------------ workflow
     def status(self, rid: str) -> State:
         return self.wf.state(rid)
@@ -276,7 +289,8 @@ class Returns:
         v = self.latest(rid)
         result = v["result"] or {}
         cc = json.loads(v["crosscheck"]) if v["crosscheck"] else {"status": "unavailable"}
-        return {"computed": bool(result), "blocking": sum(1 for d in result.get("diagnostics", []) if d["severity"] == "error"),
+        below = len((result.get("coverage") or {}).get("below_preparation", []))
+        return {"computed": bool(result), "blocking": below + sum(1 for d in result.get("diagnostics", []) if d["severity"] == "error"),
                 "unconfirmed": sum(1 for p in v["provenance"].values() if not p.get("confirmed")),
                 "crosscheck": cc.get("status"), "explained": explained, "input_hash": v["input_hash"]}
 
@@ -308,6 +322,12 @@ class Returns:
         """`submit` performs the transmission; it runs at most once per approved return version."""
         st = self.wf.state(rid)
         reasons = _g_transmit(st, {"efile_ready": efile_ready})
+        result = self.latest(rid)["result"] or {}
+        blockers = (result.get("coverage") or {}).get("filing_blockers")
+        if blockers is None:
+            blockers = self._coverage(list(result.get("forms", {})), self.get(rid)["tax_year"])["filing_blockers"]
+        if blockers:
+            reasons.append("coverage does not allow filing: " + ", ".join(f"{b['form']} is {b['status']}" for b in blockers))
         if reasons:
             raise TransitionError("; ".join(reasons))
         result = self.wf.activity(rid, "transmit", st.facts["approved_hash"], submit, actor=actor)
