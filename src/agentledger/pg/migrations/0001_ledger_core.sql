@@ -44,13 +44,14 @@ CREATE TABLE accounts (
 CREATE TABLE entries (
     id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     client_id   text NOT NULL REFERENCES clients(id),
-    entry_date  date NOT NULL,
+    date        date NOT NULL,
     memo        text NOT NULL,
     source      text NOT NULL,
     created_by  text NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now(),
     reverses    bigint UNIQUE,              -- an entry can be reversed once
     command_id  text,
+    document_id text,
     prev_hash   text NOT NULL,
     hash        text NOT NULL,
     UNIQUE (id, client_id),
@@ -164,9 +165,9 @@ DECLARE
 BEGIN
     -- FOR SHARE serializes with a concurrent close, which updates the client row.
     SELECT closed_through INTO v_closed FROM clients WHERE id = NEW.client_id FOR SHARE;
-    IF v_closed IS NOT NULL AND NEW.entry_date <= v_closed THEN
+    IF v_closed IS NOT NULL AND NEW.date <= v_closed THEN
         RAISE EXCEPTION 'books for % are closed through %; an entry dated % needs an authorized reopen first',
-            NEW.client_id, v_closed, NEW.entry_date USING ERRCODE = 'AL002';
+            NEW.client_id, v_closed, NEW.date USING ERRCODE = 'AL002';
     END IF;
     RETURN NEW;
 END $$;
@@ -201,6 +202,16 @@ BEGIN
     END IF;
 END $$;
 
+CREATE FUNCTION utc_text(t timestamptz) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+    SELECT to_char(t AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+$$;
+
+CREATE FUNCTION audit_body(p_at timestamptz, p_actor text, p_role text, p_client text, p_action text, p_payload jsonb)
+RETURNS text LANGUAGE sql IMMUTABLE AS $$
+    SELECT jsonb_build_object('at', utc_text(p_at), 'actor', p_actor, 'role', p_role, 'client', p_client,
+                              'action', p_action, 'payload', p_payload)::text
+$$;
+
 CREATE FUNCTION write_audit(p_actor text, p_role text, p_client text, p_action text, p_payload jsonb) RETURNS bigint
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -213,8 +224,7 @@ BEGIN
     v_prev := coalesce(v_prev, 'genesis');
     INSERT INTO audit (at, actor, role, client_id, action, payload, prev_hash, hash)
     VALUES (v_at, p_actor, p_role, p_client, p_action, p_payload, v_prev,
-            sha256_hex(v_prev || jsonb_build_object('at', v_at, 'actor', p_actor, 'role', p_role, 'client', p_client,
-                                                    'action', p_action, 'payload', p_payload)::text))
+            sha256_hex(v_prev || audit_body(v_at, p_actor, p_role, p_client, p_action, p_payload)))
     RETURNING seq INTO v_seq;
     RETURN v_seq;
 END $$;
@@ -222,9 +232,9 @@ END $$;
 -- The canonical text an entry's hash covers. Lines are normalized ("100.00", explicit null tax treatment) so the
 -- verifier can rebuild exactly the same text from the stored postings.
 CREATE FUNCTION entry_canonical(p_client text, p_date date, p_memo text, p_source text, p_actor text, p_reverses bigint,
-                                p_lines jsonb) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+                                p_lines jsonb, p_document text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
     SELECT jsonb_build_object('client', p_client, 'date', p_date, 'memo', p_memo, 'source', p_source, 'actor', p_actor,
-                              'reverses', p_reverses, 'lines', p_lines)::text
+                              'reverses', p_reverses, 'document', p_document, 'lines', p_lines)::text
 $$;
 
 CREATE FUNCTION entry_lines(p_entry bigint) RETURNS jsonb LANGUAGE sql STABLE AS $$
@@ -235,7 +245,8 @@ $$;
 
 -- ------------------------------------------------------------------------------------------------- commands
 CREATE FUNCTION post_journal(p_client text, p_date date, p_memo text, p_source text, p_actor text, p_role text,
-                             p_lines jsonb, p_command_id text DEFAULT NULL, p_reverses bigint DEFAULT NULL)
+                             p_lines jsonb, p_command_id text DEFAULT NULL, p_reverses bigint DEFAULT NULL,
+                             p_document_id text DEFAULT NULL)
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path FROM CURRENT AS $$
 DECLARE
     v_norm    jsonb;
@@ -264,7 +275,8 @@ BEGIN
     INTO v_norm, v_n, v_sum
     FROM jsonb_array_elements(p_lines) WITH ORDINALITY AS t(l, ord);
     v_payload := sha256_hex(jsonb_build_object('kind', 'journal.post', 'client', p_client, 'date', p_date, 'memo', p_memo,
-                                               'source', p_source, 'lines', v_norm, 'reverses', p_reverses)::text);
+                                               'source', p_source, 'lines', v_norm, 'reverses', p_reverses,
+                                               'document', p_document_id)::text);
 
     -- One posting at a time per client: keeps the hash chain, the period check and command dedupe serial.
     SELECT functional_currency INTO v_ccy FROM clients WHERE id = p_client FOR UPDATE;
@@ -291,9 +303,10 @@ BEGIN
 
     SELECT hash INTO v_prev FROM entries WHERE client_id = p_client ORDER BY id DESC LIMIT 1;
     v_prev := coalesce(v_prev, 'genesis');
-    v_hash := sha256_hex(v_prev || entry_canonical(p_client, p_date, p_memo, p_source, p_actor, p_reverses, v_norm));
-    INSERT INTO entries (client_id, entry_date, memo, source, created_by, reverses, command_id, prev_hash, hash)
-    VALUES (p_client, p_date, p_memo, p_source, p_actor, p_reverses, p_command_id, v_prev, v_hash)
+    v_hash := sha256_hex(v_prev || entry_canonical(p_client, p_date, p_memo, p_source, p_actor, p_reverses, v_norm,
+                                                   p_document_id));
+    INSERT INTO entries (client_id, date, memo, source, created_by, reverses, command_id, document_id, prev_hash, hash)
+    VALUES (p_client, p_date, p_memo, p_source, p_actor, p_reverses, p_command_id, p_document_id, v_prev, v_hash)
     RETURNING id INTO v_id;
     INSERT INTO postings (entry_id, client_id, line, account_code, amount, currency, tax_treatment)
     SELECT v_id, p_client, (ord - 1)::int, l ->> 'account', (l ->> 'amount')::numeric(20, 2), v_ccy, l ->> 'tax_treatment'
@@ -302,7 +315,8 @@ BEGIN
     VALUES (p_client, 'journal.posted', 'entry', v_id::text,
             jsonb_build_object('entry_id', v_id, 'date', p_date, 'source', p_source, 'reverses', p_reverses));
     PERFORM write_audit(p_actor, p_role, p_client, 'ledger.posted',
-                        jsonb_build_object('entry_id', v_id, 'memo', p_memo, 'source', p_source, 'command_id', p_command_id));
+                        jsonb_build_object('entry_id', v_id, 'memo', p_memo, 'source', p_source, 'command_id', p_command_id,
+                                           'amount', (SELECT sum(amount) FROM postings WHERE entry_id = v_id AND amount > 0)::text));
     IF p_command_id IS NOT NULL THEN
         INSERT INTO commands (client_id, command_id, kind, payload_hash, result)
         VALUES (p_client, p_command_id, 'journal.post', v_payload, jsonb_build_object('entry_id', v_id));
@@ -398,14 +412,44 @@ DECLARE
 BEGIN
     PERFORM assert_scope(p_client);
     FOR r IN SELECT * FROM entries WHERE client_id = p_client ORDER BY id LOOP
-        IF r.prev_hash <> v_prev OR r.hash <> sha256_hex(v_prev || entry_canonical(r.client_id, r.entry_date, r.memo, r.source,
-                                                                                    r.created_by, r.reverses, entry_lines(r.id))) THEN
+        IF r.prev_hash <> v_prev OR r.hash <> sha256_hex(v_prev || entry_canonical(r.client_id, r.date, r.memo, r.source,
+                                                         r.created_by, r.reverses, entry_lines(r.id), r.document_id)) THEN
             ok := false; checked := v_n; broken_at := r.id; RETURN NEXT; RETURN;
         END IF;
         v_prev := r.hash;
         v_n := v_n + 1;
     END LOOP;
     ok := true; checked := v_n; broken_at := NULL; RETURN NEXT;
+END $$;
+
+CREATE FUNCTION record_audit(p_actor text, p_role text, p_client text, p_action text, p_payload jsonb) RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path FROM CURRENT AS $$
+BEGIN
+    IF p_client IS NOT NULL THEN
+        PERFORM assert_scope(p_client);
+    END IF;
+    RETURN write_audit(p_actor, p_role, p_client, p_action, p_payload);
+END $$;
+
+CREATE FUNCTION verify_audit() RETURNS TABLE (ok boolean, checked bigint, broken_at bigint, head text)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path FROM CURRENT AS $$
+DECLARE
+    v_prev text := 'genesis';
+    v_n    bigint := 0;
+    r      record;
+BEGIN
+    IF NOT ('*' = ANY (session_clients())) THEN
+        RAISE EXCEPTION 'verifying the whole audit chain is a firm-wide task' USING ERRCODE = 'AL004';
+    END IF;
+    FOR r IN SELECT * FROM audit ORDER BY seq LOOP
+        IF r.prev_hash <> v_prev
+           OR r.hash <> sha256_hex(v_prev || audit_body(r.at, r.actor, r.role, r.client_id, r.action, r.payload)) THEN
+            ok := false; checked := v_n; broken_at := r.seq; head := v_prev; RETURN NEXT; RETURN;
+        END IF;
+        v_prev := r.hash;
+        v_n := v_n + 1;
+    END LOOP;
+    ok := true; checked := v_n; broken_at := NULL; head := v_prev; RETURN NEXT;
 END $$;
 
 -- ------------------------------------------------------------------------------------------------- row-level security
@@ -432,4 +476,4 @@ BEGIN
 END $$;
 GRANT SELECT ON clients, accounts, entries, postings, commands, outbox, outbox_delivery, audit TO agentledger_app;
 GRANT EXECUTE ON FUNCTION post_journal, reverse_journal, close_period, reopen_period, add_client, add_account,
-    mark_delivered, verify_chain, session_clients, in_scope, sha256_hex TO agentledger_app;
+    mark_delivered, verify_chain, record_audit, verify_audit, session_clients, in_scope, sha256_hex TO agentledger_app;

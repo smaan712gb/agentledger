@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .. import audit
 from ..calc.engine import D
 from ..calc.federal import Asset
-from ..db import unit_of_work, GENESIS, chain_hash, one, rows
+from ..db import unit_of_work, GENESIS, chain_hash, is_pg, one, rows
 
 # Tax treatments a posting can carry. The M-1 engine maps each to KB rules.
 TREATMENTS = {
@@ -110,6 +110,13 @@ def post(conn: sqlite3.Connection, client_id: str, on: date, memo: str, lines: l
     # bridge never depends on someone remembering to tag a fine or a meal.
     lines = [l if l.tax_treatment else Line(l.account, l.amount, DEFAULT_TREATMENT.get(known[l.account]["name"].lower()))
              for l in lines]
+    if is_pg(conn):
+        # The database posts: balance at commit, open period, hash chain, outbox and audit in one transaction.
+        body = json.dumps([{"account": l.account, "amount": str(D(l.amount)), "tax_treatment": l.tax_treatment} for l in lines])
+        with unit_of_work(conn):
+            row = conn.execute("SELECT post_journal(?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?, ?) AS id",
+                               (client_id, on.isoformat(), memo, source, actor, role, body, reverses, document_id)).fetchone()
+        return int(row["id"])
     created_at = created_at or audit.now()
     with unit_of_work(conn):
         # Closed periods are enforced inside the posting transaction, not detected afterwards.
@@ -149,6 +156,9 @@ def close_period(conn: sqlite3.Connection, client_id: str, through: date, *, act
         prev = get_client(conn, client_id)["closed_through"]
         if prev and through < date.fromisoformat(prev):
             raise LedgerError("closing to an earlier date is a reopen; use reopen_period")
+        if is_pg(conn):  # the function checks the role again, updates, audits and emits the event
+            conn.execute("SELECT close_period(?, ?, ?, ?)", (client_id, through.isoformat(), actor, role))
+            return
         conn.execute("UPDATE clients SET closed_through = ? WHERE id = ?", (through.isoformat(), client_id))
         audit.record(conn, actor, role, "period.closed", {"through": through.isoformat(), "previous": prev}, client_id=client_id)
 
@@ -160,6 +170,10 @@ def reopen_period(conn: sqlite3.Connection, client_id: str, back_to: date | None
     if not reason.strip():
         raise LedgerError("a reopen needs a reason")
     with unit_of_work(conn):
+        if is_pg(conn):
+            conn.execute("SELECT reopen_period(?, ?, ?, ?, ?)",
+                         (client_id, back_to.isoformat() if back_to else None, actor, role, reason))
+            return
         prev = get_client(conn, client_id)["closed_through"]
         conn.execute("UPDATE clients SET closed_through = ? WHERE id = ?", (back_to.isoformat() if back_to else None, client_id))
         audit.record(conn, actor, role, "period.reopened", {"from": prev, "to": back_to.isoformat() if back_to else None,
@@ -236,6 +250,11 @@ def balances(conn: sqlite3.Connection, client_id: str, start: date, end: date) -
 
 
 def verify_chain(conn: sqlite3.Connection, client_id: str) -> dict[str, Any]:
+    if is_pg(conn):  # recomputed inside the database from the stored rows
+        r = conn.execute("SELECT ok, checked, broken_at FROM verify_chain(?)", (client_id,)).fetchone()
+        head = conn.execute("SELECT hash FROM entries WHERE client_id = ? ORDER BY id DESC LIMIT 1", (client_id,)).fetchone()
+        out = {"ok": r["ok"], "checked": r["checked"]}
+        return {**out, "broken_at": r["broken_at"]} if not r["ok"] else {**out, "head": head["hash"] if head else "genesis"}
     prev = GENESIS
     n = 0
     for e in rows(conn, "SELECT * FROM entries WHERE client_id = ? ORDER BY id", client_id):

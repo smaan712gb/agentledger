@@ -12,8 +12,9 @@ from agentledger.workflow.engine import TransitionError
 
 def add_doc(conn, doc_id, client_id, doc_type, fields, year=2026):
     conn.execute("INSERT INTO documents (id, client_id, sha256, original_name, media_type, channel, received_at, doc_type, tax_year, "
-                 "confidence, status, vault_path, fields) VALUES (?, ?, ?, ?, 'text/plain', 'upload', datetime('now'), ?, ?, 0.99, "
-                 "'filed', ?, ?)", (doc_id, client_id, doc_id, f"{doc_id}.pdf", doc_type, year, f"{doc_id}.pdf", json.dumps(fields)))
+                 "confidence, status, vault_path, fields) VALUES (?, ?, ?, ?, 'text/plain', 'upload', ?, ?, ?, 0.99, "
+                 "'filed', ?, ?)", (doc_id, client_id, doc_id, f"{doc_id}.pdf", "2026-02-01T00:00:00+00:00", doc_type, year,
+                                    f"{doc_id}.pdf", json.dumps(fields)))
 
 
 @pytest.fixture

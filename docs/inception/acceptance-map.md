@@ -5,7 +5,7 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 
 | Q | Scenario (short) | Wave | State | Where |
 |---|---|---|---|---|
-| Q01 | Unbalanced journal rejected on every route | F | pass (PostgreSQL core) | deferred balance trigger refuses even the table owner; the app role cannot write tables (`tests/test_pg_ledger.py`). The API still posts through the SQLite path until the module port |
+| Q01 | Unbalanced journal rejected on every route | F | pass (PostgreSQL core) | deferred balance trigger refuses even the table owner; the app role cannot write tables (`tests/test_pg_ledger.py`). With `AGENTLEDGER_DATABASE=postgres` the API and every module post through `post_journal`; the whole suite runs on PostgreSQL in CI |
 | Q02 | Same command retried 100× concurrently → one effect | F | partial | database receipts checked under the client lock; 4 concurrent connections post once (`tests/test_pg_ledger.py`); a 100× stress run todo |
 | Q03 | Worker crash after commit, before reply | F | pass (transmission) | two-phase activities: `test_crash_*` in `tests/test_audit_findings.py`; ledger outbox todo |
 | Q04 | Period closes while a draft awaits posting | F | pass | closed period enforced by a database trigger, CPA-only audited reopen (`tests/test_pg_ledger.py`); app-level check in `test_closed_period_*` |

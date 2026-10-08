@@ -66,10 +66,20 @@ def test_two_firms_are_isolated(api):
     assert c.post("/api/clients", json={"id": "ortiz-auto", "name": "Other Ortiz"}, headers=b).status_code == 200
     assert c.get("/api/clients/ortiz-auto", headers=a).json()["client"]["name"] == "Ortiz Auto"
 
-    # Each firm has its own database file.
+    # Each firm has its own store: a database file on SQLite, a schema (a database in production) on PostgreSQL.
     home = mod.ROOT
-    assert (home / "tenants" / "rivera-cpa" / "state" / "agentledger.db").exists()
-    assert (home / "tenants" / "lake-tax" / "state" / "agentledger.db").exists()
+    from agentledger import db
+
+    for firm in ("rivera-cpa", "lake-tax"):
+        path = home / "tenants" / firm / "state" / "agentledger.db"
+        if db.backend() == "postgres":
+            from agentledger import pg
+
+            owner = pg.connect(pg.dsn(direct=True))
+            assert owner.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (db.schema_for(path),)).fetchone()
+            owner.close()
+        else:
+            assert path.exists()
 
     # A firm admin invites a client user, who sees only their business.
     tok = c.post("/api/auth/invite", json={"email": "sam@ortiz.example", "role": "client", "client_id": "ortiz-auto"},

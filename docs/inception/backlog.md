@@ -18,7 +18,7 @@ Owner decisions recorded 2026-10-08:
 | F-01 ✅ | Inception package: ADRs, domain model, threat model, coverage registry, provider register, acceptance map, backlog | C03, C28 | — | — |
 | F-02 | **Cloudflare spike.** Container cold start and p95, Workflows limits against the return/close flows, Hyperdrive transaction semantics, R2 bucket locks per prefix. Written results go back into ADR-0001 and ADR-0003. | C34 | — | Cloudflare account |
 | F-03 | Repository restructure toward the spec layout (`apps/api`, `apps/web`, `workers/*`, `domains/*`, `packages/contracts`) without behavior change; CI runs lint, types and tests on PostgreSQL | C34 | all existing tests | — |
-| F-04 🟡 | **PostgreSQL financial core.** *Done:* `src/agentledger/pg` (checksummed SQL migrations, `post_journal`/`reverse_journal`, deferred balance trigger, immutability and closed-period triggers, command receipts, outbox, audit chain, app role without table writes, RLS by session scope), proven on Neon dev and in CI on postgres:17. *Remaining:* port the ledger, CRM, returns and workflow modules off SQLite; database-per-firm provisioning through the Neon API. Originally: Alembic migrations; `post_journal()` with a deferred balance trigger; command ids with receipts; outbox; immutability grants; database per firm with an RLS skeleton | C07, C34 | Q01–Q05 | F-03 |
+| F-04 🟡 | **PostgreSQL financial core.** *Done:* `src/agentledger/pg` (checksummed SQL migrations, `post_journal`/`reverse_journal`, deferred balance trigger, immutability and closed-period triggers, command receipts, outbox, audit chain, app role without table writes, RLS by session scope), proven on Neon dev and in CI on postgres:17. *Done 2026-10-08:* every firm module runs on PostgreSQL (`AGENTLEDGER_DATABASE=postgres`, migration 0002, `pg/compat.py`); ledger postings, close/reopen, audit records and chain checks go through the database functions; the whole suite passes on both backends and CI runs it on both. *Remaining:* database-per-firm provisioning through the Neon API (schemas per firm today), dropping a deleted firm's database, pooled connections through Hyperdrive, and making PostgreSQL the default outside the local demo. Originally: Alembic migrations; `post_journal()` with a deferred balance trigger; command ids with receipts; outbox; immutability grants; database per firm with an RLS skeleton | C07, C34 | Q01–Q05 | F-03 |
 | F-05 | **Identity through WorkOS AuthKit** (staging environment): login, MFA and passkeys at the IdP; memberships and engagement grants in the domain; step-up for consequential actions; current TOTP stack kept as the self-host profile | C01 | Q12, Q13 | F-04 |
 | F-06 | **Evidence vault on R2** (MinIO locally): client-side encryption, content addressing, document versions, retention classes, legal holds, deletion receipts | C04 | Q37 | F-04 |
 | F-07 | **Facts never overwrite.** FactAssertion with supersession; conflict exceptions on re-population; a missing value is never zero | C04, C16 | Q16 | F-06 |
@@ -84,6 +84,31 @@ Owner decisions recorded 2026-10-08:
 | R-10 | Penalty relief: first-time abatement eligibility, reasonable-cause drafts, Form 843 | — |
 | R-11 | Post-resolution compliance: payment and filing obligations tracked, reminders under the approved policy | — |
 | R-12 | *(after specialist validation)* CSED with suspension and extension events and incomplete-history warnings; bankruptcy dischargeability; appeals and CDP; innocent spouse | specialist-reviewed cases |
+
+## Capability review 2026-10-08: seven workflows, built on shared components
+
+An external review (of commit 7fcd4ea) assessed a proposed list of seven capabilities. They fit the product,
+but they are **not** seven new agent systems: each extends the shared intake, ledger, rules, evidence, workflow and
+review components, ships as a complete workflow with acceptance tests, and keeps the CPA as the decision-maker.
+The proposal document itself is not a specification; the corrections below are requirements.
+
+**Order** (the review's recommendation, adopted): (1) finish the financial foundation (wave F, in progress);
+(2) document quality, personal-expense clarification and processor reconciliation; (3) book-to-tax rollovers, asset
+treatment and shareholder basis with the matching tax packages; (4) selected-state nexus and compensation analysis.
+
+| Id | Workflow | Extends | Requirements and guardrails | Proves |
+|---|---|---|---|---|
+| CR-1 | **Document completeness and quality** | intake, A1-09 portal | Page-count, legibility and request-specific checks with feedback to the client. The uploaded original is always stored and marked incomplete; nothing is discarded before storage, and a missing page is never inferred. | new Q: incomplete upload kept, flagged, re-requested |
+| CR-2 | **Personal and business expense separation** | integrity checks, A1-01 matching | Today: keyword flags only. Build: contextual client questions → evidence → split allocations → entity-appropriate posting proposals (owner draw, shareholder distribution, reimbursable) → CPA review. | new Q: split with evidence, reviewed before posting |
+| CR-3 | **Processor settlements and 1099-K reconciliation** | **A1-04** (no competing module) | Gross-to-net settlements (fees, refunds, chargebacks, reserves, payout timing). The current Stripe importer loads one batch of balance transactions; it is not the settlement engine. The information-return check needs corrected-form handling, overlap detection (1099-K vs 1099-NEC) and reconciling items before any difference is presented as missing income; until then its finding is worded as an unreconciled difference. | Q10 |
+| CR-4 | **Book-to-tax reconciliation and annual rollover** | M-1 engine, T1-03, T1-04 | Reconcile, never erase: tax-only adjustments do not change the books. Book retained earnings, S-corporation AAA (M-2) and shareholder basis are separate records. Goal: zero *unexplained* difference, not identical balances. M-2, M-3 and entity-specific schedules with tested year-end rollovers. | new Q: rollover ties prior-year schedules |
+| CR-5 | **Invoice line splitting and capitalization** | intake extraction, depreciation, asset register | "Above $2,500 means capitalize" is wrong: the de minimis safe harbor needs an accounting policy, matching book treatment and an annual election; above the threshold the other rules (materials and supplies, routine maintenance, improvement standards) apply. Line-level eligibility checks → election records → asset lifecycle, reviewed rules only. | new Q: line items to assets with election evidence |
+| CR-6 | **S-corporation compensation and shareholder basis** | T1-04 (S-corp release) | Form 7203 stock and debt basis per shareholder. A basis shortfall is a warning with its tax consequence (gain on distributions above stock basis; debt basis does not make distributions tax-free; loan repayments can be taxable), never an automatic prohibition. An excess distribution is **never** relabeled as a shareholder loan automatically: the facts go to the CPA with supported alternatives. Compensation documentation now; the playbook stays `seed_unreviewed` until reviewed; wage benchmarking later. | Q20 |
+| CR-7 | **Multi-state nexus monitoring** | jurisdictions registry, client facts | Later, selected states first. Separate obligation types: sales/use tax, income/franchise tax, payroll withholding and registration. A threshold proximity alert (for example 80%) opens a review; it never files a registration. Specialist validation before expanding. | specialist-reviewed cases |
+
+**Claims policy:** no guarantees or unverified competitive claims ("audit-proof", "no existing platform does
+this", workload percentages, universal sub-second validation). Incumbents already split transactions across
+categories; our difference is the complete workflow with evidence, review and continuous rule updates.
 
 Waves V (vertical packs), S1 (fund accounting) and S2 (PE and advanced) follow the spec §20 table. Their
 tickets are written when their wave starts, after representative datasets and specialist reviewers are

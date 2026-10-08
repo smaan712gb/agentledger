@@ -324,10 +324,10 @@ def test_concurrent_retries_of_one_command_post_once(biz):
     from concurrent.futures import ThreadPoolExecutor
 
     from agentledger.crm import business
-    from agentledger.db import ThreadLocalConnection
+    from agentledger.db import open_store
 
     pid = business.add_party(biz.conn, "acme", "customer", "Bolt Co")
-    shared = ThreadLocalConnection(biz.paths.db)
+    shared = open_store(biz.paths.db)            # a second store on the same firm data, one connection per thread
 
     def attempt(_):
         return business.create_invoice(shared, "acme", pid, "INV-C", 300, "work", command_id="same-command")

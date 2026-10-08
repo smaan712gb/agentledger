@@ -128,8 +128,10 @@ def run(conn: sqlite3.Connection, path: Path, *, foundry: Any = None, deadlines_
         for a in autos:
             if a.trigger == "schedule.daily":
                 fired += _do(conn, a, {"action": "schedule.daily"}, None, f"{a.id}:{today}", foundry, deadlines_path)
-        conn.execute("INSERT OR REPLACE INTO kv (key, value) VALUES ('automation_daily', ?)", (today,))
-    conn.execute("INSERT OR REPLACE INTO kv (key, value) VALUES ('automation_cursor', ?)", (str(cursor),))
+        conn.execute("INSERT INTO kv (key, value) VALUES ('automation_daily', ?) "
+                     "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (today,))
+    conn.execute("INSERT INTO kv (key, value) VALUES ('automation_cursor', ?) "
+                 "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (str(cursor),))
     return {"events": len(events), "fired": fired, "cursor": cursor}
 
 

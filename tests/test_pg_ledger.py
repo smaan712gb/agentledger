@@ -42,7 +42,7 @@ def db():
     owner = pg.connect(URL)
     schema = "al_test_" + secrets.token_hex(4)
     try:
-        assert pg.migrate(owner, schema) == ["0001_ledger_core.sql"]
+        assert pg.migrate(owner, schema) == ["0001_ledger_core.sql", "0002_firm_store.sql"]
         assert pg.migrate(owner, schema) == []                     # idempotent
         yield owner, schema
     finally:
@@ -82,7 +82,7 @@ def test_q01_unbalanced_journal_rejected_on_every_route(db, books):
                                                               {"account": "4000", "amount": "-0.005"}])
     # The table owner bypasses the function; the deferred trigger still refuses at commit.
     with pytest.raises(psycopg.Error) as exc:
-        owner_tx(db, """WITH e AS (INSERT INTO entries (client_id, entry_date, memo, source, created_by, prev_hash, hash)
+        owner_tx(db, """WITH e AS (INSERT INTO entries (client_id, date, memo, source, created_by, prev_hash, hash)
                                    VALUES (%s, '2026-03-01', 'direct', 'sql', 'owner', 'x', 'x') RETURNING id)
                         INSERT INTO postings (entry_id, client_id, line, account_code, amount, currency)
                         SELECT id, %s, 0, '1100', 100, 'USD' FROM e""", (cid, cid))
@@ -150,7 +150,7 @@ def test_q04_closed_period_enforced_by_the_database(db, books):
     with pytest.raises(ClosedPeriod):
         led.post(cid, date(2026, 1, 20), "late January entry", SALE)
     with pytest.raises(psycopg.Error) as exc:                       # the owner cannot slip one in either
-        owner_tx(db, "INSERT INTO entries (client_id, entry_date, memo, source, created_by, prev_hash, hash) "
+        owner_tx(db, "INSERT INTO entries (client_id, date, memo, source, created_by, prev_hash, hash) "
                      "VALUES (%s, '2026-01-20', 'direct', 'sql', 'owner', 'x', 'x')", (cid,))
     assert exc.value.sqlstate == "AL002"
     led.post(cid, date(2026, 2, 1), "February is open", SALE)

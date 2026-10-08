@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from .db import GENESIS, chain_hash, rows, unit_of_work
+from .db import GENESIS, chain_hash, is_pg, rows, unit_of_work
 
 
 _CLOCK: datetime | None = None
@@ -36,8 +36,12 @@ def clock(at: datetime) -> Iterator[None]:
 
 def record(conn: sqlite3.Connection, actor: str, role: str, action: str, payload: dict[str, Any],
            client_id: str | None = None) -> int:
+    if is_pg(conn):  # the database stamps, chains and stores the record; the app role cannot write the table
+        r = conn.execute("SELECT record_audit(?, ?, ?, ?, ?::jsonb) AS seq",
+                         (actor, role, client_id, action, json.dumps(payload, default=str))).fetchone()
+        return int(r["seq"])
     with unit_of_work(conn):  # joins the caller's transaction, so the record commits with the change it describes
-        last = conn.execute("SELECT hash FROM audit ORDER BY seq DESC LIMIT 1").fetchone()
+        last =conn.execute("SELECT hash FROM audit ORDER BY seq DESC LIMIT 1").fetchone()
         prev = last["hash"] if last else GENESIS
         at = now()
         body = {"at": at, "actor": actor, "role": role, "client_id": client_id, "action": action, "payload": payload}
@@ -55,11 +59,16 @@ def events(conn: sqlite3.Connection, client_id: str | None = None, limit: int = 
     else:
         out = rows(conn, "SELECT * FROM audit ORDER BY seq DESC LIMIT ?", limit)
     for e in out:
-        e["payload"] = json.loads(e["payload"])
+        if isinstance(e["payload"], str):  # text on SQLite, already decoded JSON on PostgreSQL
+            e["payload"] = json.loads(e["payload"])
     return out
 
 
 def verify(conn: sqlite3.Connection) -> dict[str, Any]:
+    if is_pg(conn):
+        r = conn.execute("SELECT ok, checked, broken_at, head FROM verify_audit()").fetchone()
+        return {"ok": r["ok"], "checked": r["checked"], "head": r["head"]} if r["ok"] else \
+            {"ok": False, "broken_at": r["broken_at"], "checked": r["checked"]}
     prev = GENESIS
     n = 0
     for e in conn.execute("SELECT * FROM audit ORDER BY seq"):

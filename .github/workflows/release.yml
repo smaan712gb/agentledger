@@ -35,6 +35,8 @@ jobs:
         run: |
           python -m pytest -q
           AGENTLEDGER_HOME=$PWD agentledger golden
+      - name: The whole suite again with every firm store on PostgreSQL
+        run: AGENTLEDGER_DATABASE=postgres python -m pytest -q
       - name: Is there a Cloudflare project to deploy?
         id: deployable
         run: echo "deployable=$([ -f wrangler.jsonc ] && echo true || echo false)" >> "$GITHUB_OUTPUT"

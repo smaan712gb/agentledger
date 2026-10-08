@@ -83,7 +83,7 @@ def closed_period(conn, ctx, client_id, year):
     return out
 
 
-@check("income.info_return_mismatch", "Income reported to the IRS on 1099s exceeds income recorded on the books")
+@check("income.info_return_mismatch", "Income on information returns exceeds book revenue: an unreconciled difference to explain")
 def info_return_mismatch(conn, ctx, client_id, year):
     reported = rows(conn, "SELECT * FROM info_returns WHERE client_id = ? AND tax_year = ?", client_id, year)
     if not reported:
@@ -97,9 +97,12 @@ def info_return_mismatch(conn, ctx, client_id, year):
         return []
     return [Finding(
         "income.info_return_mismatch", "high",
-        f"${gap:,.2f} reported on information returns is not on the books",
+        f"${gap:,.2f} of information-return income is not yet reconciled to the books",
         f"Payers reported ${total_reported:,.2f} on {len(reported)} information return(s) for {year}; "
-        f"the ledger shows ${revenue:,.2f} of revenue. The IRS matches these automatically (AUR / CP2000).",
+        f"the ledger shows ${revenue:,.2f} of revenue. This is a difference to explain, not proof of missing income: "
+        f"corrected or duplicate forms, 1099-K amounts that include fees, refunds or amounts also on a 1099-NEC, and "
+        f"timing can all account for it. Corrected-form and overlap handling is not automated yet. "
+        f"The IRS matches these returns automatically (AUR / CP2000).",
         "both", [{"document_id": r["document_id"], "form": r["form"], "payer": r["payer"], "amount": r["amount"]} for r in reported],
         citation="IRC §6041; IRC §6050W", key=str(year))]
 
@@ -233,8 +236,10 @@ def resolve(conn: sqlite3.Connection, finding_id: str, actor: str, role: str, ac
     conn.execute("INSERT INTO finding_resolutions (finding_id, actor, role, action, note, at) VALUES (?,?,?,?,?,?)",
                  (finding_id, actor, role, action, note.strip(), audit.now()))
     # Requests and tasks spawned by this finding are no longer needed once it is resolved.
-    conn.execute("UPDATE tasks SET status = 'done', done_at = ?, done_note = ? WHERE client_id = ? AND status = 'open' "
-                 "AND instr(title, ?) > 0", (audit.now(), f"finding resolved ({action}) by {actor}", f["client_id"], f["title"]))
+    for t in rows(conn, "SELECT id, title FROM tasks WHERE client_id = ? AND status = 'open'", f["client_id"]):
+        if f["title"] in t["title"]:
+            conn.execute("UPDATE tasks SET status = 'done', done_at = ?, done_note = ? WHERE id = ?",
+                         (audit.now(), f"finding resolved ({action}) by {actor}", t["id"]))
     audit.record(conn, actor, role, f"finding.{action}", {"finding_id": finding_id, "title": f["title"], "note": note.strip()},
                  client_id=f["client_id"])
 

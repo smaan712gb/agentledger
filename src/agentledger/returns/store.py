@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import audit
+from ..db import is_pg
 from ..calc.engine import Ctx
 from ..kb.store import KnowledgeBase
 from ..workflow.engine import Definition, Engine, State, Transition, TransitionError
@@ -172,8 +173,8 @@ class Returns:
         self.sealer = sealer or Sealer()
         self.segregation = segregation
         conn.executescript(SCHEMA)
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(tax_returns)")}
-        if "amends" not in cols:  # databases created before amendments existed
+        cols = set() if is_pg(conn) else {r[1] for r in conn.execute("PRAGMA table_info(tax_returns)")}
+        if not is_pg(conn) and "amends" not in cols:  # databases created before amendments existed
             conn.execute("ALTER TABLE tax_returns ADD COLUMN amends TEXT REFERENCES tax_returns(id)")
         self.wf = Engine(conn, {"return_1040": RETURN_1040})
 

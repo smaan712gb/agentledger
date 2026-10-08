@@ -6,7 +6,9 @@ from decimal import Decimal
 
 import pytest
 
+from agentledger import pg
 from agentledger.calc.engine import Ctx
+from agentledger.db import is_pg
 from agentledger.calc.federal import Asset, bonus_rate, run_calc, section_179_allowed, tax_depreciation
 from agentledger.expr import ExprError, evaluate
 from agentledger.foundry.verify import load_golden, run_golden
@@ -55,14 +57,19 @@ def test_tax_depreciation_first_year(home):
     assert tax_depreciation(ctx, a, 2024) == Decimal("6800.00")
 
 
+# SQLite refuses through append-only triggers; on PostgreSQL the app role has no UPDATE/DELETE on ledger tables at
+# all, and the owner is stopped by the same triggers (tests/test_pg_ledger.py).
+REFUSED = "append-only|permission denied"
+
+
 def test_ledger_rejects_unbalanced_and_is_append_only(biz):
     conn = biz.conn
     with pytest.raises(LedgerError, match="balance"):
         store.post(conn, "acme", date(2026, 1, 5), "bad", [Line("1000", Decimal(10)), Line("4000", Decimal(-9))], source="t", actor="t")
     eid = store.post(conn, "acme", date(2026, 1, 5), "sale", [Line("1000", Decimal(10)), Line("4000", Decimal(-10))], source="t", actor="t")
-    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+    with pytest.raises(sqlite3.DatabaseError, match=REFUSED):
         conn.execute("UPDATE postings SET amount = '99' WHERE entry_id = ?", (eid,))
-    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+    with pytest.raises(sqlite3.DatabaseError, match=REFUSED):
         conn.execute("DELETE FROM entries WHERE id = ?", (eid,))
     rid = store.reverse(conn, "acme", eid, date(2026, 1, 6), "duplicate", "t")
     assert store.entry(conn, "acme", eid)["reversed_by"] == rid
@@ -72,8 +79,16 @@ def test_ledger_rejects_unbalanced_and_is_append_only(biz):
 def test_tampering_below_the_app_is_detected(biz):
     conn = biz.conn
     store.post(conn, "acme", date(2026, 1, 5), "sale", [Line("1000", Decimal(10)), Line("4000", Decimal(-10))], source="t", actor="t")
-    conn.execute("DROP TRIGGER entries_no_update")
-    conn.execute("UPDATE entries SET memo = 'edited' WHERE client_id = 'acme'")
+    if is_pg(conn):  # the app role cannot touch triggers or rows; this is someone with owner rights
+        owner = pg.connect(pg.dsn(direct=True))
+        owner.execute(f'SET search_path TO "{conn.schema}", public')
+        owner.execute("ALTER TABLE entries DISABLE TRIGGER entries_immutable")
+        owner.execute("UPDATE entries SET memo = 'edited' WHERE client_id = 'acme'")
+        owner.execute("ALTER TABLE entries ENABLE TRIGGER entries_immutable")
+        owner.close()
+    else:
+        conn.execute("DROP TRIGGER entries_no_update")
+        conn.execute("UPDATE entries SET memo = 'edited' WHERE client_id = 'acme'")
     assert store.verify_chain(conn, "acme")["ok"] is False
 
 

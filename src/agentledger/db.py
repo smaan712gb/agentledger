@@ -1,13 +1,18 @@
-"""Operational store (SQLite). Ledger, audit and findings tables are append-only:
+"""Operational store. Ledger, audit and findings tables are append-only:
 triggers reject UPDATE/DELETE so history cannot be rewritten through the app or
 casually through the database. Each ledger entry and audit event is also hash
 chained, so tampering below the app is detectable (see verify_chain).
+
+Two backends share this interface (`open_store`): SQLite for the local demo profile and PostgreSQL
+(`AGENTLEDGER_DATABASE=postgres`, see agentledger.pg), where the database itself enforces the posting rules.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import sqlite3
 import secrets
 import threading
@@ -337,6 +342,41 @@ class ThreadLocalConnection:
         return self._get().__exit__(*exc)
 
 
+class DatabaseError(sqlite3.DatabaseError):
+    """A database error from either backend (sqlite3.DatabaseError handlers keep working)."""
+
+
+class IntegrityError(DatabaseError, sqlite3.IntegrityError):
+    """A constraint or append-only violation from either backend."""
+
+
+def backend() -> str:
+    return os.environ.get("AGENTLEDGER_DATABASE", "sqlite").strip().lower() or "sqlite"
+
+
+def is_pg(conn: Any) -> bool:
+    return getattr(conn, "dialect", "sqlite") == "postgres"
+
+
+def schema_for(path: Path | str) -> str:
+    """The PostgreSQL schema for a firm store path: tenants/<firm>/state/agentledger.db -> firm_<firm>.
+    AGENTLEDGER_PG_SCHEMA_PREFIX keeps test runs apart."""
+    path = Path(path)
+    parts = path.parts
+    name = f"firm_{parts[parts.index('tenants') + 1]}" if "tenants" in parts[:-1] else "agentledger"
+    name = os.environ.get("AGENTLEDGER_PG_SCHEMA_PREFIX", "") + name
+    return re.sub(r"[^a-z0-9_]", "_", name.lower())[:63]
+
+
+def open_store(path: Path | str) -> Any:
+    """A firm's operational store on the configured backend."""
+    if backend() == "postgres":
+        from .pg.compat import PgStore
+
+        return PgStore(schema_for(path))
+    return ThreadLocalConnection(path)
+
+
 GENESIS = "0" * 64
 
 
@@ -361,7 +401,7 @@ class CommandConflict(Exception):
 
 
 def _raw(conn: Any) -> sqlite3.Connection:
-    return conn._get() if isinstance(conn, ThreadLocalConnection) else conn
+    return conn._get() if isinstance(conn, ThreadLocalConnection) or is_pg(conn) and hasattr(conn, "_get") else conn
 
 
 @contextmanager
@@ -402,13 +442,16 @@ def run_command(conn: Any, scope: str, command_id: str | None, kind: str, payloa
         with unit_of_work(conn):
             return fn()
     h = payload_hash({"kind": kind, "payload": payload})
+    table = "app_commands" if is_pg(conn) else "commands"  # on PostgreSQL `commands` holds the ledger's own receipts
     with unit_of_work(conn) as c:
-        row = c.execute("SELECT kind, payload_hash, result FROM commands WHERE scope = ? AND command_id = ?", (scope, command_id)).fetchone()
+        if is_pg(conn):  # serialize concurrent retries of one command, as BEGIN IMMEDIATE does on SQLite
+            c.execute("SELECT pg_advisory_xact_lock(hashtext(?))", (f"{scope}:{command_id}",))
+        row = c.execute(f"SELECT kind, payload_hash, result FROM {table} WHERE scope = ? AND command_id = ?", (scope, command_id)).fetchone()
         if row:
             if row["payload_hash"] != h:
                 raise CommandConflict(f"command {command_id} was already used for a different {row['kind']}")
             return json.loads(row["result"])
         result = fn()
-        c.execute("INSERT INTO commands (scope, command_id, kind, payload_hash, result) VALUES (?, ?, ?, ?, ?)",
+        c.execute(f"INSERT INTO {table} (scope, command_id, kind, payload_hash, result) VALUES (?, ?, ?, ?, ?)",
                   (scope, command_id, kind, h, json.dumps(result, default=str)))
         return result

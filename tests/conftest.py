@@ -52,12 +52,40 @@ def home(tmp_path):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _firm_store_backend(monkeypatch):
+    """With AGENTLEDGER_DATABASE=postgres the whole suite runs on PostgreSQL: each test's firm stores live in
+    schemas under a unique prefix, dropped afterwards. Otherwise each test uses SQLite files in its tmp dir."""
+    from agentledger import db
+
+    if db.backend() != "postgres":
+        yield
+        return
+    import secrets
+
+    from agentledger import envfile, pg
+
+    envfile.load(REPO)
+    prefix = "t" + secrets.token_hex(4) + "_"
+    monkeypatch.setenv("AGENTLEDGER_PG_SCHEMA_PREFIX", prefix)
+    yield
+    from agentledger.pg import compat
+
+    compat.close_all(prefix)
+    owner = pg.connect(pg.dsn(direct=True))
+    try:
+        for (name,) in owner.execute("SELECT nspname FROM pg_namespace WHERE nspname LIKE %s", (prefix + "%",)).fetchall():
+            owner.execute(f'DROP SCHEMA "{name}" CASCADE')
+    finally:
+        owner.close()
+
+
 @pytest.fixture
 def foundry(home):
-    from agentledger.db import connect
+    from agentledger.db import open_store
     from agentledger.foundry.core import Foundry
 
-    return Foundry(home, connect(home / "state" / "agentledger.db"), router=FakeRouter())
+    return Foundry(home, open_store(home / "state" / "agentledger.db"), router=FakeRouter())
 
 
 @pytest.fixture
