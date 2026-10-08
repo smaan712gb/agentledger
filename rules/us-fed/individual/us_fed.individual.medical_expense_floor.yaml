@@ -1,0 +1,16 @@
+id: us_fed.individual.medical_expense_floor
+title: Medical expense deduction floor (share of AGI)
+jurisdiction: US-FED
+category: individual
+value_type: rate
+unit: fraction
+citation: IRC §213(a)
+tags:
+- medical
+- Schedule A
+- '213'
+values:
+- effective_from: '2017-01-01'
+  value: 0.075
+  provenance:
+    source: P.L. 116-260 Div. EE §101

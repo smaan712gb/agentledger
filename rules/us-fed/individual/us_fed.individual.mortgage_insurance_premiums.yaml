@@ -1,0 +1,30 @@
+id: us_fed.individual.mortgage_insurance_premiums
+title: 'Mortgage insurance premiums treated as qualified residence interest: phase-out'
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: "IRC \xA7163(h)(3)(E), (F)(i)(III)"
+keys:
+- threshold
+- step
+- threshold_mfs
+- step_mfs
+- reduction_pct
+tags:
+- mortgage insurance
+- PMI
+- Schedule A
+- 163(h)(3)(E)
+notes: Reduced by reduction_pct for each step (or fraction) of AGI over the threshold.
+  Contracts issued before 2007 excluded.
+values:
+- effective_from: '2026-01-01'
+  value:
+    threshold: 100000
+    step: 1000
+    threshold_mfs: 50000
+    step_mfs: 500
+    reduction_pct: 0.1
+  provenance:
+    source: "P.L. 119-21 (One Big Beautiful Bill Act) \xA770108"

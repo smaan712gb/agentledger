@@ -1,0 +1,24 @@
+id: us_fed.business.home_office_simplified
+title: Simplified method for the home office deduction
+jurisdiction: US-FED
+category: business
+value_type: table
+unit: USD
+citation: "IRC \xA7280A(c); Rev. Proc. 2013-13"
+keys:
+- rate_per_sqft
+- max_sqft
+tags:
+- home office
+- '8829'
+- simplified method
+notes: Limited to the gross income from the business use of the home less other business
+  expenses.
+values:
+- effective_from: '2013-01-01'
+  value:
+    rate_per_sqft: 5
+    max_sqft: 300
+  provenance:
+    source: "Rev. Proc. 2013-13 \xA74.03"
+    url: https://www.irs.gov/pub/irs-drop/rp-13-13.pdf

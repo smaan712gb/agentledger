@@ -1,0 +1,27 @@
+id: us_fed.individual.dependent_standard_deduction
+title: Standard deduction limit for someone claimable as a dependent
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §63(c)(5)
+keys:
+- minimum
+- earned_income_addon
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+tags:
+- standard deduction
+- dependent
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    minimum: 1350
+    earned_income_addon: 450
+  provenance:
+    source: Rev. Proc. 2025-32 §4.14(2)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

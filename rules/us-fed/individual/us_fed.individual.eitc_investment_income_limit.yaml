@@ -1,0 +1,26 @@
+id: us_fed.individual.eitc_investment_income_limit
+title: Disqualified investment income limit for the EITC
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: IRC §32(i)
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+bounds:
+  min: 1000
+  max: 50000
+  max_change_pct: 0.08
+tags:
+- EITC
+- investment income
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 12200
+  provenance:
+    source: Rev. Proc. 2025-32 §4.06(2)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

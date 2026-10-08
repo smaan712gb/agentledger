@@ -1,0 +1,31 @@
+id: us_fed.individual.car_loan_interest_deduction
+title: Deduction for qualified passenger vehicle loan interest, 2025-2028
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §163(h)(4)
+keys:
+- max_deduction
+- threshold
+- threshold_mfj
+- reduction_per_step
+- step
+tags:
+- car loan interest
+- vehicle
+- Schedule 1-A
+- 163(h)(4)
+notes: Reduced for each step OR PORTION THEREOF of MAGI over the threshold. VIN required
+  on the return.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2028-12-31'
+  value:
+    max_deduction: 10000
+    threshold: 100000
+    threshold_mfj: 200000
+    reduction_per_step: 200
+    step: 1000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70203

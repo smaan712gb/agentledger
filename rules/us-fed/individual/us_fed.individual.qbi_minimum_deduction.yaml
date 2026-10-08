@@ -1,0 +1,23 @@
+id: us_fed.individual.qbi_minimum_deduction
+title: Minimum QBI deduction for active qualified business income
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §199A(i)
+keys:
+- minimum_deduction
+- active_qbi_floor
+tags:
+- QBI
+- 199A
+- minimum
+notes: Indexed after 2026 (§199A(i)(3)).
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    minimum_deduction: 400
+    active_qbi_floor: 1000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70105(b)

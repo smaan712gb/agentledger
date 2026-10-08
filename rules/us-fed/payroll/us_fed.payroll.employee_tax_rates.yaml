@@ -1,0 +1,22 @@
+id: us_fed.payroll.employee_tax_rates
+title: Employee social security and Medicare tax rates
+jurisdiction: US-FED
+category: payroll
+value_type: table
+unit: fraction
+citation: "IRC \xA73101(a)-(b)(1)"
+keys:
+- oasdi
+- hi
+tags:
+- FICA
+- social security
+- medicare
+- excess social security
+values:
+- effective_from: '1990-01-01'
+  value:
+    oasdi: 0.062
+    hi: 0.0145
+  provenance:
+    source: "IRC \xA73101(a); \xA73101(b)(1)"

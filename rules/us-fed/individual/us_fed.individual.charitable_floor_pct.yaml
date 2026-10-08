@@ -1,0 +1,16 @@
+id: us_fed.individual.charitable_floor_pct
+title: Floor on itemized charitable contributions (share of contribution base)
+jurisdiction: US-FED
+category: individual
+value_type: rate
+unit: fraction
+citation: IRC §170(b)(1)(I)
+tags:
+- charitable
+- floor
+- 170(b)(1)(I)
+values:
+- effective_from: '2026-01-01'
+  value: 0.005
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70425

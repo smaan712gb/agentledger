@@ -1,0 +1,29 @@
+id: us_fed.individual.senior_deduction
+title: Deduction for seniors (age 65+), 2025-2028
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §151(d)(5)(C)
+keys:
+- amount
+- threshold
+- threshold_mfj
+- phaseout_rate
+tags:
+- senior deduction
+- '65'
+- Schedule 1-A
+- 151(d)(5)
+notes: Per qualified individual. Requires a valid SSN for that individual and a joint
+  return if married.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2028-12-31'
+  value:
+    amount: 6000
+    threshold: 75000
+    threshold_mfj: 150000
+    phaseout_rate: 0.06
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70103

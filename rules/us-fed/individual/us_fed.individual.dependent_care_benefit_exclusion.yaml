@@ -1,0 +1,22 @@
+id: us_fed.individual.dependent_care_benefit_exclusion
+title: Exclusion for employer dependent care assistance
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: "IRC \xA7129(a)(2)(A)"
+keys:
+- other
+- mfs
+tags:
+- dependent care
+- '2441'
+- '129'
+- W-2 box 10
+values:
+- effective_from: '2026-01-01'
+  value:
+    other: 7500
+    mfs: 3750
+  provenance:
+    source: "P.L. 119-21 (One Big Beautiful Bill Act) \xA770404"

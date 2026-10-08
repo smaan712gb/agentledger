@@ -1,0 +1,34 @@
+id: us_fed.individual.salt_phasedown
+title: SALT cap phase-down above a MAGI threshold
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §164(b)(7)(B)
+keys:
+- threshold
+- rate
+- floor
+tags:
+- SALT
+- phase-down
+- 164(b)(7)
+notes: Threshold and floor are halved for married filing separately. No phase-down
+  after 2029.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    threshold: 500000
+    rate: 0.3
+    floor: 10000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70120
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    threshold: 505000
+    rate: 0.3
+    floor: 10000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70120

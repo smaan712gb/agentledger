@@ -1,0 +1,49 @@
+id: us_fed.individual.amt
+title: Alternative minimum tax exemption, phase-out and rate breakpoint
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §55(b)(1), §55(d)
+keys:
+- exemption_single
+- exemption_mfj
+- exemption_mfs
+- phaseout_single
+- phaseout_mfj
+- phaseout_mfs
+- rate_breakpoint
+- rate_breakpoint_mfs
+- low_rate
+- high_rate
+- phaseout_rate
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+tags:
+- AMT
+- alternative minimum tax
+- '6251'
+notes: Single and head of household use the unmarried amounts. Phase-out rate is 50%
+  from 2026 (§55(d)(4)(A)(ii)(IV)).
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    exemption_single: 90100
+    exemption_mfj: 140200
+    exemption_mfs: 70100
+    phaseout_single: 500000
+    phaseout_mfj: 1000000
+    phaseout_mfs: 500000
+    rate_breakpoint: 244500
+    rate_breakpoint_mfs: 122250
+    low_rate: 0.26
+    high_rate: 0.28
+    phaseout_rate: 0.5
+  provenance:
+    source: Rev. Proc. 2025-32 §4.10; IRC §55(d)(4) as amended by P.L. 119-21 (One
+      Big Beautiful Bill Act) §70107
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

@@ -1,0 +1,26 @@
+id: us_fed.individual.self_employment_tax
+title: Self-employment tax rates and net earnings factor
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §1401, §1402(a)(12), §1402(b)
+keys:
+- oasdi_rate
+- hi_rate
+- net_earnings_factor
+- minimum_net_earnings
+tags:
+- self-employment tax
+- Schedule SE
+notes: Net earnings factor = 1 - 7.65% (§1402(a)(12)). The OASDI portion is capped
+  at the Social Security wage base.
+values:
+- effective_from: '1990-01-01'
+  value:
+    oasdi_rate: 0.124
+    hi_rate: 0.029
+    net_earnings_factor: 0.9235
+    minimum_net_earnings: 400
+  provenance:
+    source: IRC §1401(a)-(b); §1402(a)(12); §1402(b)(2)

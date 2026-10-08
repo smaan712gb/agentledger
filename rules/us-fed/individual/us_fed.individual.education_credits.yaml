@@ -1,0 +1,39 @@
+id: us_fed.individual.education_credits
+title: American opportunity and lifetime learning credits
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §25A
+keys:
+- aotc_first_tier
+- aotc_second_tier
+- aotc_second_rate
+- aotc_refundable_pct
+- llc_expense_limit
+- llc_rate
+- phaseout_start
+- phaseout_range
+- phaseout_start_mfj
+- phaseout_range_mfj
+tags:
+- education credits
+- AOTC
+- LLC
+- '8863'
+notes: Not allowed for married filing separately (§25A(g)(6)).
+values:
+- effective_from: '2021-01-01'
+  value:
+    aotc_first_tier: 2000
+    aotc_second_tier: 2000
+    aotc_second_rate: 0.25
+    aotc_refundable_pct: 0.4
+    llc_expense_limit: 10000
+    llc_rate: 0.2
+    phaseout_start: 80000
+    phaseout_range: 10000
+    phaseout_start_mfj: 160000
+    phaseout_range_mfj: 20000
+  provenance:
+    source: IRC §25A(b), (c), (d), (i); P.L. 116-260 Div. EE §104

@@ -1,0 +1,33 @@
+id: us_fed.individual.qualified_overtime_deduction
+title: Deduction for qualified overtime compensation, 2025-2028
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §225
+keys:
+- max_deduction
+- max_deduction_mfj
+- threshold
+- threshold_mfj
+- reduction_per_step
+- step
+tags:
+- overtime
+- no tax on overtime
+- Schedule 1-A
+- '225'
+notes: Reduced by reduction_per_step for each full step of MAGI over the threshold.
+  Joint return required if married.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2028-12-31'
+  value:
+    max_deduction: 12500
+    max_deduction_mfj: 25000
+    threshold: 150000
+    threshold_mfj: 300000
+    reduction_per_step: 100
+    step: 1000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70202

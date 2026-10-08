@@ -1,0 +1,46 @@
+id: us_fed.individual.capital_gains_breakpoints
+title: Maximum zero-rate and 15%-rate amounts for net capital gain
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §1(h), §1(j)(5)(B)
+keys:
+- single
+- mfj
+- mfs
+- hoh
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+bounds:
+  min: 0
+  max: 2000000
+  max_change_pct: 0.08
+tags:
+- capital gains
+- qualified dividends
+- 1(h)
+notes: '[maximum zero rate amount, maximum 15% rate amount]. Qualifying surviving
+  spouse uses mfj.'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    single:
+    - 49450
+    - 545500
+    mfj:
+    - 98900
+    - 613700
+    mfs:
+    - 49450
+    - 306850
+    hoh:
+    - 66200
+    - 579600
+  provenance:
+    source: Rev. Proc. 2025-32 §4.03
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

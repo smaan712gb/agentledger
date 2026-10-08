@@ -1,0 +1,27 @@
+id: us_fed.individual.qualifying_relative_income_limit
+title: Gross income limit for a qualifying relative
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: IRC §152(d)(1)(B)
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year} qualifying relative
+bounds:
+  min: 1000
+  max: 20000
+  max_change_pct: 0.08
+tags:
+- dependent
+- qualifying relative
+- '152'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 5300
+  provenance:
+    source: Rev. Proc. 2025-32 §4.23
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

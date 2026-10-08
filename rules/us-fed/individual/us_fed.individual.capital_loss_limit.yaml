@@ -1,0 +1,20 @@
+id: us_fed.individual.capital_loss_limit
+title: Net capital loss deductible against ordinary income
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §1211(b)
+keys:
+- other
+- mfs
+tags:
+- capital loss
+- '1211'
+values:
+- effective_from: '1978-01-01'
+  value:
+    other: 3000
+    mfs: 1500
+  provenance:
+    source: IRC §1211(b)(1)

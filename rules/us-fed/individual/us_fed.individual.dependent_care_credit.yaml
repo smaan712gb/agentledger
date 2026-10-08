@@ -1,0 +1,40 @@
+id: us_fed.individual.dependent_care_credit
+title: Child and dependent care credit
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §21
+keys:
+- expense_limit_one
+- expense_limit_two
+- max_pct
+- first_floor_pct
+- second_floor_pct
+- first_threshold
+- first_step
+- second_threshold
+- second_threshold_mfj
+- second_step
+- second_step_mfj
+tags:
+- dependent care
+- '2441'
+- '21'
+notes: Rate reduced 1 point per step or fraction above each threshold (§21(a)(2)).
+values:
+- effective_from: '2026-01-01'
+  value:
+    expense_limit_one: 3000
+    expense_limit_two: 6000
+    max_pct: 0.5
+    first_floor_pct: 0.35
+    second_floor_pct: 0.2
+    first_threshold: 15000
+    first_step: 2000
+    second_threshold: 75000
+    second_threshold_mfj: 150000
+    second_step: 2000
+    second_step_mfj: 4000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70405

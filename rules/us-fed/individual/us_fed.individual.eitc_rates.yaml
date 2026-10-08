@@ -1,0 +1,28 @@
+id: us_fed.individual.eitc_rates
+title: Earned income credit and phase-out percentages (0, 1, 2, 3+ children)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: fraction
+citation: IRC §32(b)(1)
+keys:
+- credit_pct
+- phaseout_pct
+tags:
+- EITC
+- earned income credit
+values:
+- effective_from: '2009-01-01'
+  value:
+    credit_pct:
+    - 0.0765
+    - 0.34
+    - 0.4
+    - 0.45
+    phaseout_pct:
+    - 0.0765
+    - 0.1598
+    - 0.2106
+    - 0.2106
+  provenance:
+    source: IRC §32(b)(1)(A)-(B), §32(b)(3)

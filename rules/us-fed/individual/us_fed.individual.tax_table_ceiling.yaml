@@ -1,0 +1,16 @@
+id: us_fed.individual.tax_table_ceiling
+title: Taxable income below which the IRS Tax Table must be used
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: IRC §3; Form 1040 instructions (Tax Table)
+tags:
+- tax table
+notes: Tax Table rows are $25 wide below $3,000 and $50 wide from $3,000; tax is computed
+  at the row midpoint.
+values:
+- effective_from: '2018-01-01'
+  value: 100000
+  provenance:
+    source: Form 1040 Instructions, Tax Table

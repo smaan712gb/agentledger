@@ -1,0 +1,24 @@
+id: us_fed.individual.additional_medicare_tax
+title: Additional Medicare tax rate and thresholds
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §3101(b)(2), §1401(b)(2)
+keys:
+- rate
+- threshold_mfj
+- threshold_mfs
+- threshold_other
+tags:
+- additional medicare
+- '8959'
+values:
+- effective_from: '2013-01-01'
+  value:
+    rate: 0.009
+    threshold_mfj: 250000
+    threshold_mfs: 125000
+    threshold_other: 200000
+  provenance:
+    source: IRC §3101(b)(2); §1401(b)(2)

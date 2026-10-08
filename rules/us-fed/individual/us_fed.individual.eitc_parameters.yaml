@@ -1,0 +1,63 @@
+id: us_fed.individual.eitc_parameters
+title: Earned income credit amounts by number of qualifying children (0, 1, 2, 3+)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §32(b)
+keys:
+- earned_income_amount
+- max_credit
+- phaseout_start_mfj
+- phaseout_end_mfj
+- phaseout_start
+- phaseout_end
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+tags:
+- earned income credit
+- EITC
+- EIC
+- '32'
+notes: 'Each list is indexed by number of qualifying children: [none, one, two, three
+  or more].'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    earned_income_amount:
+    - 8680
+    - 13020
+    - 18290
+    - 18290
+    max_credit:
+    - 664
+    - 4427
+    - 7316
+    - 8231
+    phaseout_start_mfj:
+    - 18140
+    - 31160
+    - 31160
+    - 31160
+    phaseout_end_mfj:
+    - 26820
+    - 58863
+    - 65899
+    - 70244
+    phaseout_start:
+    - 10860
+    - 23890
+    - 23890
+    - 23890
+    phaseout_end:
+    - 19540
+    - 51593
+    - 58629
+    - 62974
+  provenance:
+    source: Rev. Proc. 2025-32 §4.06(1)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

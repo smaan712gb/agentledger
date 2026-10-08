@@ -1,0 +1,25 @@
+id: us_fed.individual.educator_expense_limit
+title: Educator expense deduction limit (per eligible educator)
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: IRC §62(a)(2)(D)
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+bounds:
+  min: 0
+  max: 2000
+  max_change_pct: 0.2
+tags:
+- educator expenses
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 350
+  provenance:
+    source: Rev. Proc. 2025-32 §4.12
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

@@ -1,0 +1,25 @@
+id: us_fed.individual.net_investment_income_tax
+title: Net investment income tax rate and thresholds
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §1411
+keys:
+- rate
+- threshold_mfj
+- threshold_mfs
+- threshold_other
+tags:
+- NIIT
+- '1411'
+- '8960'
+values:
+- effective_from: '2013-01-01'
+  value:
+    rate: 0.038
+    threshold_mfj: 250000
+    threshold_mfs: 125000
+    threshold_other: 200000
+  provenance:
+    source: IRC §1411(a)(1), (b)

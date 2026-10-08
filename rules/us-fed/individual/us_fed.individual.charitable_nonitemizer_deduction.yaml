@@ -1,0 +1,23 @@
+id: us_fed.individual.charitable_nonitemizer_deduction
+title: Charitable deduction for taxpayers who do not itemize
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §170(p)
+keys:
+- other
+- mfj
+tags:
+- charitable
+- non-itemizer
+- 170(p)
+notes: Cash gifts to §170(b)(1)(A) organizations only; not supporting organizations
+  or donor advised funds.
+values:
+- effective_from: '2026-01-01'
+  value:
+    other: 1000
+    mfj: 2000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70424

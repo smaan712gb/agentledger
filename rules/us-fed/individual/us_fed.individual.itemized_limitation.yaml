@@ -1,0 +1,21 @@
+id: us_fed.individual.itemized_limitation
+title: Overall limitation on itemized deductions (2/37 rule)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: fraction
+citation: IRC §68
+keys:
+- numerator
+- denominator
+tags:
+- itemized deductions
+- '68'
+- limitation
+values:
+- effective_from: '2026-01-01'
+  value:
+    numerator: 2
+    denominator: 37
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70111

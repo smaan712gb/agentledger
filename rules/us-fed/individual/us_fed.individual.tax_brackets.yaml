@@ -1,0 +1,66 @@
+id: us_fed.individual.tax_brackets
+title: Taxable-income floor of each rate bracket, by filing status
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §1(j)(2)(A)-(D), §1(f)
+keys:
+- single
+- mfj
+- mfs
+- hoh
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+bounds:
+  min: 0
+  max: 2000000
+  max_change_pct: 0.08
+tags:
+- tax brackets
+- rate tables
+- inflation
+notes: Each list holds the lower bound of the 10/12/22/24/32/35/37% brackets. Qualifying
+  surviving spouse uses mfj.
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    single:
+    - 0
+    - 12400
+    - 50400
+    - 105700
+    - 201775
+    - 256225
+    - 640600
+    mfj:
+    - 0
+    - 24800
+    - 100800
+    - 211400
+    - 403550
+    - 512450
+    - 768700
+    mfs:
+    - 0
+    - 12400
+    - 50400
+    - 105700
+    - 201775
+    - 256225
+    - 384350
+    hoh:
+    - 0
+    - 17700
+    - 67450
+    - 105700
+    - 201750
+    - 256200
+    - 640600
+  provenance:
+    source: Rev. Proc. 2025-32 §4.01
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

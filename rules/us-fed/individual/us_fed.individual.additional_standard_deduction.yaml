@@ -1,0 +1,34 @@
+id: us_fed.individual.additional_standard_deduction
+title: Additional standard deduction for the aged or blind
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §63(f)
+keys:
+- married
+- unmarried
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+bounds:
+  min: 0
+  max: 10000
+  max_change_pct: 0.08
+tags:
+- standard deduction
+- aged
+- blind
+- 63(f)
+notes: '''unmarried'' = not married and not a surviving spouse.'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    married: 1650
+    unmarried: 2050
+  provenance:
+    source: Rev. Proc. 2025-32 §4.14(3)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

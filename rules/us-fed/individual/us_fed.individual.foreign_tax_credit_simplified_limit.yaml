@@ -1,0 +1,22 @@
+id: us_fed.individual.foreign_tax_credit_simplified_limit
+title: Foreign tax credit without Form 1116 (de minimis)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: "IRC \xA7904(j)"
+keys:
+- other
+- mfj
+tags:
+- foreign tax credit
+- '1116'
+- 904(j)
+notes: Only passive income reported on payee statements qualifies.
+values:
+- effective_from: '1998-01-01'
+  value:
+    other: 300
+    mfj: 600
+  provenance:
+    source: "IRC \xA7904(j)(2)(B)"

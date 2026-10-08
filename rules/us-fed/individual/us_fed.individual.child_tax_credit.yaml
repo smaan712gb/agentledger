@@ -1,0 +1,47 @@
+id: us_fed.individual.child_tax_credit
+title: Child tax credit, credit for other dependents and additional child tax credit
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §24(a), (b), (d), (h)
+keys:
+- per_child
+- refundable_per_child
+- other_dependent
+- threshold_mfj
+- threshold_other
+- reduction_per_step
+- step
+- earned_income_floor
+- earned_income_rate
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+tags:
+- child tax credit
+- CTC
+- ACTC
+- ODC
+- '8812'
+notes: 'Phase-out: reduction_per_step for each step (or fraction) of MAGI over the
+  threshold (§24(b)(1)).'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    per_child: 2200
+    refundable_per_child: 1700
+    other_dependent: 500
+    threshold_mfj: 400000
+    threshold_other: 200000
+    reduction_per_step: 50
+    step: 1000
+    earned_income_floor: 2500
+    earned_income_rate: 0.15
+  provenance:
+    source: Rev. Proc. 2025-32 §4.05; IRC §24(h) as amended by P.L. 119-21 (One Big
+      Beautiful Bill Act) §70104
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

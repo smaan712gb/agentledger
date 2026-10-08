@@ -1,0 +1,33 @@
+id: us_fed.individual.student_loan_interest
+title: Student loan interest deduction cap and MAGI phase-out
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §221(b)
+keys:
+- max_deduction
+- phaseout_start
+- phaseout_end
+- phaseout_start_mfj
+- phaseout_end_mfj
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+tags:
+- student loan interest
+- '221'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    max_deduction: 2500
+    phaseout_start: 85000
+    phaseout_end: 100000
+    phaseout_start_mfj: 175000
+    phaseout_end_mfj: 205000
+  provenance:
+    source: Rev. Proc. 2025-32 §4.29
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

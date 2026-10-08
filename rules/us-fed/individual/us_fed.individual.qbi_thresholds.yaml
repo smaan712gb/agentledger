@@ -1,0 +1,41 @@
+id: us_fed.individual.qbi_thresholds
+title: QBI deduction threshold and end of phase-in range, by filing status
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §199A(e)(2), §199A(b)(3)(B), §199A(d)(3)(A)
+keys:
+- single
+- mfj
+- mfs
+- hoh
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year}
+tags:
+- QBI
+- 199A
+- '8995'
+notes: '[threshold amount, threshold + phase-in range].'
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    single:
+    - 201750
+    - 276750
+    mfj:
+    - 403500
+    - 553500
+    mfs:
+    - 201775
+    - 276775
+    hoh:
+    - 201750
+    - 276750
+  provenance:
+    source: Rev. Proc. 2025-32 §4.26
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

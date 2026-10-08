@@ -1,0 +1,26 @@
+id: us_fed.individual.tax_rates
+title: Individual income tax rates (ordered brackets)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: fraction
+citation: IRC §1(j)(2), made permanent by P.L. 119-21 §70101
+keys:
+- rates
+tags:
+- tax rates
+- brackets
+- 1(j)
+values:
+- effective_from: '2018-01-01'
+  value:
+    rates:
+    - 0.1
+    - 0.12
+    - 0.22
+    - 0.24
+    - 0.32
+    - 0.35
+    - 0.37
+  provenance:
+    source: P.L. 115-97 §11001; P.L. 119-21 (One Big Beautiful Bill Act) §70101

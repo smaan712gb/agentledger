@@ -1,0 +1,27 @@
+id: us_fed.individual.social_security_taxability
+title: Base and adjusted base amounts for taxing Social Security benefits
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §86(c)
+keys:
+- base_other
+- base_mfj
+- adjusted_other
+- adjusted_mfj
+tags:
+- social security
+- benefits
+- '86'
+notes: 'Married filing separately and living with the spouse at any time in the year:
+  both amounts are zero.'
+values:
+- effective_from: '1994-01-01'
+  value:
+    base_other: 25000
+    base_mfj: 32000
+    adjusted_other: 34000
+    adjusted_mfj: 44000
+  provenance:
+    source: IRC §86(c)(1)-(2)
