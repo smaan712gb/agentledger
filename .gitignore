@@ -13,3 +13,9 @@ state/agent_runs.jsonl
 state/model_scout_report.json
 state/regwatch_seen.json
 state/proposals/
+
+# all runtime state, tenant data and keys
+state/
+tenants/
+*.key
+*.key.dev
