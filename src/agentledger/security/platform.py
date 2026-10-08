@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+import shutil
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ from typing import Any
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
+from .. import db
 from . import totp
 from .crypto import Keyring, load_master_key
 
@@ -149,6 +151,10 @@ class Platform:
         with self.lock:
             if self.conn.execute("SELECT 1 FROM firms WHERE id = ?", (firm_id,)).fetchone():
                 raise AuthError("that firm id is taken")
+            if db.backend() == "postgres":  # the firm's own database first: a failure leaves no half-created firm
+                from ..pg import provision
+
+                self.event("firm_store_provisioned", firm_id=firm_id, user_id=by, detail=provision.provision(firm_id))
             self.conn.execute("INSERT INTO firms (id, name) VALUES (?, ?)", (firm_id, name))
             self.keys.create(firm_id)
             self.tenant_dir(firm_id).mkdir(parents=True, exist_ok=True)
@@ -165,7 +171,11 @@ class Platform:
         return [dict(r) for r in self.conn.execute("SELECT * FROM firms WHERE deleted_at IS NULL ORDER BY name")]
 
     def delete_firm(self, firm_id: str, *, by: str) -> None:
-        """Offboarding: revoke access and crypto-shred the firm's data key. Irreversible."""
+        """Offboarding: revoke access, crypto-shred the firm's data key, then remove its store and files.
+        Irreversible: the firm's export bundle (backlog A1-10) must be delivered before this is called.
+
+        The key is destroyed first, so documents and sealed returns are unreadable even if removing the store
+        fails; a failed removal is recorded and can be retried with destroy_firm_data."""
         with self.lock:
             self.conn.execute("UPDATE firms SET status = 'deleted', deleted_at = datetime('now') WHERE id = ?", (firm_id,))
             self.conn.execute("UPDATE users SET disabled = 1 WHERE firm_id = ?", (firm_id,))
@@ -173,6 +183,24 @@ class Platform:
                               "(SELECT id FROM users WHERE firm_id = ?)", (firm_id,))
             self.keys.destroy(firm_id)
             self.event("firm_deleted", firm_id=firm_id, user_id=by)
+        self.destroy_firm_data(firm_id, by=by)
+
+    def destroy_firm_data(self, firm_id: str, *, by: str) -> str:
+        """Remove a deleted firm's operational store (ledger, CRM, returns, workflow history, audit trail) and its
+        tenant directory (vault ciphertext, agent state). Safe to retry."""
+        if self.firm(firm_id)["status"] != "deleted":
+            raise AuthError("only a deleted firm's data can be destroyed")
+        tenant = self.tenant_dir(firm_id)
+        try:
+            detail = db.destroy_store(tenant / "state" / "agentledger.db")
+            if tenant.exists():
+                shutil.rmtree(tenant)
+                detail += "; tenant directory removed"
+        except Exception as exc:
+            self.event("firm_data_destroy_failed", firm_id=firm_id, user_id=by, detail=f"{type(exc).__name__}: {exc}"[:300])
+            raise
+        self.event("firm_data_destroyed", firm_id=firm_id, user_id=by, detail=detail)
+        return detail
 
     # ------------------------------------------------------------------ users and invitations
     def bootstrap_admin(self, email: str, name: str, password: str) -> str:

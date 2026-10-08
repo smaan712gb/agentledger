@@ -7,6 +7,7 @@ wins on the evaluation suite. Callers only ever name a role.
 
 from __future__ import annotations
 
+import os
 import re
 
 import sqlite3
@@ -120,7 +121,8 @@ class Router:
                  local: OllamaClient | None = None, frontier: ClaudeClient | None = None):
         self.registry = registry
         self.conn = conn
-        self.local = local or OllamaClient(registry.data["ollama_url"])
+        # AGENTLEDGER_OLLAMA_URL overrides config/models.yaml (tests point it at a closed port)
+        self.local = local or OllamaClient(os.environ.get("AGENTLEDGER_OLLAMA_URL") or registry.data["ollama_url"])
         self.frontier = frontier or ClaudeClient()
 
     # -- budget & accounting ---------------------------------------------------------

@@ -113,9 +113,23 @@ def test_firm_deletion_locks_everyone_out(api):
     ops = enrol(c, step["challenge"], step["secret"])
     r = c.post("/api/platform/firms", json={"id": "gone-cpa", "name": "Gone", "admin_email": "a@gone.example"}, headers=ops)
     admin = accept(c, r.json()["admin_invite_token"], "A")
-    assert c.get("/api/clients", headers=admin).status_code == 200
-    mod.PLATFORM.delete_firm("gone-cpa", by="test")
+    assert c.post("/api/clients", json={"id": "kept-client", "name": "Kept Client"}, headers=admin).status_code == 200
+    tenant = mod.PLATFORM.tenant_dir("gone-cpa")
+    store_path = tenant / "state" / "agentledger.db"
+    mod.PLATFORM.delete_firm("gone-cpa", by="test")       # its store is open in the API's tenant cache
     assert c.get("/api/clients", headers=admin).status_code == 401
+    # Not just the key: the books, client records and files are gone too.
+    assert not tenant.exists()
+    from agentledger import db
+
+    if db.backend() == "postgres":
+        from agentledger import pg
+
+        owner = pg.connect(pg.dsn(direct=True))
+        assert not owner.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (db.schema_for(store_path),)).fetchone()
+        owner.close()
+    events = [e["event"] for e in mod.PLATFORM.events("gone-cpa")]
+    assert "firm_data_destroyed" in events and "firm_deleted" in events
 
 
 def test_documents_are_encrypted_at_rest(api):

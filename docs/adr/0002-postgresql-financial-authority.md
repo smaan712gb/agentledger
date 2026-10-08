@@ -56,3 +56,8 @@ SECURITY DEFINER functions; `agentledger_app` holds SELECT and EXECUTE, never IN
 AL001–AL007 map to the application's exceptions in `agentledger.pg`. Migrations are plain SQL with recorded
 checksums (an edited, already-applied migration is refused) rather than Alembic: the invariants live in SQL, so
 the migration tool adds nothing but a dependency.
+
+Tenancy (2026-10-08): `AGENTLEDGER_PG_TENANCY=database` gives each firm its own Neon database (`al_<firm>`) on the
+configured branch through the Neon API, sharing the endpoint and roles, so no per-firm credential is stored.
+`schema` tenancy (a schema per firm in one database) serves development, tests and self-hosting. Deleting a firm
+destroys its data key first, then its store and tenant directory, and records both steps in the platform log.

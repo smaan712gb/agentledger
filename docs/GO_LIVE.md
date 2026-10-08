@@ -70,7 +70,9 @@ Progress log:
   found two gaps that are now fixed: the Treasury tipped-occupation requirement and the SSTB tips
   exclusion.
 - 2026-10-08: M2 core done. Each firm gets its own database, vault and AES-256-GCM data key wrapped by a master
-  key. Offboarding a firm crypto-shreds its data. Sign-in is Argon2id plus TOTP, with enrolment at invitation,
+  key. Offboarding a firm destroys its data key (documents and sealed returns become unreadable) and, since
+  2026-10-08, also removes its operational store and files; until then the books stayed readable after
+  offboarding. Sign-in is Argon2id plus TOTP, with enrolment at invitation,
   lockout, idle and absolute session expiry and an append-only sign-in log. Downloads use signed links.
   Regulation decisions belong to platform reviewers. Demo identities exist only with `--dev`.
   Remaining for M2: WebAuthn passkeys, SQLCipher or an encrypted volume for the databases, billing.

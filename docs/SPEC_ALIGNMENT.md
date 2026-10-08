@@ -28,9 +28,10 @@ already meets the requirement or does better), or **defer** (adopt at a named mi
 ## Keep (our design meets or exceeds the requirement)
 
 - **Isolation model.** The spec asks for PostgreSQL row-level security as defense in depth. We use a separate
-  database, vault and data key per firm, and offboarding crypto-shreds the firm's data. This is a stronger
-  boundary than shared tables with RLS. When we move to PostgreSQL, each firm gets its own database (or
-  schema), and RLS is added inside it for engagement-level grants.
+  database, vault and data key per firm. Offboarding destroys the data key and removes the firm's store and
+  files. This is a stronger boundary than shared tables with RLS. On PostgreSQL each firm gets its own Neon
+  database (`AGENTLEDGER_PG_TENANCY=database`) or, in development, its own schema, and RLS inside it scopes
+  reads and writes to the session's clients (engagement grants arrive with F-05).
 - **Regulation as code with RegWatch, the Staleness Hunter and the Sentinel.** The spec describes a manual
   annual content release. We keep the automated monitoring and verification, and adopt the spec's human
   sign-off rule below.

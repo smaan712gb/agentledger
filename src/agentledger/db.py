@@ -16,6 +16,7 @@ import re
 import sqlite3
 import secrets
 import threading
+import weakref
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -322,15 +323,29 @@ class ThreadLocalConnection:
 
     def __init__(self, path: Path | str):
         self._path = Path(path)
+        self.location = str(self._path.resolve())
         self._local = threading.local()
+        self._all: list[sqlite3.Connection] = []
+        self._closed = False
         connect(self._path).close()  # create schema once up front
+        _OPEN.add(self)
 
     def _get(self) -> sqlite3.Connection:
+        if self._closed:
+            raise DatabaseError("this firm store has been closed")
         c = getattr(self._local, "conn", None)
         if c is None:
             c = connect(self._path)
             self._local.conn = c
+            self._all.append(c)
         return c
+
+    def close(self) -> None:
+        """Close every thread's connection; the store cannot be used afterwards."""
+        self._closed = True
+        for c in self._all:
+            c.close()
+        self._all.clear()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._get(), name)
@@ -358,23 +373,60 @@ def is_pg(conn: Any) -> bool:
     return getattr(conn, "dialect", "sqlite") == "postgres"
 
 
-def schema_for(path: Path | str) -> str:
-    """The PostgreSQL schema for a firm store path: tenants/<firm>/state/agentledger.db -> firm_<firm>.
-    AGENTLEDGER_PG_SCHEMA_PREFIX keeps test runs apart."""
-    path = Path(path)
-    parts = path.parts
-    name = f"firm_{parts[parts.index('tenants') + 1]}" if "tenants" in parts[:-1] else "agentledger"
+def firm_of(path: Path | str) -> str | None:
+    """tenants/<firm>/state/agentledger.db -> <firm>; the single-firm (development) store has none."""
+    parts = Path(path).parts
+    return parts[parts.index("tenants") + 1] if "tenants" in parts[:-1] else None
+
+
+def pg_name(name: str) -> str:
+    """A PostgreSQL identifier for a store. AGENTLEDGER_PG_SCHEMA_PREFIX keeps test runs apart."""
     name = os.environ.get("AGENTLEDGER_PG_SCHEMA_PREFIX", "") + name
     return re.sub(r"[^a-z0-9_]", "_", name.lower())[:63]
+
+
+def schema_for(path: Path | str) -> str:
+    """The PostgreSQL schema for a firm store path in schema tenancy: tenants/<firm>/... -> firm_<firm>."""
+    firm = firm_of(path)
+    return pg_name(f"firm_{firm}" if firm else "agentledger")
+
+
+# Every store opened in this process, so a firm's deletion can close its connections before removing the data.
+_OPEN: "weakref.WeakSet[Any]" = weakref.WeakSet()
 
 
 def open_store(path: Path | str) -> Any:
     """A firm's operational store on the configured backend."""
     if backend() == "postgres":
+        from .pg import provision
         from .pg.compat import PgStore
 
-        return PgStore(schema_for(path))
+        url, schema = provision.store_location(path)
+        return PgStore(schema, url=url)
     return ThreadLocalConnection(path)
+
+
+def close_stores(location: str) -> None:
+    for store in list(_OPEN):
+        if getattr(store, "location", None) == location:
+            store.close()
+
+
+def destroy_store(path: Path | str) -> str:
+    """Permanently remove a firm's operational store (ledger, CRM, returns, workflow history, audit trail).
+    Open connections in this process are closed first. Returns a description of what was removed."""
+    if backend() == "postgres":
+        from .pg import provision
+
+        return provision.destroy(path)
+    path = Path(path)
+    close_stores(str(path.resolve()))
+    removed = []
+    for f in (path, path.with_name(path.name + "-wal"), path.with_name(path.name + "-shm")):
+        if f.exists():
+            f.unlink()
+            removed.append(f.name)
+    return f"sqlite file {path.name} removed" if removed else f"no sqlite file at {path.name}"
 
 
 GENESIS = "0" * 64

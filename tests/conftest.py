@@ -5,6 +5,10 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("AGENTLEDGER_AGENTS", "0")
+# The API refuses SQLite outside dev mode; the suite exercises production mode on both backends.
+os.environ.setdefault("AGENTLEDGER_ALLOW_SQLITE", "1")
+# Tests never reach a real local model, even when Ollama is running on the machine.
+os.environ["AGENTLEDGER_OLLAMA_URL"] = "http://127.0.0.1:9"
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -68,11 +72,12 @@ def _firm_store_backend(monkeypatch):
     envfile.load(REPO)
     prefix = "t" + secrets.token_hex(4) + "_"
     monkeypatch.setenv("AGENTLEDGER_PG_SCHEMA_PREFIX", prefix)
+    url = pg.dsn(direct=True)        # captured now: a test may point DATABASE_URL elsewhere while it runs
     yield
     from agentledger.pg import compat
 
     compat.close_all(prefix)
-    owner = pg.connect(pg.dsn(direct=True))
+    owner = pg.connect(url)
     try:
         for (name,) in owner.execute("SELECT nspname FROM pg_namespace WHERE nspname LIKE %s", (prefix + "%",)).fetchall():
             owner.execute(f'DROP SCHEMA "{name}" CASCADE')

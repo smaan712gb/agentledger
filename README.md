@@ -39,8 +39,12 @@ for advanced reasoning, under a daily call budget, and never with raw taxpayer i
 uv venv && uv pip install -e ".[dev]"      # or: pip install -e ".[dev]"
 ollama pull qwen2.5:7b && ollama pull qwen3.5:4b   # local open-source models (optional but recommended)
 agentledger demo                               # seed a 4-client, multi-industry demo firm
-agentledger serve                              # http://127.0.0.1:8740  (agents run in the background)
+agentledger serve --dev                        # http://127.0.0.1:8740  (agents run in the background)
 ```
+
+Without `--dev` the server is in production mode and refuses to start unless firm data is on PostgreSQL
+(`AGENTLEDGER_DATABASE=postgres` with `DATABASE_URL_UNPOOLED`), where the database itself enforces balanced
+entries, closed periods, append-only history and one effect per command. See `.env.example`.
 
 Optional settings:
 

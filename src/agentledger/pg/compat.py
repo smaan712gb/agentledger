@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import re
 import threading
-import weakref
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Iterator, Sequence
@@ -196,13 +195,17 @@ def _error(exc: Exception) -> Exception:
     return db.DatabaseError(message)
 
 
-_OPEN: "weakref.WeakSet[PgStore]" = weakref.WeakSet()
+def location(url: str, schema: str) -> str:
+    """Identifies a store across processes: database name and schema (never the credentials)."""
+    from urllib.parse import urlparse
+
+    return f"{urlparse(url).path.lstrip('/')}/{schema}"
 
 
 def close_all(prefix: str = "") -> None:
     """Close every open store whose schema starts with `prefix` (test teardown, process shutdown)."""
-    for store in list(_OPEN):
-        if store.schema.startswith(prefix):
+    for store in list(db._OPEN):
+        if isinstance(store, PgStore) and store.schema.startswith(prefix):
             store.close()
 
 
@@ -216,17 +219,21 @@ class PgStore:
         self.url = url or dsn(direct=True)
         if not self.url:
             raise RuntimeError("AGENTLEDGER_DATABASE=postgres needs DATABASE_URL_UNPOOLED (or DATABASE_URL)")
+        self.location = location(self.url, schema)
         self._local = threading.local()
         self._all: list[PgConnection] = []
-        _OPEN.add(self)
+        self._closed = False
         if migrate_on_open:
             owner = connect(self.url)
             try:
                 migrate(owner, schema)
             finally:
                 owner.close()
+        db._OPEN.add(self)
 
     def _get(self) -> PgConnection:
+        if self._closed:
+            raise db.DatabaseError("this firm store has been closed")
         c = getattr(self._local, "conn", None)
         if c is None or c.raw.closed:
             c = PgConnection(connect(self.url), self.schema, self.scope)
@@ -238,16 +245,9 @@ class PgStore:
         return getattr(self._get(), name)
 
     def close(self) -> None:
+        """Close every thread's connection; the store cannot be used afterwards."""
+        self._closed = True
         for c in self._all:
             if not c.raw.closed:
                 c.raw.close()
         self._all.clear()
-
-    def drop(self) -> None:
-        """Remove the whole firm schema (tests, and crypto-shredding of a deleted firm in development)."""
-        self.close()
-        owner = connect(self.url)
-        try:
-            owner.execute(f'DROP SCHEMA IF EXISTS "{self.schema}" CASCADE')
-        finally:
-            owner.close()

@@ -21,7 +21,7 @@ from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, R
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .. import audit
+from .. import audit, db
 from ..app_context import AppContext
 from ..ask.engine import ask_stream
 from ..brain.playbooks import add_precedent
@@ -53,6 +53,10 @@ app = FastAPI(title="AgentLedger", version="0.1.0")
 DEV = os.environ.get("AGENTLEDGER_DEV_AUTH") == "1"
 DEV_FIRM = "dev"
 APP: AppContext = AppContext.open(ROOT, scope="all" if DEV else "platform")
+# A real deployment keeps firm data on PostgreSQL, where the database enforces the posting rules. SQLite is the
+# local demo profile; a self-hosted trial can opt in explicitly.
+if not DEV and db.backend() != "postgres" and os.environ.get("AGENTLEDGER_ALLOW_SQLITE") != "1":
+    raise RuntimeError("production needs AGENTLEDGER_DATABASE=postgres (or AGENTLEDGER_ALLOW_SQLITE=1 for a trial)")
 PLATFORM = Platform(ROOT, dev=DEV)
 _TENANTS: dict[str, AppContext] = {}
 _TENANT_LOCK = threading.Lock()
