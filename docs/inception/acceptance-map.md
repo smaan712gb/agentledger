@@ -16,7 +16,7 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 | Q09 | Missing bank-feed date range | A1 | todo | |
 | Q10 | Processor deposit with fees, refunds and reserves | A1 | todo | |
 | Q11 | Malicious document tries to exfiltrate | F | partial | grounding and no-write models; adversarial suite todo |
-| Q12 | Cross-client and cross-investor access | F | partial | firms (`tests/test_tenancy.py`), related-record ownership and reviewer authority (`tests/test_audit_findings.py`); search, background jobs, investors todo |
+| Q12 | Cross-client and cross-investor access | F | partial | firms (`tests/test_tenancy.py`), related-record ownership and reviewer authority (`tests/test_audit_findings.py`), engagement grants in the API and the database session (`tests/test_engagements.py`), runtime roles and child-record RLS (`tests/test_reaudit_9333fde.py`); search, background jobs, investors todo |
 | Q13 | Access revoked mid-workflow | F | partial | disable revokes sessions; queued-task re-check todo |
 | Q14 | Vendor bank change embedded in invoice | A1 | todo | |
 | Q15 | Approved action modified before execution | F | pass (returns) | approval and signature bound to the full package hash; recompute and edits reopen (`test_rule_change_after_signature_voids_it`) |

@@ -128,6 +128,8 @@ def firm_context(firm_id: str) -> AppContext:
 def scope(user: dict[str, Any], client_id: str) -> str:
     if user["role"] == "client" and user.get("client_id") != client_id:
         raise HTTPException(403, "you can only access your own business")
+    if user.get("base_role") == "staff" and client_id not in (user.get("engaged") or []):
+        raise HTTPException(403, "you are not engaged on this client; ask a CPA or your firm administrator")
     try:
         store.get_client(A(user).conn, client_id)
     except HTTPException:
@@ -144,8 +146,10 @@ REVIEWER_ROLES = ("cpa",)
 
 
 def authority(user: dict[str, Any]) -> str:
+    """The role domain actions see: "cpa" for credentialed reviewers (CPAs, and firm administrators recorded as
+    reviewers by someone else), otherwise the person's real role."""
     base = user.get("base_role", user["role"])
-    return "cpa" if base in REVIEWER_ROLES else base
+    return "cpa" if base in REVIEWER_ROLES or (base == "firm_admin" and user.get("reviewer")) else base
 
 
 def reviewer_only(user: dict[str, Any]) -> None:
@@ -359,6 +363,53 @@ def auth_disable(user_id: str, body: dict[str, Any] = Body(default={}), user=Dep
     return {"ok": True}
 
 
+@app.get("/api/auth/users/{user_id}/grants")
+def auth_grants(user_id: str, user=Depends(me)) -> list[str]:
+    _firm_manager(user, user_id)
+    return PLATFORM.grants(user_id)
+
+
+@app.post("/api/auth/users/{user_id}/grants")
+def auth_grant(user_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    _firm_manager(user, user_id)
+    scope(user, str(body.get("client_id", "")))
+    try:
+        PLATFORM.grant(user_id, str(body["client_id"]), by=_as_actor(user))
+    except AuthError as e:
+        raise HTTPException(403, str(e))
+    return {"engaged": PLATFORM.grants(user_id)}
+
+
+@app.delete("/api/auth/users/{user_id}/grants/{client_id}")
+def auth_revoke(user_id: str, client_id: str, user=Depends(me)) -> dict[str, Any]:
+    _firm_manager(user, user_id)
+    try:
+        PLATFORM.revoke(user_id, client_id, by=_as_actor(user))
+    except AuthError as e:
+        raise HTTPException(403, str(e))
+    return {"engaged": PLATFORM.grants(user_id)}
+
+
+@app.post("/api/auth/users/{user_id}/reviewer")
+def auth_reviewer(user_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    fresh(user)
+    try:
+        PLATFORM.set_reviewer(user_id, bool(body.get("on")), by=_as_actor(user), credential=str(body.get("credential", "")))
+    except AuthError as e:
+        raise HTTPException(403, str(e))
+    return {"ok": True}
+
+
+def _firm_manager(user: dict[str, Any], user_id: str) -> None:
+    if user.get("base_role") not in ("firm_admin", "cpa"):
+        raise HTTPException(403, "firm administrators and CPAs manage engagements")
+    try:
+        if PLATFORM.user(user_id)["firm_id"] != user.get("firm_id"):
+            raise HTTPException(404, "user not found")
+    except AuthError:
+        raise HTTPException(404, "user not found")
+
+
 @app.get("/api/auth/events")
 def auth_events(user=Depends(me)) -> list[dict[str, Any]]:
     if user.get("base_role") == "platform_admin":
@@ -422,9 +473,8 @@ def list_users() -> list[dict[str, Any]]:
 
 @app.get("/api/dashboard")
 def dashboard(user=Depends(me)) -> dict[str, Any]:
-    clients = store.list_clients(A(user).conn)
-    if user["role"] == "client":
-        clients = [c for c in clients if c["id"] == user["client_id"]]
+    allowed = client_scope(user)
+    clients = [c for c in store.list_clients(A(user).conn) if "*" in allowed or c["id"] in allowed]
     cards = []
     for c in clients:
         f = list_findings(A(user).conn, c["id"])
@@ -457,7 +507,8 @@ def dashboard(user=Depends(me)) -> dict[str, Any]:
 @app.get("/api/clients")
 def clients(user=Depends(me)) -> list[dict[str, Any]]:
     cs = store.list_clients(A(user).conn)
-    return [c for c in cs if user["role"] == "cpa" or c["id"] == user["client_id"]]
+    allowed = client_scope(user)
+    return [c for c in cs if "*" in allowed or c["id"] in allowed]
 
 
 @app.post("/api/clients")

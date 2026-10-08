@@ -311,6 +311,10 @@ def test_staff_cannot_approve_and_api_checks_related_ownership(home, monkeypatch
     b_party = c.post("/api/clients/b/parties", json={"kind": "customer", "name": "B's secret customer"}, headers=admin).json()["id"]
     r = c.post("/api/clients/a/deals", json={"title": "x", "value": 10, "party_id": b_party}, headers=admin)
     assert r.status_code == 404
+    # Staff work only on clients they are engaged on.
+    staff_id = next(u["id"] for u in c.get("/api/auth/users", headers=admin).json() if u["email"] == "staff@f1.example")
+    assert c.get("/api/clients/a", headers=staff).status_code == 403
+    assert c.post(f"/api/auth/users/{staff_id}/grants", json={"client_id": "a"}, headers=admin).json()["engaged"] == ["a"]
     rid = c.post("/api/clients/a/returns", json={"tax_year": 2026, "inputs": {"filing_status": "single",
                                                                                "taxpayer": {"ssn": "400-00-0001", "dob": "1990-01-01"}}},
                  headers=staff).json()["id"]

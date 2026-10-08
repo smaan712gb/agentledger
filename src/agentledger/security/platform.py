@@ -78,6 +78,11 @@ CREATE TABLE IF NOT EXISTS auth_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL DEFAULT (datetime('now')), firm_id TEXT, user_id TEXT,
     email TEXT, event TEXT NOT NULL, ip TEXT, detail TEXT
 );
+CREATE TABLE IF NOT EXISTS engagement_grants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, firm_id TEXT NOT NULL, user_id TEXT NOT NULL, client_id TEXT NOT NULL,
+    granted_by TEXT NOT NULL, granted_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_by TEXT, revoked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS engagement_grants_user ON engagement_grants (user_id, client_id);
 CREATE TABLE IF NOT EXISTS idp_states (
     state_hash TEXT PRIMARY KEY, purpose TEXT NOT NULL CHECK (purpose IN ('login','invite','link','step_up')),
     invite_hash TEXT, session_hash TEXT, verifier TEXT NOT NULL, redirect_uri TEXT NOT NULL,
@@ -95,9 +100,12 @@ CREATE TRIGGER IF NOT EXISTS auth_events_no_delete BEFORE DELETE ON auth_events 
 
 def client_scope(user: dict[str, Any]) -> list[str]:
     """The clients a signed-in user's database session may see (row-level security on PostgreSQL). A client user
-    sees one business; firm staff are firm-wide until engagement grants arrive (backlog F-05)."""
-    if user["role"] == "client":
+    sees one business; staff see the clients they are engaged on; CPAs and firm administrators see the firm."""
+    role = user.get("base_role", user["role"])
+    if role == "client":
         return [user["client_id"]] if user.get("client_id") else []
+    if role == "staff":
+        return list(user.get("engaged") or [])
     return ["*"]
 
 
@@ -155,7 +163,8 @@ class Platform:
 
     def _upgrade(self) -> None:
         """Columns added after the first release, for platform stores created before them."""
-        for table, col, ddl in (("users", "idp_subject", "TEXT"), ("sessions", "auth_method", "TEXT NOT NULL DEFAULT 'password+totp'"),
+        for table, col, ddl in (("users", "idp_subject", "TEXT"), ("users", "reviewer", "INTEGER NOT NULL DEFAULT 0"),
+                                ("users", "reviewer_credential", "TEXT"), ("sessions", "auth_method", "TEXT NOT NULL DEFAULT 'password+totp'"),
                                 ("sessions", "stepped_up_at", "TEXT")):
             if col not in {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
@@ -345,8 +354,55 @@ class Platform:
         return dict(r)
 
     def public_user(self, u: dict[str, Any]) -> dict[str, Any]:
-        return {k: u[k] for k in ("id", "firm_id", "email", "name", "role", "client_id", "mfa_enrolled_at", "disabled",
-                                  "last_login_at")}
+        out = {k: u[k] for k in ("id", "firm_id", "email", "name", "role", "client_id", "mfa_enrolled_at", "disabled",
+                                 "last_login_at")}
+        out["reviewer"] = u["role"] == "cpa" or bool(u.get("reviewer"))
+        if u["role"] == "staff":
+            out["engaged"] = self.grants(u["id"])
+        return out
+
+    # ------------------------------------------------------------------ authority: reviewers and engagements
+    def set_reviewer(self, user_id: str, on: bool, *, by: dict[str, Any], credential: str = "") -> None:
+        """Give a firm administrator reviewer authority (a firm admin who is also a CPA). Never self-granted: another
+        firm administrator or a platform administrator records it, with the credential it rests on."""
+        u = self.user(user_id)
+        if u["role"] != "firm_admin":
+            raise AuthError("reviewer authority is added to firm administrators; CPAs hold it already")
+        if by["id"] == user_id:
+            raise AuthError("reviewer authority cannot be granted to yourself")
+        if by["role"] != "platform_admin" and (by["role"] != "firm_admin" or by["firm_id"] != u["firm_id"]):
+            raise AuthError("not allowed")
+        if on and len(credential.strip()) < 4:
+            raise AuthError("record the credential this rests on (for example the CPA license and state)")
+        self.conn.execute("UPDATE users SET reviewer = ?, reviewer_credential = ? WHERE id = ?",
+                          (1 if on else 0, credential.strip() if on else None, user_id))
+        self.event("reviewer_granted" if on else "reviewer_revoked", firm_id=u["firm_id"], user_id=by["id"], email=u["email"],
+                   detail=credential.strip()[:200])
+
+    def grants(self, user_id: str) -> list[str]:
+        return [r[0] for r in self.conn.execute("SELECT DISTINCT client_id FROM engagement_grants WHERE user_id = ? AND revoked_at IS NULL "
+                                                "ORDER BY client_id", (user_id,))]
+
+    def grant(self, user_id: str, client_id: str, *, by: dict[str, Any]) -> None:
+        """Engage a staff member on a client. Firm administrators and CPAs of the same firm assign work."""
+        u = self.user(user_id)
+        if u["role"] != "staff":
+            raise AuthError("engagement grants apply to staff; CPAs and administrators see the whole firm")
+        if by["firm_id"] != u["firm_id"] or by["role"] not in ("firm_admin", "cpa"):
+            raise AuthError("not allowed")
+        if client_id in self.grants(user_id):
+            return
+        self.conn.execute("INSERT INTO engagement_grants (firm_id, user_id, client_id, granted_by) VALUES (?, ?, ?, ?)",
+                          (u["firm_id"], user_id, client_id, by["id"]))
+        self.event("engagement_granted", firm_id=u["firm_id"], user_id=by["id"], email=u["email"], detail=client_id)
+
+    def revoke(self, user_id: str, client_id: str, *, by: dict[str, Any]) -> None:
+        u = self.user(user_id)
+        if by["firm_id"] != u["firm_id"] or by["role"] not in ("firm_admin", "cpa"):
+            raise AuthError("not allowed")
+        self.conn.execute("UPDATE engagement_grants SET revoked_at = datetime('now'), revoked_by = ? "
+                          "WHERE user_id = ? AND client_id = ? AND revoked_at IS NULL", (by["id"], user_id, client_id))
+        self.event("engagement_revoked", firm_id=u["firm_id"], user_id=by["id"], email=u["email"], detail=client_id)
 
     def users(self, firm_id: str) -> list[dict[str, Any]]:
         return [self.public_user(dict(r)) for r in self.conn.execute("SELECT * FROM users WHERE firm_id = ? ORDER BY name", (firm_id,))]
