@@ -53,6 +53,8 @@ jobs:
           for m in {r["model"] for r in roles.values() if r["tier"] == "local"}:
               subprocess.run(["ollama", "pull", m], check=False)
           EOF
+      - name: Engineer sandbox image (AI-written code runs only inside it)
+        run: docker build -q -t agentledger-engineer:local -f docker/engineer.Dockerfile .
       - name: Run due agents
         run: agentledger agents due
       - name: Tests and golden regression must stay green
