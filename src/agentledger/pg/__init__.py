@@ -93,6 +93,7 @@ def migrate(conn, schema: str) -> list[str]:
                      "(name text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())")
     done = dict(conn.execute(f'SELECT name, sha256 FROM "{schema}".schema_migrations').fetchall())
     for path in sorted(MIGRATIONS.glob("*.sql")):
+        # read_text uses universal newlines, so a CRLF checkout hashes the same as an LF one
         sql = path.read_text(encoding="utf-8")
         digest = hashlib.sha256(sql.encode()).hexdigest()
         if path.name in done:
