@@ -10,8 +10,8 @@ As of 2026-10-08 nothing is in production.
 | Area | Provider (proposed) | Purpose | Needs from the owner | Status |
 |---|---|---|---|---|
 | Edge, compute, storage, workflows | Cloudflare (Workers, Containers, R2, Queues, Workflows, Access, AI Gateway, Workers AI) | Platform (ADR-0001) | Account, enterprise or business plan decision, DPA | planned (MCP connector attached; account not yet configured for AgentLedger) |
-| Financial database | Neon (alternative: AWS RDS) | PostgreSQL authority (ADR-0002) | Contract, BAA if healthcare clients | planned |
-| Customer identity | Zitadel Cloud (alternative: WorkOS, Auth0) | OIDC, MFA, passkeys, SSO (ADR-0004) | Contract | planned |
+| Financial database | Neon (alternative: PlanetScale Postgres via Cloudflare) | PostgreSQL authority (ADR-0002) | Contract, BAA if healthcare clients | planned |
+| Customer identity | WorkOS AuthKit (self-host: Better Auth) | OIDC, MFA, passkeys, SSO (ADR-0004) | Contract | planned |
 | Key management | AWS KMS | Wrap the master key (ADR-0001) | AWS account | planned |
 | IRS e-file | IRS e-Services: EFIN, ETIN, MeF A2A, ATS | Native 1040 / 1120-S / 1065 filing | Responsible Official, e-file application, Pub 1345 standards (GO_LIVE A1–A6) | planned |
 | IRS information returns | IRS IRIS (or FIRE) TCC | 1099 filing | Separate TCC application | planned |

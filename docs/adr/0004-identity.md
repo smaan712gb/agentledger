@@ -1,6 +1,6 @@
 # ADR-0004: External OIDC identity; authorization stays in the domain
 
-Status: Accepted. IdP vendor proposed: Zitadel. Owner to confirm.
+Status: Accepted. IdP: WorkOS AuthKit (revised 2026-10-08; Zitadel dropped on cost and agent fit). Self-host profile: Better Auth.
 Spec references: §4 (identity), §5 C01, §12 (approval binding), §14 (RBAC + attributes), Q12–Q15.
 
 ## Decision
@@ -28,3 +28,15 @@ Spec references: §4 (identity), §5 C01, §12 (approval binding), §14 (RBAC + 
   invitations keep their semantics. Sign-in itself moves to the IdP.
 - **Step-up authentication** (a fresh MFA within N minutes) is required for releasing returns, approving
   payments, changing vendor bank details, granting access and exporting firm data.
+
+## Why WorkOS AuthKit
+
+- **Cost.** Free up to 1M MAU, including MFA, passkeys and organizations. Enterprise SSO costs $125 per
+  connection per month at low volume, passed through to the firms that ask for it.
+- **B2B model.** Organizations map to firms, and SCIM directory sync covers larger firms.
+- **Agentic access.** It works as the authorization server for AgentLedger's remote MCP server on Cloudflare
+  (`workers-oauth-provider`). A user's own AI agent (Claude, ChatGPT and others) connects with OAuth and gets
+  exactly that user's grants, no more.
+- **Self-host profile.** Better Auth: an open-source TypeScript library that runs in Workers on our own
+  PostgreSQL, with organization, two-factor, passkey and SSO plugins. It replaces the hand-written TOTP
+  stack there.

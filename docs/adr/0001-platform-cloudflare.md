@@ -33,10 +33,10 @@ Cloudflare. Its documentation (checked 2026-10-08) shows:
 | Background workers (OCR, extraction, connectors, MeF) | Containers, one image per worker class, with separate identities |
 | Durable orchestration | Cloudflare Workflows (ADR-0003) |
 | Outbox and event delivery | Cloudflare Queues, fed from the PostgreSQL outbox table |
-| Financial authority | **Managed PostgreSQL, proposed: Neon.** SOC 2 Type II, HIPAA BAA available, branching for test copies. Alternative: AWS RDS for PostgreSQL for multi-AZ high availability. Reached through Hyperdrive and Workers VPC only, with no public endpoint. |
+| Financial authority | **Neon** (confirmed 2026-10-08): usage-based with no plan minimum. Scale-to-zero per firm database means idle firms cost only storage. Branch per test run or agent; MCP server. Alternative when one Cloudflare bill and HA clusters matter more than per-firm cost: PlanetScale Postgres (billed through Cloudflare; single node from $5/month). Reached through Hyperdrive and Workers VPC only, with no public endpoint. |
 | Evidence vault | R2. Objects are encrypted client-side with the firm's data key before upload. Content-addressed keys. Bucket-lock rules per retention class (ADR-0006). |
-| Customer identity | **OIDC provider, proposed: Zitadel Cloud** (open source, so it can be self-hosted later). MFA, passkeys, and SAML or OIDC federation for firms on Entra ID or Google (ADR-0004). |
-| Key management | **External KMS, proposed: AWS KMS.** Used only to wrap the platform master key, with HSM-backed keys, rotation and CloudTrail evidence. The master key is never stored in plaintext at rest. |
+| Customer identity | **WorkOS AuthKit** (revised 2026-10-08): free up to 1M MAU with MFA, passkeys, organizations and audit logs. Enterprise SSO is billed per connection, only for firms that need SAML. Also serves as the OAuth server for our remote MCP server through Cloudflare's `workers-oauth-provider`. Self-host profile: Better Auth in Workers (ADR-0004). |
+| Key management | **AWS KMS, for the master key only** (confirmed 2026-10-08): about $1 per key per month; one unwrap call at container start, so request cost is negligible. HSM-backed, with rotation and CloudTrail evidence. Dev and staging use a Cloudflare secret until real taxpayer data arrives. |
 | Tier-1 AI on taxpayer data | Workers AI open models (in-platform, no training on inputs), under the data-processing policy (ADR-0007) |
 | Tier-3 AI | Claude through AI Gateway, only with consent and under the policy in ADR-0007 |
 | Infrastructure as code | Terraform (Cloudflare provider, Neon provider, AWS KMS). Wrangler for Worker and Container builds. |
