@@ -1,0 +1,26 @@
+id: cost_segregation
+title: Cost segregation on real property
+category: planning
+summary: Reclassifying building components into 5-, 7- and 15-year property accelerates depreciation and, with bonus
+  depreciation, can front-load deductions.
+applies_when: kind == 'business' and domain not in ['pe_fund', 'hedge_fund'] and real_property_basis >= 750000
+domains:
+- '*'
+rule_refs:
+- us_fed.depreciation.bonus_permanent_rate
+- us_fed.depreciation.bonus_phase_down_rate
+steps:
+- Commission an engineering-based study; confirm placed-in-service and acquisition dates.
+- Apply the bonus rate that matches the acquisition date.
+- For property already in service, evaluate an accounting-method change (Form 3115) for catch-up depreciation.
+substance: Classifications must be supported by an engineering study; recapture on sale and passive-activity limits
+  can reduce the benefit.
+aggressiveness: conservative
+citations:
+- IRS Cost Segregation Audit Techniques Guide
+- "IRC \xA7168(k)"
+- Rev. Proc. 87-56
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

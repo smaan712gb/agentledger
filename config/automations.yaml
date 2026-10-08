@@ -1,0 +1,82 @@
+# Automations: when an event lands on the audit trail and the condition holds, run the actions.
+# Conditions use the safe expression language over: action, actor, role, client_name,
+# client_domain, client_kind and payload_<field>. Email is drafted, never auto-sent.
+automations:
+  - id: review-unfiled-documents
+    title: Route documents that could not be filed automatically to the CPA
+    trigger: document.received
+    when: "payload_status == 'needs_review'"
+    actions:
+      - {type: create_task, assignee: cpa, title: "File document {payload_name}", detail: "{payload_match}", due_in_days: 1}
+
+  - id: information-return-arrived
+    title: Review new W-2 / 1099 forms when they arrive
+    trigger: document.received
+    when: "payload_doc_type in ['W-2', '1099-NEC', '1099-K', '1099-INT', '1099-DIV', '1099-B', 'K-1'] and payload_status == 'filed'"
+    actions:
+      - {type: create_task, assignee: cpa, title: "Review {payload_doc_type} for {client_name}", due_in_days: 3}
+
+  - id: missing-receipt-request
+    title: Ask the client for missing receipts
+    trigger: finding.raised
+    when: "payload_check == 'substantiation.missing_receipt'"
+    actions:
+      - {type: create_task, assignee: client, title: "Upload receipt: {payload_title}", due_in_days: 7}
+
+  - id: serious-finding-escalation
+    title: Escalate high and critical findings to both sides
+    trigger: finding.raised
+    when: "payload_severity in ['high', 'critical']"
+    actions:
+      - {type: create_task, assignee: cpa, title: "Resolve: {payload_title}", due_in_days: 2}
+      - type: draft_message
+        subject: "Action needed: {payload_title}"
+        body: |
+          Hello,
+
+          Our review found something that needs your attention: {payload_title}.
+          You can see the details and respond directly in your Veritas portal.
+
+          Thank you.
+
+  - id: rule-change-review
+    title: When a regulation change is adopted, review impacted clients
+    trigger: proposal.adopted
+    when: "payload_kind == 'rule_change'"
+    actions:
+      - {type: create_task, assignee: cpa, title: "Review impact of adopted change: {payload_title}", due_in_days: 5}
+
+  - id: ungrounded-answer-review
+    title: Have the CPA review AI answers that failed verification
+    trigger: ai.answer
+    when: "payload_grounded == False"
+    actions:
+      - {type: create_task, assignee: cpa, title: "Review unverified AI answer to: {payload_question}", due_in_days: 2}
+
+  - id: new-client-onboarding
+    title: Onboarding checklist and missing facts for every new client
+    trigger: client.created
+    actions:
+      - {type: create_task, assignee: client, title: "Upload last year's tax return and year-end bank statements", due_in_days: 14}
+      - {type: request_missing_facts}
+
+  - id: consent-missing
+    title: Collect the engagement letter and IRC 7216 consent when none is on file
+    trigger: client.created
+    when: "payload_consent_7216 == False"
+    actions:
+      - {type: create_task, assignee: cpa, title: "Sign engagement letter and IRC 7216 consent with {client_name}", due_in_days: 7}
+
+  - id: daily-deadline-scan
+    title: Create tasks for compliance deadlines in the next 30 days
+    trigger: schedule.daily
+    actions:
+      - {type: deadline_scan, within_days: 30}
+
+  - id: notify-team-chat
+    title: Post high-severity findings to the team chat (Slack / Teams / Zapier webhook)
+    trigger: finding.raised
+    when: "payload_severity in ['high', 'critical']"
+    enabled: true
+    actions:
+      - {type: webhook, url_env: VERITAS_TEAM_WEBHOOK_URL, title: "[{payload_severity}] {client_name}: {payload_title}"}

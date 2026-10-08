@@ -1,0 +1,17 @@
+id: us_fed.business.fines_penalties_deductible_pct
+title: Deductible fraction of fines and penalties paid to a government
+jurisdiction: US-FED
+category: business
+value_type: rate
+unit: fraction
+citation: IRC §162(f)
+tags:
+- fines
+- penalties
+- 162(f)
+- M-1
+values:
+- effective_from: '2018-01-01'
+  value: 0.0
+  provenance:
+    source: IRC §162(f) as amended by P.L. 115-97 §13306

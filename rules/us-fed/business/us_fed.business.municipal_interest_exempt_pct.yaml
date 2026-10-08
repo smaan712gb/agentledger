@@ -1,0 +1,17 @@
+id: us_fed.business.municipal_interest_exempt_pct
+title: Excludable fraction of state and local bond interest
+jurisdiction: US-FED
+category: business
+value_type: rate
+unit: fraction
+citation: IRC §103(a)
+tags:
+- municipal
+- tax-exempt interest
+- '103'
+- M-1
+values:
+- effective_from: '1954-01-01'
+  value: 1.0
+  provenance:
+    source: IRC §103(a)

@@ -1,0 +1,99 @@
+id: hedge_fund
+title: Hedge fund
+description: >-
+  Trade-date accounting, daily mark-to-market, subscriptions received in advance, redemptions
+  payable, and management / performance fee accruals against NAV.
+extends: general
+accounts:
+  - {code: "1800", name: Securities Owned at Fair Value, type: asset}
+  - {code: "1810", name: Due from Broker, type: asset}
+  - {code: "2800", name: Securities Sold Short at Fair Value, type: liability}
+  - {code: "2810", name: Redemptions Payable, type: liability}
+  - {code: "2820", name: Performance Fee Payable, type: liability}
+  - {code: "2830", name: Management Fee Payable, type: liability}
+  - {code: "2840", name: Subscriptions Received in Advance, type: liability}
+  - {code: "3300", name: Partners Capital, type: equity}
+  - {code: "4800", name: Realized Trading Gain (Loss), type: revenue}
+  - {code: "4810", name: Unrealized Gain (Loss), type: revenue}
+  - {code: "4820", name: Dividend Income, type: revenue}
+  - {code: "6850", name: Management Fee, type: expense}
+  - {code: "6860", name: Performance Fee, type: expense}
+templates:
+  - id: buy
+    title: Buy securities (trade date)
+    memo: "BUY {qty} {symbol}"
+    inputs: [{name: symbol, type: text}, {name: qty, type: number}, {name: cost}]
+    lines:
+      - {account: "1800", amount: "cost"}
+      - {account: "1810", amount: "-cost"}
+    sample: {symbol: MSFT, qty: 1000, cost: 512000}
+  - id: sell
+    title: Sell securities (trade date)
+    memo: "SELL {qty} {symbol}"
+    inputs: [{name: symbol, type: text}, {name: qty, type: number}, {name: proceeds}, {name: carrying_value}]
+    lines:
+      - {account: "1810", amount: "proceeds"}
+      - {account: "1800", amount: "-carrying_value"}
+      - {account: "4800", amount: "-(proceeds - carrying_value)"}
+    sample: {symbol: MSFT, qty: 500, proceeds: 268000, carrying_value: 256000}
+  - id: mark_to_market
+    title: Daily mark-to-market
+    memo: "MTM {day}"
+    inputs: [{name: day, type: text}, {name: change}]
+    lines:
+      - {account: "1800", amount: "change"}
+      - {account: "4810", amount: "-change"}
+    sample: {day: 2026-06-30, change: -42000}
+  - id: subscription_in_advance
+    title: Subscription cash received before dealing day
+    memo: "Subscription {investor}"
+    inputs: [{name: investor, type: text}, {name: amount}]
+    lines:
+      - {account: "1000", amount: "amount"}
+      - {account: "2840", amount: "-amount"}
+    sample: {investor: Investor 0042, amount: 2000000}
+  - id: subscription_effective
+    title: Subscription accepted on dealing day
+    memo: "Subscription effective {investor}"
+    inputs: [{name: investor, type: text}, {name: amount}]
+    lines:
+      - {account: "2840", amount: "amount"}
+      - {account: "3300", amount: "-amount"}
+    sample: {investor: Investor 0042, amount: 2000000}
+  - id: redemption
+    title: Redemption accepted
+    memo: "Redemption {investor}"
+    inputs: [{name: investor, type: text}, {name: amount}]
+    lines:
+      - {account: "3300", amount: "amount"}
+      - {account: "2810", amount: "-amount"}
+    sample: {investor: Investor 0017, amount: 1500000}
+  - id: management_fee
+    title: Management fee accrual on NAV
+    memo: "Management fee {period}"
+    inputs: [{name: period, type: text}, {name: nav}, {name: annual_rate, type: number}, {name: months, type: number}]
+    lines:
+      - {account: "6850", amount: "nav * annual_rate * months / 12"}
+      - {account: "2830", amount: "-(nav * annual_rate * months / 12)"}
+    sample: {period: 2026-06, nav: 410000000, annual_rate: 0.015, months: 1}
+  - id: performance_fee
+    title: Performance fee accrual (above high-water mark)
+    memo: "Performance fee {period}"
+    inputs: [{name: period, type: text}, {name: profit_above_hwm}, {name: rate, type: number}]
+    lines:
+      - {account: "6860", amount: "max(profit_above_hwm, 0) * rate"}
+      - {account: "2820", amount: "-(max(profit_above_hwm, 0) * rate)"}
+    sample: {period: 2026-H1, profit_above_hwm: 9000000, rate: 0.2}
+doc_types: [Trade confirmation, Brokerage statement, Capital account statement, K-1]
+facts: [strategy, prime_broker]
+checks:
+  - id: redemption_liquidity
+    title: Cash and broker balances do not cover redemptions payable
+    type: coverage
+    params: {assets: ["1000", "1810"], liabilities: ["2810"]}
+    severity: high
+    owner: cpa
+    detail: Redemptions payable exceed liquid balances. Check gating provisions and liquidity disclosures.
+kpis:
+  - {id: nav, title: Net asset value (partners capital), expr: "bal_3300", unit: USD}
+  - {id: gross_exposure, title: Gross exposure / NAV, expr: "(bal_1800 + bal_2800) / bal_3300", unit: x}

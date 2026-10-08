@@ -1,0 +1,17 @@
+id: us_fed.business.qbi_deduction_rate
+title: Qualified business income deduction rate
+jurisdiction: US-FED
+category: business
+value_type: rate
+unit: fraction
+citation: IRC §199A
+tags:
+- QBI
+- 199A
+- pass-through
+notes: Originally scheduled to sunset after 2025; made permanent by OBBBA.
+values:
+- effective_from: '2018-01-01'
+  value: 0.2
+  provenance:
+    source: P.L. 115-97 §11011; made permanent by P.L. 119-21 (One Big Beautiful Bill Act) §70105

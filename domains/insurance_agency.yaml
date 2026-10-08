@@ -1,0 +1,61 @@
+id: insurance_agency
+title: Independent insurance agency
+description: >-
+  Direct-bill commissions, and agency-bill premiums held in a segregated premium trust account as
+  fiduciary funds; commissions move to operating cash only after premiums clear.
+extends: general
+accounts:
+  - {code: "1020", name: Premium Trust Account, type: asset}
+  - {code: "2600", name: Carrier Premiums Payable, type: liability}
+  - {code: "2610", name: Unearned Agency-Bill Commissions, type: liability}
+  - {code: "4600", name: Direct-Bill Commission Revenue, type: revenue}
+  - {code: "4610", name: Agency-Bill Commission Revenue, type: revenue}
+templates:
+  - id: agency_bill_premium
+    title: Agency-bill premium collected into trust
+    memo: "Premium policy {policy}"
+    inputs: [{name: policy, type: text}, {name: gross_premium}, {name: commission}]
+    lines:
+      - {account: "1020", amount: "gross_premium"}
+      - {account: "2600", amount: "-(gross_premium - commission)"}
+      - {account: "2610", amount: "-commission"}
+    sample: {policy: "BOP-55120", gross_premium: 4800, commission: 576}
+  - id: remit_to_carrier
+    title: Net premium remitted to carrier
+    memo: "Remit {carrier}"
+    inputs: [{name: carrier, type: text}, {name: amount}]
+    lines:
+      - {account: "2600", amount: "amount"}
+      - {account: "1020", amount: "-amount"}
+    sample: {carrier: Travelers, amount: 4224}
+  - id: earn_agency_commission
+    title: Earn commission and move it out of trust
+    memo: "Commission earned policy {policy}"
+    inputs: [{name: policy, type: text}, {name: commission}]
+    lines:
+      - {account: "2610", amount: "commission"}
+      - {account: "4610", amount: "-commission"}
+      - {account: "1000", amount: "commission"}
+      - {account: "1020", amount: "-commission"}
+    sample: {policy: "BOP-55120", commission: 576}
+  - id: direct_bill_commission
+    title: Direct-bill commission statement received
+    memo: "{carrier} commission statement {period}"
+    inputs: [{name: carrier, type: text}, {name: period, type: text}, {name: amount}]
+    lines:
+      - {account: "1000", amount: "amount"}
+      - {account: "4600", amount: "-amount"}
+    sample: {carrier: Progressive, period: 2026-05, amount: 3120.44}
+doc_types: [Commission statement, Carrier statement]
+facts: [carriers, producers]
+checks:
+  - id: trust_deficit
+    title: Premium trust account does not cover amounts owed to carriers
+    type: coverage
+    params: {assets: ["1020"], liabilities: ["2600", "2610"]}
+    severity: critical
+    owner: both
+    citation: State insurance code fiduciary-funds requirements
+    detail: Fiduciary premium funds appear to have been used for operations. This must be cured immediately.
+kpis:
+  - {id: trust_cushion, title: Trust cushion, expr: "bal_1020 - bal_2600 - bal_2610", unit: USD}

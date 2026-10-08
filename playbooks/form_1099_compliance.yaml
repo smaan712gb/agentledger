@@ -1,0 +1,25 @@
+id: form_1099_compliance
+title: Year-end information return compliance
+category: compliance
+summary: Identify payees requiring Forms 1099-NEC/MISC under the current threshold, collect W-9s, and file by January
+  31.
+applies_when: kind == 'business' and domain not in ['pe_fund', 'hedge_fund'] and contractor_payments == True
+domains:
+- '*'
+rule_refs:
+- us_fed.info_returns.form_1099_nec_threshold
+- us_fed.info_returns.form_1099_k_threshold
+steps:
+- Total payments by payee for the calendar year (exclude card and third-party network payments, which are 1099-K).
+- Compare to the threshold in force for the payment year; collect missing W-9s now.
+- E-file by January 31; backup-withhold where TINs are missing.
+substance: Penalties apply per return for late or missing filings; thresholds changed for payments after 2025.
+aggressiveness: conservative
+citations:
+- "IRC \xA76041"
+- "IRC \xA76721"
+- "IRC \xA76722"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

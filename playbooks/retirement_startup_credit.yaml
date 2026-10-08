@@ -1,0 +1,22 @@
+id: retirement_startup_credit
+title: "Small-employer retirement plan startup credit (IRC \xA745E)"
+category: planning
+summary: Small employers starting a new plan can claim a credit for startup costs, plus an employer-contribution
+  credit, for the first years of the plan.
+applies_when: kind == 'business' and employees > 0 and employees <= 100 and has_retirement_plan == False
+domains:
+- '*'
+rule_refs: []
+steps:
+- Confirm eligibility (no plan in the prior three years, at least one non-highly-compensated employee).
+- Compare SIMPLE IRA, safe-harbor 401(k) and solo options against the credit.
+- Claim on Form 8881.
+substance: The plan must be a genuine qualified plan covering eligible employees.
+aggressiveness: conservative
+citations:
+- "IRC \xA745E as amended by SECURE 2.0 Act \xA7\xA7102, 111"
+- Form 8881
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

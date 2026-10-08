@@ -1,0 +1,38 @@
+id: us_fed.payroll.social_security_wage_base
+title: Social Security (OASDI) contribution and benefit base
+jurisdiction: US-FED
+category: payroll
+value_type: money
+unit: USD
+citation: 42 U.S.C. §430; IRC §3121(a)(1)
+indexed:
+  cadence: annual
+  expected_by: 10-31
+  publication: SSA annual COLA / wage base announcement (October)
+  search_hint: Social Security wage base {year} contribution and benefit base
+bounds:
+  min: 100000.0
+  max: 400000.0
+  max_change_pct: 0.1
+tags:
+- social security
+- wage base
+- FICA
+- OASDI
+- payroll
+values:
+- effective_from: '2024-01-01'
+  effective_to: '2024-12-31'
+  value: 168600
+  provenance:
+    source: SSA 2024 COLA Fact Sheet
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value: 176100
+  provenance:
+    source: SSA 2025 COLA Fact Sheet
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 184500
+  provenance:
+    source: SSA 2026 COLA Fact Sheet

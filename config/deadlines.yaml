@@ -1,0 +1,69 @@
+# Federal and common state compliance deadlines (calendar-year filers). Dates roll to the
+# next business day when they fall on a weekend (IRC §7503); legal holidays are not yet
+# modelled, so confirm April dates in years where Emancipation Day applies.
+deadlines:
+  - id: form_1099_nec
+    title: Furnish and file Forms 1099-NEC
+    form: 1099-NEC
+    dates: ["01-31"]
+    applies_when: "kind == 'business'"
+    citation: IRC §6071(c)
+  - id: w2_filing
+    title: Furnish and file Forms W-2 / W-3
+    form: W-2
+    dates: ["01-31"]
+    applies_when: "kind == 'business' and employees > 0"
+    citation: IRC §6071(c)
+  - id: form_941
+    title: Quarterly payroll return (Form 941)
+    form: "941"
+    dates: ["01-31", "04-30", "07-31", "10-31"]
+    applies_when: "kind == 'business' and employees > 0"
+    citation: Treas. Reg. §31.6071(a)-1
+  - id: form_720
+    title: Quarterly federal excise return (Form 720)
+    form: "720"
+    dates: ["01-31", "04-30", "07-31", "10-31"]
+    applies_when: "domain == 'gas_station' and excise_registrant == True"
+    citation: Treas. Reg. §40.6071(a)-1
+  - id: pass_through_return
+    title: Partnership / S corporation return (1065 / 1120-S)
+    form: 1065/1120-S
+    dates: ["03-15"]
+    applies_when: "kind == 'business' and entity_type in ['s_corp', 'partnership']"
+    citation: IRC §6072(b)
+  - id: pass_through_extended
+    title: Extended partnership / S corporation return
+    form: 1065/1120-S
+    dates: ["09-15"]
+    applies_when: "kind == 'business' and entity_type in ['s_corp', 'partnership']"
+    citation: Treas. Reg. §1.6081-2
+  - id: c_corp_return
+    title: C corporation return (1120)
+    form: "1120"
+    dates: ["04-15"]
+    applies_when: "kind == 'business' and entity_type == 'c_corp'"
+    citation: IRC §6072(a)
+  - id: individual_return
+    title: Individual return (1040)
+    form: "1040"
+    dates: ["04-15"]
+    applies_when: "kind == 'individual'"
+    citation: IRC §6072(a)
+  - id: estimated_tax
+    title: Estimated tax payment
+    form: 1040-ES
+    dates: ["01-15", "04-15", "06-15", "09-15"]
+    applies_when: "kind == 'individual' or entity_type == 'c_corp'"
+    citation: IRC §6654 / §6655
+  - id: de_llc_annual_tax
+    title: Delaware LLC annual tax
+    dates: ["06-01"]
+    applies_when: "state_of_formation == 'DE' and entity_type in ['llc', 'partnership']"
+    citation: 6 Del. C. §18-1107
+  - id: ca_llc_3522
+    title: California LLC annual tax (Form 3522)
+    form: FTB 3522
+    dates: ["04-15"]
+    applies_when: "state == 'CA' and entity_type == 'llc'"
+    citation: Cal. Rev. & Tax. Code §17941

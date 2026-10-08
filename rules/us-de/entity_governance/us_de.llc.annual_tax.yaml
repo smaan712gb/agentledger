@@ -1,0 +1,18 @@
+id: us_de.llc.annual_tax
+title: Delaware LLC / LP annual tax
+jurisdiction: US-DE
+category: entity_governance
+value_type: money
+unit: USD
+citation: 6 Del. C. §18-1107(b)
+tags:
+- Delaware
+- LLC
+- annual tax
+- franchise
+notes: Due June 1 each year.
+values:
+- effective_from: '2017-01-01'
+  value: 300
+  provenance:
+    source: 6 Del. C. §18-1107(b)

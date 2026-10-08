@@ -1,0 +1,16 @@
+id: us_fincen.boi.foreign_filing_deadline_days
+title: Days for a foreign reporting company to file its initial BOI report after U.S. registration
+jurisdiction: US-FINCEN
+category: entity_governance
+value_type: integer
+unit: days
+citation: 31 CFR 1010.380(a)(1)
+tags:
+- BOI
+- foreign reporting company
+- deadline
+values:
+- effective_from: '2025-03-26'
+  value: 30
+  provenance:
+    source: FinCEN interim final rule, 90 FR 13688

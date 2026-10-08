@@ -1,0 +1,8 @@
+INVOICE NO. 55821
+Bright Smile Dental Lab
+Bill to: Dr. Alvarez, Riverside Family Dentistry
+Date: 09/22/2026
+Crown fabrication (4 units)       $1,840.00
+Shipping                            $35.00
+TOTAL DUE                        $1,875.00
+Terms: Net 30

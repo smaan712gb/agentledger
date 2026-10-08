@@ -1,0 +1,66 @@
+id: medical_practice
+title: Medical practice
+description: >-
+  Gross charges at chargemaster rates; payer remittances (ANSI X12 835) split into payment,
+  contractual adjustment (contra-revenue) and patient responsibility. PHI never enters the
+  ledger: 835 files are parsed on-premises and only totals are posted.
+extends: general
+accounts:
+  - {code: "1050", name: Payer Clearing, type: asset}
+  - {code: "1150", name: Patient Accounts Receivable (insurance), type: asset}
+  - {code: "1155", name: Patient Responsibility Receivable, type: asset}
+  - {code: "4500", name: Patient Service Revenue (gross charges), type: revenue}
+  - {code: "4590", name: Contractual Adjustments, type: revenue}
+  - {code: "6050", name: Medical Supplies, type: expense}
+templates:
+  - id: charges_posted
+    title: Charges posted from practice management system
+    memo: "Charges {batch}"
+    inputs: [{name: batch, type: text}, {name: gross_charges}]
+    lines:
+      - {account: "1150", amount: "gross_charges"}
+      - {account: "4500", amount: "-gross_charges"}
+    sample: {batch: "PM-2026-06-01", gross_charges: 48200}
+  - id: era_835_remittance
+    title: Insurance remittance (835 ERA totals)
+    memo: "ERA {trace} from {payer}"
+    inputs:
+      - {name: trace, type: text}
+      - {name: payer, type: text}
+      - {name: billed, description: CLP03 total charge}
+      - {name: paid, description: CLP04 total paid}
+      - {name: contractual, description: CAS CO group adjustments}
+    lines:
+      - {account: "1050", amount: "paid"}
+      - {account: "4590", amount: "contractual"}
+      - {account: "1155", amount: "billed - paid - contractual"}
+      - {account: "1150", amount: "-billed"}
+    sample: {trace: "1RE7781", payer: Aetna, billed: 12500, paid: 7100, contractual: 4650}
+  - id: payer_deposit
+    title: Payer EFT deposit clears
+    memo: "EFT {trace}"
+    inputs: [{name: trace, type: text}, {name: amount}]
+    lines:
+      - {account: "1000", amount: "amount"}
+      - {account: "1050", amount: "-amount"}
+    sample: {trace: "1RE7781", amount: 7100}
+doc_types: [835 remittance, Payer contract, EOB]
+facts: [providers, specialties]
+checks:
+  - id: phi_in_ledger
+    title: Possible PHI in a ledger memo
+    type: memo_pattern
+    params: {pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b|\\bDOB\\b|date of birth|\\bMRN\\b|patient name"}
+    severity: high
+    owner: cpa
+    citation: 45 CFR 164.502(b) (minimum necessary)
+    detail: Ledger memos should carry claim or batch references, never patient identifiers.
+  - id: writeoff_ratio
+    title: Contractual adjustments above 70% of gross charges
+    type: ratio_max
+    params: {numerator: "4590", denominator: "4500", max: 0.7}
+    severity: low
+    owner: cpa
+    detail: Unusually high write-offs can signal chargemaster drift, payer under-payment or mis-posted denials.
+kpis:
+  - {id: collection_rate, title: Net collection rate, expr: "(bal_4500 + bal_4590) / bal_4500 * 100", unit: "%"}

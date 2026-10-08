@@ -1,0 +1,118 @@
+ollama_url: http://localhost:11434
+frontier:
+  daily_call_budget: 25
+roles:
+  triage:
+    tier: local
+    model: qwen2.5:7b
+  classify:
+    tier: local
+    model: qwen2.5:7b
+    fallback:
+      tier: frontier
+      model: claude-opus-5-5
+  vision:
+    tier: local
+    model: qwen3.5:4b
+  answer:
+    tier: local
+    model: qwen3.5:4b
+    fallback:
+      tier: frontier
+      model: claude-opus-5-5
+  draft:
+    tier: local
+    model: qwen2.5:7b
+    fallback:
+      tier: frontier
+      model: claude-opus-5-5
+  reason:
+    tier: frontier
+    model: claude-opus-5-5
+  code:
+    tier: frontier
+    model: claude-opus-5-5
+history:
+- role: answer
+  from:
+    tier: local
+    model: qwen2.5:7b
+    fallback:
+      tier: frontier
+      model: claude-opus-5-5
+  to:
+    tier: local
+    model: llamacpp:96f38c742e0a10e194b237d2ffb8b55925ebfeed9d27df72688f565e773569e7
+  reason: proposal 20261008-964fa9
+  evidence:
+    scores:
+      qwen2.5:7b:
+        score: 0.5833
+        json_valid: 1.0
+        seconds_per_case: 2.85
+        cases: 3
+        errors: []
+      qwen3.5:4b:
+        score: 0.75
+        json_valid: 1.0
+        seconds_per_case: 4.48
+        cases: 3
+        errors: []
+      llamacpp:96f38c742e0a10e194b237d2ffb8b55925ebfeed9d27df72688f565e773569e7:
+        score: 0.75
+        json_valid: 1.0
+        seconds_per_case: 2.73
+        cases: 3
+        errors: []
+      nemotron-3-nano:4b:
+        score: 0.4167
+        json_valid: 1.0
+        seconds_per_case: 2.72
+        cases: 3
+        errors: []
+  at: '2026-10-08T04:57:07+00:00'
+- role: answer
+  from:
+    tier: local
+    model: llamacpp:96f38c742e0a10e194b237d2ffb8b55925ebfeed9d27df72688f565e773569e7
+    fallback:
+      tier: frontier
+      model: claude-opus-5-5
+  to:
+    tier: local
+    model: qwen2.5:7b
+  reason: rollback of 20261008-964fa9
+  evidence: {}
+  at: '2026-10-08T05:05:42+00:00'
+- role: answer
+  from:
+    tier: local
+    model: qwen2.5:7b
+    fallback:
+      tier: frontier
+      model: claude-opus-5-5
+  to:
+    tier: local
+    model: qwen3.5:4b
+  reason: proposal 20261008-9c5193
+  evidence:
+    scores:
+      qwen2.5:7b:
+        score: 0.6667
+        json_valid: 1.0
+        seconds_per_case: 7.08
+        cases: 3
+        errors: []
+      nemotron-3-nano:4b:
+        score: 0.5
+        json_valid: 1.0
+        seconds_per_case: 13.15
+        cases: 3
+        errors: []
+      qwen3.5:4b:
+        score: 0.75
+        json_valid: 1.0
+        seconds_per_case: 4.22
+        cases: 3
+        errors: []
+  at: '2026-10-08T05:07:09+00:00'

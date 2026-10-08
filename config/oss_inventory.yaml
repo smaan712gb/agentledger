@@ -1,0 +1,30 @@
+# Open-source inventory maintained by the Repo Scout. `used: true` = the platform depends on it today.
+stale_after_days: 365
+min_stars: 500
+allowed_licenses: [MIT, Apache-2.0, BSD-3-Clause, BSD-2-Clause, MPL-2.0, ISC, PSF-2.0, GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-3.0]
+repos:
+  - {repo: ollama/ollama, role: local model serving, used: true, license: MIT}
+  - {repo: ggml-org/llama.cpp, role: local inference engine, used: true, license: MIT}
+  - {repo: anthropics/anthropic-sdk-python, role: frontier reasoning client, used: true, license: MIT}
+  - {repo: modelcontextprotocol/python-sdk, role: MCP server / client, used: true, license: MIT}
+  - {repo: py-pdf/pypdf, role: PDF text extraction, used: true, license: BSD-3-Clause}
+  - {repo: python-openxml/python-docx, role: Word extraction, used: true}
+  - {repo: fastapi/fastapi, role: API server, used: true, license: MIT}
+  - {repo: pydantic/pydantic, role: schemas, used: true, license: MIT}
+  - {repo: beancount/beancount, role: plain-text ledger interoperability, used: true, license: GPL-2.0}
+  - {repo: PolicyEngine/policyengine-us, role: federal and state tax microsimulation, used: false, license: AGPL-3.0}
+  - {repo: tesseract-ocr/tesseract, role: OCR, used: false, license: Apache-2.0}
+  - {repo: PaddlePaddle/PaddleOCR, role: OCR (layout-aware), used: false, license: Apache-2.0}
+  - {repo: docling-project/docling, role: document layout parsing, used: false, license: MIT}
+  - {repo: vllm-project/vllm, role: high-throughput local inference, used: false, license: Apache-2.0}
+  - {repo: temporalio/temporal, role: durable workflow orchestration, used: false, license: MIT}
+  - {repo: langchain-ai/langgraph, role: agent graphs, used: false, license: MIT}
+  - {repo: Aider-AI/aider, role: open-source coding agent for the AI Engineer, used: false, license: Apache-2.0}
+  - {repo: OpenHands/OpenHands, role: open-source autonomous software engineer, used: false, license: MIT}
+discovery_queries:
+  - "topic:accounting language:python"
+  - "topic:tax language:python"
+  - "topic:ocr stars:>2000"
+  - "topic:document-parsing"
+  - "topic:llm-inference"
+  - "double-entry accounting"

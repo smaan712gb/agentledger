@@ -1,0 +1,16 @@
+id: us_fed.business.officer_life_insurance_deductible_pct
+title: Deductible fraction of premiums on life insurance where the business is beneficiary
+jurisdiction: US-FED
+category: business
+value_type: rate
+unit: fraction
+citation: IRC §264(a)(1)
+tags:
+- life insurance
+- '264'
+- M-1
+values:
+- effective_from: '1954-01-01'
+  value: 0.0
+  provenance:
+    source: IRC §264(a)(1)

@@ -1,0 +1,37 @@
+role: draft
+cases:
+  - input: |
+      Catalog of parameters that may be affected (current values):
+      [{"id": "us_fed.business.standard_mileage_rate", "title": "Business standard mileage rate", "type": "money", "unit": "USD/mile", "latest_value": 0.725, "latest_effective": ["2026-01-01", "2026-12-31"], "indexed": true}]
+
+      Document: IRS sets 2027 business standard mileage rate
+      URL: https://www.irs.gov/newsroom/example
+      <document>
+      WASHINGTON — The Internal Revenue Service today issued the 2027 optional standard mileage rates.
+      Beginning on Jan. 1, 2027, the standard mileage rate for the business use of a car will be 74 cents per mile driven for business use.
+      </document>
+    expect:
+      relevant: true
+      changes: [{rule_id: us_fed.business.standard_mileage_rate, value: 0.74}]
+  - input: |
+      Catalog of parameters that may be affected (current values):
+      [{"id": "us_fed.individual.standard_deduction", "title": "Standard deduction by filing status", "type": "table", "unit": "USD", "keys": ["single", "mfj", "mfs", "hoh"], "latest_value": {"single": 16100, "mfj": 32200, "mfs": 16100, "hoh": 24150}, "indexed": true}]
+
+      Document: Agency Information Collection Activities; Comment Request on Form 8881
+      URL: https://www.federalregister.gov/documents/example
+      <document>
+      In accordance with the Paperwork Reduction Act of 1995, the IRS is inviting comments on the information collection request outlined in this notice.
+      </document>
+    expect: {relevant: false}
+  - input: |
+      Catalog of parameters that may be affected (current values):
+      [{"id": "us_fed.depreciation.section_179_limit", "title": "Section 179 expensing limit", "type": "money", "unit": "USD", "latest_value": 2560000, "indexed": true}]
+
+      Document: Rev. Proc. 2026-XX (excerpt)
+      URL: https://www.irs.gov/pub/irs-drop/example.pdf
+      <document>
+      .25 Election to Expense Certain Depreciable Assets. For taxable years beginning in 2027, under § 179(b)(1) the aggregate cost of any § 179 property that a taxpayer elects to treat as an expense cannot exceed $2,620,000.
+      </document>
+    expect:
+      relevant: true
+      changes: [{rule_id: us_fed.depreciation.section_179_limit, value: 2620000}]

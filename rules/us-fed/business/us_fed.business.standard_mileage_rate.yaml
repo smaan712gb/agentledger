@@ -1,0 +1,38 @@
+id: us_fed.business.standard_mileage_rate
+title: Business standard mileage rate
+jurisdiction: US-FED
+category: business
+value_type: money
+unit: USD/mile
+citation: Rev. Proc. 2019-46
+indexed:
+  cadence: annual
+  expected_by: 12-31
+  publication: IRS Notice on standard mileage rates (December)
+  search_hint: IRS standard mileage rate {year} business cents per mile notice
+bounds:
+  min: 0.2
+  max: 2.0
+  max_change_pct: 0.12
+tags:
+- mileage
+- vehicle
+- standard mileage rate
+- notice
+values:
+- effective_from: '2024-01-01'
+  effective_to: '2024-12-31'
+  value: 0.67
+  provenance:
+    source: Notice 2024-08
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value: 0.7
+  provenance:
+    source: Notice 2025-5
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 0.725
+  provenance:
+    source: Notice 2026-10
+    url: https://www.irs.gov/newsroom/irs-sets-2026-business-standard-mileage-rate-at-725-cents-per-mile-up-25-cents

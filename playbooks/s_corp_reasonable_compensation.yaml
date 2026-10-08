@@ -1,0 +1,25 @@
+id: s_corp_reasonable_compensation
+title: S corporation reasonable compensation
+category: risk
+summary: Shareholder-employees who perform services must take wages before distributions; low or zero salary with
+  large distributions is a top IRS exam issue.
+applies_when: entity_type == 's_corp' and net_income_prior > 40000
+domains:
+- '*'
+rule_refs:
+- us_fed.payroll.social_security_wage_base
+steps:
+- Document the owner's duties, hours and comparable market pay (salary surveys, job postings).
+- Set W-2 wages at a defensible market rate before year-end payroll closes.
+- Keep distributions proportional to ownership to protect the single-class-of-stock rule.
+substance: Wages must reflect the value of services actually performed. Paying an arbitrary low salary to avoid
+  payroll tax invites reclassification of distributions as wages plus penalties.
+aggressiveness: conservative
+citations:
+- "IRC \xA73121(a)"
+- Rev. Rul. 74-44
+- David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012)
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

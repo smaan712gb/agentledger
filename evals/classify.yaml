@@ -1,0 +1,40 @@
+role: classify
+cases:
+  - input: |
+      File name: acme_1099.pdf
+      <document>
+      PAYER'S name: Brightline Consulting LLC, 400 Market St, Philadelphia PA
+      RECIPIENT'S TIN: XXX-XX-4821   RECIPIENT'S name: Dana Whitfield
+      Form 1099-NEC  Nonemployee Compensation  2026
+      1 Nonemployee compensation $ 18,400.00
+      4 Federal income tax withheld $ 0.00
+      </document>
+    expect: {doc_type: 1099-NEC, values: ["18,400.00"]}
+  - input: |
+      File name: IMG_2291.jpg
+      <document>
+      LUIGI'S TRATTORIA  Table 12  Server: Marco
+      2 Pasta  $48.00   1 Wine $36.00
+      Subtotal $84.00  Tax $7.35  Tip $16.00
+      TOTAL $107.35   VISA ****4410   06/14/2026
+      Thank you for dining with us!
+      </document>
+    expect: {doc_type: Receipt, values: ["107.35"]}
+  - input: |
+      File name: stmt_june.pdf
+      <document>
+      First Valley Bank  Business Checking  Account ending 7731
+      Statement Period: 06/01/2026 - 06/30/2026
+      Beginning Balance $42,118.20   Deposits $63,540.00   Withdrawals $58,902.11
+      Ending Balance $46,756.09
+      </document>
+    expect: {doc_type: Bank statement, values: ["46,756.09"]}
+  - input: |
+      File name: notice.pdf
+      <document>
+      Department of the Treasury  Internal Revenue Service  Notice CP2000  Tax Year 2024
+      Proposed changes to your 2024 Form 1040. Payer information shows income you did not report:
+      Nonemployee compensation reported by Brightline Consulting LLC $ 6,200.00
+      Proposed amount due $ 1,861.00. Respond by July 30, 2026.
+      </document>
+    expect: {doc_type: IRS notice, values: ["1,861.00"]}

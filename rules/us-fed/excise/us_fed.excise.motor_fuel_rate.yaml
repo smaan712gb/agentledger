@@ -1,0 +1,26 @@
+id: us_fed.excise.motor_fuel_rate
+title: Federal motor fuel excise tax (incl. 0.1¢ LUST)
+jurisdiction: US-FED
+category: excise
+value_type: table
+unit: USD/gallon
+citation: IRC §4081(a)(2)
+keys:
+- gasoline
+- diesel
+tags:
+- fuel
+- excise
+- Form 720
+- gasoline
+- diesel
+- '4081'
+notes: Highway Trust Fund rates are scheduled to drop after 2028-09-30 unless Congress extends them.
+values:
+- effective_from: '1997-10-01'
+  effective_to: '2028-09-30'
+  value:
+    gasoline: 0.184
+    diesel: 0.244
+  provenance:
+    source: IRC §4081(a)(2); extended by P.L. 117-58 §80102

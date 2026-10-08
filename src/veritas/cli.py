@@ -1,0 +1,227 @@
+"""Command line: `veritas --help`."""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from datetime import date
+from pathlib import Path
+
+import typer
+from rich.console import Console
+from rich.table import Table
+
+app = typer.Typer(help="Veritas — autonomous accounting, ledger and tax platform", no_args_is_help=True)
+agents_app = typer.Typer(help="The agent workforce", no_args_is_help=True)
+rules_app = typer.Typer(help="Regulation knowledge base", no_args_is_help=True)
+prop_app = typer.Typer(help="Changes proposed by agents", no_args_is_help=True)
+app.add_typer(agents_app, name="agents")
+app.add_typer(rules_app, name="rules")
+app.add_typer(prop_app, name="proposals")
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+con = Console()
+
+
+def home() -> Path:
+    return Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
+
+
+def ctx():
+    from .app_context import AppContext
+
+    return AppContext.open(home())
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8740, agents: bool = typer.Option(True, help="run the agent workforce in the background")):
+    """Start the web app (and the agent workforce)."""
+    import uvicorn
+
+    os.environ["VERITAS_HOME"] = str(home())
+    os.environ["VERITAS_AGENTS"] = "1" if agents else "0"
+    con.print(f"[bold]Veritas[/] on http://{host}:{port}  (agents {'on' if agents else 'off'})")
+    uvicorn.run("veritas.api.app:app", host=host, port=port, log_level="warning")
+
+
+@app.command()
+def demo():
+    """Seed a realistic multi-industry demo firm."""
+    from .demo import seed
+
+    seed(home())
+    con.print("[green]Demo firm seeded.[/] Sample documents are waiting in maildrop/ for the intake agent.")
+
+
+@app.command()
+def mcp():
+    """Run Veritas as an MCP server over stdio (scope via VERITAS_MCP_ROLE / VERITAS_MCP_CLIENT)."""
+    from .mcp_server import main
+
+    main()
+
+
+@app.command()
+def ingest(path: Path, client: str = typer.Option(None, help="client id, if known")):
+    """Ingest any document (or folder) through the autonomous intake pipeline."""
+    from .intake.pipeline import ingest as run
+
+    c = ctx()
+    files = [p for p in path.rglob("*") if p.is_file()] if path.is_dir() else [path]
+    for f in files:
+        for d in run(c.conn, c.router, c.root / "vault", f.name, f.read_bytes(), channel="cli", client_hint=client):
+            con.print(f"{d['name']}: [bold]{d['doc_type']}[/] -> {d['status']} {d.get('vault_path', '')} ({d.get('match', '')})")
+
+
+@app.command()
+def regdoc(url: str, title: str = typer.Option(..., help="document title"), file: Path = typer.Option(None, help="local copy (PDF/HTML/TXT)")):
+    """Push a specific regulatory document (e.g. a new Rev. Proc.) through RegWatch."""
+    from .foundry.agents.regwatch import ingest_document
+    from .regwatch.documents import fetch_text, pdf_to_text
+
+    c = ctx()
+    if file:
+        text = pdf_to_text(file.read_bytes()) if file.suffix.lower() == ".pdf" else file.read_text(encoding="utf-8", errors="replace")
+    else:
+        text = fetch_text(url)
+    res = ingest_document(c.foundry, title, url, text)
+    con.print_json(json.dumps({"proposals": res.proposals, "log": res.log, "alerts": res.alerts}, default=str))
+
+
+@app.command()
+def golden():
+    """Run the golden regression scenarios against the current knowledge base."""
+    from .foundry.verify import load_golden, run_golden
+
+    c = ctx()
+    res = run_golden(c.kb, load_golden(c.root / "golden" / "scenarios.yaml"))
+    t = Table("scenario", "ok", "got", "expected")
+    for k, v in res.items():
+        t.add_row(k, "[green]✓[/]" if v["ok"] else "[red]✗[/]", str(v["got"]), str(v["expect"]))
+    con.print(t)
+    raise typer.Exit(0 if all(v["ok"] for v in res.values()) else 1)
+
+
+@app.command()
+def stale():
+    """What's due, overdue or sunsetting in the regulation knowledge base."""
+    from .foundry.agents.staleness import scan
+
+    t = Table("severity", "rule", "status", "year", "expected by", "days")
+    for a in scan(ctx().kb, date.today()):
+        t.add_row(a["severity"], a["rule_id"], a["status"], str(a.get("tax_year", "")), a["expected_by"], str(a["days"]))
+    con.print(t)
+
+
+# -- agents ---------------------------------------------------------------------------------------
+
+@agents_app.command("list")
+def agents_list():
+    c = ctx()
+    due = {s.id for s in c.foundry.due()}
+    t = Table("id", "kind", "every", "enabled", "due")
+    for s in c.foundry.specs():
+        t.add_row(s.id, s.kind, f"{s.every_hours}h", str(s.enabled), "yes" if s.id in due else "")
+    con.print(t)
+
+
+@agents_app.command("run")
+def agents_run(agent_id: str):
+    rec = ctx().foundry.run(agent_id)
+    con.print_json(json.dumps(rec, default=str))
+
+
+@agents_app.command("due")
+def agents_due():
+    """Run every agent that is due (this is what cron / GitHub Actions calls)."""
+    for rec in ctx().foundry.run_due():
+        con.print(f"{rec['agent']}: {'ok' if rec['ok'] else rec['error']} · {len(rec['proposals'])} proposal(s) · {len(rec['alerts'])} alert(s)")
+
+
+@agents_app.command("daemon")
+def agents_daemon(tick: int = 30):
+    """Run the workforce continuously."""
+    import time
+
+    c = ctx()
+    while True:
+        for rec in c.foundry.run_due():
+            con.print(f"{rec['started_at'][:19]} {rec['agent']}: {'ok' if rec['ok'] else rec['error']}")
+        c.reload()
+        time.sleep(tick)
+
+
+@agents_app.command("design")
+def agents_design(what: str = typer.Argument(..., help="agent | domain_pack | playbook | automation"), description: str = typer.Argument(...)):
+    """Have the Architect draft something new from plain English (lands as a proposal)."""
+    from .foundry.agents import builders
+
+    fn = {"agent": builders.design_agent, "domain_pack": builders.design_domain_pack, "playbook": builders.design_playbook,
+          "automation": builders.design_automation}[what]
+    p = fn(ctx().foundry, description)
+    con.print(f"proposal [bold]{p.id}[/]: {p.title} · risk {p.risk} · verified {p.verified}")
+
+
+# -- rules ----------------------------------------------------------------------------------------
+
+@rules_app.command("list")
+def rules_list():
+    kb = ctx().kb
+    t = Table("id", "title", "today")
+    for r in sorted(kb.rules.values(), key=lambda r: r.id):
+        v = r.value_on(date.today())
+        t.add_row(r.id, r.title, json.dumps(v.value) if v else "—")
+    con.print(t)
+
+
+@rules_app.command("show")
+def rules_show(rule_id: str):
+    con.print_json(ctx().kb.get(rule_id).model_dump_json())
+
+
+@rules_app.command("lint")
+def rules_lint():
+    """Validate every rule file (types, bounds, non-overlapping timelines)."""
+    kb = ctx().kb
+    con.print(f"[green]{len(kb.rules)} rules valid[/] · version {kb.version()}")
+
+
+# -- proposals ------------------------------------------------------------------------------------
+
+@prop_app.command("list")
+def prop_list(status: str = typer.Option(None)):
+    t = Table("id", "kind", "status", "risk", "verified", "title")
+    for p in ctx().foundry.proposals(status):
+        t.add_row(p.id, p.kind, p.status, p.risk, "✓" if p.verified else "✗", p.title[:80])
+    con.print(t)
+
+
+@prop_app.command("show")
+def prop_show(pid: str):
+    con.print_json(ctx().foundry.load(pid).model_dump_json())
+
+
+@prop_app.command("approve")
+def prop_approve(pid: str, by: str = typer.Option(..., help="who is approving"), note: str = ""):
+    p = ctx().foundry.adopt(pid, actor=by, note=note)
+    con.print(f"[green]adopted[/] {p.id}: {p.title}")
+
+
+@prop_app.command("reject")
+def prop_reject(pid: str, by: str = typer.Option(...), note: str = typer.Option(...)):
+    ctx().foundry.reject(pid, actor=by, note=note)
+    con.print("rejected")
+
+
+@prop_app.command("rollback")
+def prop_rollback(pid: str, by: str = typer.Option(...), note: str = typer.Option(...)):
+    ctx().foundry.rollback(pid, actor=by, note=note)
+    con.print("rolled back")
+
+
+if __name__ == "__main__":
+    app()

@@ -1,0 +1,72 @@
+# Golden regression scenarios: deterministic answers every rule change is checked
+# against. The Researcher agent proposes new ones from fresh guidance; a scenario is
+# only added once the engine reproduces the value stated by the authority.
+- id: std-deduction-single-2024
+  calc: standard_deduction
+  inputs: {tax_year: 2024, filing_status: single}
+  expect: 14600
+  source: Rev. Proc. 2023-34
+- id: std-deduction-mfj-2025
+  calc: standard_deduction
+  inputs: {tax_year: 2025, filing_status: mfj}
+  expect: 31500
+  source: P.L. 119-21 §70102
+- id: std-deduction-hoh-2026
+  calc: standard_deduction
+  inputs: {tax_year: 2026, filing_status: hoh}
+  expect: 24150
+  source: Rev. Proc. 2025-32
+- id: meals-2026
+  calc: meals_deduction
+  inputs: {amount: 1000, date: "2026-03-01"}
+  expect: 500.00
+- id: mileage-2026
+  calc: mileage_deduction
+  inputs: {miles: 1000, tax_year: 2026}
+  expect: 725.00
+  source: Notice 2026-10
+- id: sec179-phaseout-2026
+  calc: section_179
+  inputs: {tax_year: 2026, elected: 3000000, total_placed_in_service: 4500000}
+  expect: 2150000
+  source: Rev. Proc. 2025-32 §4.24
+- id: bonus-pre-obbba-acquisition
+  calc: bonus_rate
+  inputs: {acquired: "2024-12-01", placed_in_service: "2025-02-01"}
+  expect: 0.4
+- id: bonus-post-obbba-acquisition
+  calc: bonus_rate
+  inputs: {acquired: "2025-03-01", placed_in_service: "2025-03-15"}
+  expect: 1.0
+- id: nec-required-2025
+  calc: form_1099_nec_required
+  inputs: {total_paid: 1500, calendar_year: 2025}
+  expect: true
+- id: nec-not-required-2026
+  calc: form_1099_nec_required
+  inputs: {total_paid: 1500, calendar_year: 2026}
+  expect: false
+- id: boi-domestic-2024
+  calc: boi_report_required
+  inputs: {formed_under: domestic, date: "2024-06-01"}
+  expect: true
+- id: boi-domestic-2026
+  calc: boi_report_required
+  inputs: {formed_under: domestic, date: "2026-09-01"}
+  expect: false
+- id: boi-foreign-2026
+  calc: boi_report_required
+  inputs: {formed_under: foreign, date: "2026-09-01"}
+  expect: true
+- id: diesel-excise-2026
+  calc: fuel_excise
+  inputs: {gallons: 1000, fuel: diesel, date: "2026-06-01"}
+  expect: 244.00
+- id: salt-cap-2030-reversion
+  calc: salt_cap
+  inputs: {tax_year: 2030}
+  expect: 10000
+- id: corp-tax-2026
+  calc: corporate_tax
+  inputs: {taxable_income: 100000, tax_year: 2026}
+  expect: 21000

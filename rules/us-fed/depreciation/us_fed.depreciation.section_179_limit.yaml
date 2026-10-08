@@ -1,0 +1,39 @@
+id: us_fed.depreciation.section_179_limit
+title: Section 179 expensing limit
+jurisdiction: US-FED
+category: depreciation
+value_type: money
+unit: USD
+citation: IRC §179(b)(1)
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure {year} section 179 limitation inflation adjustment
+bounds:
+  min: 100000.0
+  max: 10000000.0
+  max_change_pct: 0.08
+tags:
+- section 179
+- expensing
+- depreciation
+- inflation
+values:
+- effective_from: '2024-01-01'
+  effective_to: '2024-12-31'
+  value: 1220000
+  provenance:
+    source: Rev. Proc. 2023-34 §3.25
+    url: https://www.irs.gov/pub/irs-drop/rp-23-34.pdf
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value: 2500000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70306
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 2560000
+  provenance:
+    source: Rev. Proc. 2025-32 §4.24
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

@@ -1,0 +1,7 @@
+# Local development identities. Production deployments replace this with SSO + FIDO2/WebAuthn
+# (IRS Pub. 4557 / FTC Safeguards Rule). A client user can only ever see their own client.
+users:
+  - {id: maya.chen, name: Maya Chen, title: CPA, role: cpa, token: dev-cpa}
+  - {id: sam.ortiz, name: Sam Ortiz, title: Owner, Ortiz Auto Care, role: client, client_id: ortiz-auto, token: dev-ortiz}
+  - {id: priya.n, name: Priya Natarajan, title: Owner, Lakeside Fuel & Market, role: client, client_id: lakeside-fuel, token: dev-lakeside}
+  - {id: jordan.lee, name: Jordan Lee, title: Individual client, role: client, client_id: jordan-lee, token: dev-jordan}

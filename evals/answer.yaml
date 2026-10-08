@@ -1,0 +1,18 @@
+role: answer
+cases:
+  - question: How much of our client dinners can we deduct this year?
+    evidence: |
+      [R:us_fed.business.meals_deductible_pct] Deductible fraction of business meal expenses — tax year 2026: 0.5 fraction (source: IRC §274(n)(1))
+      [E:bal:2026:6200] 6200 Meals (expense): 4812.40
+      [M:2026:5c] Line 5c Travel and entertainment / meals not deductible: 2406.20
+    must_include: ["50", "2406.20"]
+  - question: Do we need to file a BOI report this year?
+    evidence: |
+      [R:us_fincen.boi.domestic_reporting_required] Domestic reporting companies must file BOI reports — tax year 2026: false (source: FinCEN final rule effective 2026-08-14)
+      [C:acme] Acme Fabrication LLC — business, llc; formed domestic
+    must_include: ["not"]
+  - question: What is the 2027 standard deduction for a single filer?
+    evidence: |
+      [R:us_fed.individual.standard_deduction] Standard deduction by filing status — tax year 2026: {"single": 16100, "mfj": 32200} USD (source: Rev. Proc. 2025-32)
+      [R:us_fed.individual.standard_deduction] Standard deduction by filing status — tax year 2027: NOT YET PUBLISHED
+    must_include: ["not yet", "16100"]

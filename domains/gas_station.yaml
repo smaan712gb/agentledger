@@ -1,0 +1,91 @@
+id: gas_station
+title: Gas station and convenience store
+description: >-
+  Dual-channel POS (fuel and inside sales), volumetric fuel shrink, lottery and money orders as
+  pass-through fiduciary liabilities (only the commission is revenue). Federal fuel excise is
+  generally imposed at the terminal rack (IRC 4081) and embedded in fuel cost; the Form 720
+  template is only for stations that are themselves liable (registrants, blenders).
+extends: general
+accounts:
+  - {code: "1210", name: Fuel Inventory, type: asset}
+  - {code: "1220", name: Merchandise Inventory, type: asset}
+  - {code: "2400", name: Federal Fuel Excise Payable, type: liability}
+  - {code: "2410", name: State Fuel Tax Payable, type: liability}
+  - {code: "2500", name: Lottery Clearing, type: liability}
+  - {code: "2510", name: Money Order Clearing, type: liability}
+  - {code: "4100", name: Fuel Sales, type: revenue}
+  - {code: "4200", name: Merchandise Sales, type: revenue}
+  - {code: "4300", name: Lottery Commissions, type: revenue}
+  - {code: "5100", name: Fuel Cost of Sales, type: expense}
+  - {code: "5110", name: Fuel Shrinkage, type: expense}
+  - {code: "5200", name: Merchandise Cost of Sales, type: expense}
+templates:
+  - id: daily_fuel_sales
+    title: Daily fuel sales (z-report)
+    memo: "Fuel sales {day}"
+    inputs: [{name: day, type: text}, {name: gross_receipts}, {name: state_tax_collected}]
+    lines:
+      - {account: "1000", amount: "gross_receipts"}
+      - {account: "2410", amount: "-state_tax_collected"}
+      - {account: "4100", amount: "-(gross_receipts - state_tax_collected)"}
+    sample: {day: 2026-06-01, gross_receipts: 18450.75, state_tax_collected: 1900}
+  - id: daily_lottery
+    title: Daily lottery activity (pass-through)
+    memo: "Lottery {day}"
+    inputs: [{name: day, type: text}, {name: ticket_sales}, {name: prize_payouts}, {name: commission}]
+    lines:
+      - {account: "1000", amount: "ticket_sales - prize_payouts"}
+      - {account: "2500", amount: "-(ticket_sales - prize_payouts - commission)"}
+      - {account: "4300", amount: "-commission"}
+    sample: {day: 2026-06-01, ticket_sales: 2400, prize_payouts: 650, commission: 120}
+  - id: lottery_sweep
+    title: Lottery sweep (state draws the account)
+    memo: "Lottery sweep {week}"
+    inputs: [{name: week, type: text}, {name: amount}]
+    lines:
+      - {account: "2500", amount: "amount"}
+      - {account: "1000", amount: "-amount"}
+    sample: {week: 2026-W22, amount: 1630}
+  - id: fuel_shrink
+    title: Fuel inventory shrink (ATG reconciliation)
+    memo: "Fuel shrink {tank}: book {book_gallons} vs stick {measured_gallons}"
+    inputs: [{name: tank, type: text}, {name: book_gallons, type: number}, {name: measured_gallons, type: number}, {name: cost_per_gallon}]
+    lines:
+      - {account: "5110", amount: "(book_gallons - measured_gallons) * cost_per_gallon"}
+      - {account: "1210", amount: "-(book_gallons - measured_gallons) * cost_per_gallon"}
+    sample: {tank: T1 regular, book_gallons: 8120, measured_gallons: 8085, cost_per_gallon: 2.91}
+  - id: form_720_excise_liability
+    title: Federal fuel excise owed by a liable station (Form 720 registrants only)
+    memo: "Form 720 excise {period}"
+    inputs: [{name: period, type: text}, {name: gasoline_gallons, type: number}, {name: diesel_gallons, type: number}]
+    rules: {gas_rate: "us_fed.excise.motor_fuel_rate:gasoline", diesel_rate: "us_fed.excise.motor_fuel_rate:diesel"}
+    lines:
+      - {account: "5100", amount: "gasoline_gallons * gas_rate + diesel_gallons * diesel_rate"}
+      - {account: "2400", amount: "-(gasoline_gallons * gas_rate + diesel_gallons * diesel_rate)"}
+    sample: {period: 2026-Q2, gasoline_gallons: 120000, diesel_gallons: 30000}
+doc_types: [Bill of lading, Fuel tank report, POS z-report, Lottery settlement]
+facts: [gallons_sold, tanks, state]
+checks:
+  - id: lottery_as_sales
+    title: Lottery or money-order receipts recorded as revenue
+    type: memo_account
+    params: {pattern: "lottery|scratch|powerball|mega ?millions|money order", account_type: revenue, except: ["4300"]}
+    severity: high
+    owner: cpa
+    detail: Lottery and money-order collections are owed to the lottery or issuer; only the commission is revenue. Booking gross receipts as sales overstates income and sales tax.
+  - id: shrink_ratio
+    title: Fuel shrink above 0.5% of fuel cost
+    type: ratio_max
+    params: {numerator: "5110", denominator: "5100", max: 0.005}
+    severity: high
+    owner: client
+    detail: Losses beyond normal temperature variance can mean a leaking tank (an environmental reporting matter) or theft. Reconcile ATG readings against deliveries.
+  - id: lottery_liability_negative
+    title: Lottery clearing account is negative
+    type: min_balance
+    params: {account: "2500", min: 0}
+    severity: medium
+    owner: cpa
+kpis:
+  - {id: fuel_margin_per_gallon, title: Fuel margin per gallon, expr: "(bal_4100 - bal_5100) / gallons_sold", unit: USD/gal}
+  - {id: inside_sales_margin, title: Inside sales margin, expr: "(bal_4200 - bal_5200) / bal_4200 * 100", unit: "%"}

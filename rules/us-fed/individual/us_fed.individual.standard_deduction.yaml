@@ -1,0 +1,56 @@
+id: us_fed.individual.standard_deduction
+title: Standard deduction by filing status
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §63(c)
+keys:
+- single
+- mfj
+- mfs
+- hoh
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year} standard deduction
+bounds:
+  min: 1000.0
+  max: 100000.0
+  max_change_pct: 0.08
+tags:
+- standard deduction
+- inflation
+- filing status
+- revenue procedure
+values:
+- effective_from: '2024-01-01'
+  effective_to: '2024-12-31'
+  value:
+    single: 14600
+    mfj: 29200
+    mfs: 14600
+    hoh: 21900
+  provenance:
+    source: Rev. Proc. 2023-34 §3.15
+    url: https://www.irs.gov/pub/irs-drop/rp-23-34.pdf
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    single: 15750
+    mfj: 31500
+    mfs: 15750
+    hoh: 23625
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70102 amending IRC §63(c)(7)
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    single: 16100
+    mfj: 32200
+    mfs: 16100
+    hoh: 24150
+  provenance:
+    source: Rev. Proc. 2025-32
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf

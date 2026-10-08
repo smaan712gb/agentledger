@@ -1,0 +1,41 @@
+id: us_fed.depreciation.macrs_gds_half_year
+title: MACRS GDS 200%/150% DB half-year convention percentage tables
+jurisdiction: US-FED
+category: depreciation
+value_type: table
+unit: fraction
+citation: Rev. Proc. 87-57, Table A-1
+keys:
+- '3'
+- '5'
+- '7'
+tags:
+- MACRS
+- depreciation
+- half-year
+values:
+- effective_from: '1987-01-01'
+  value:
+    '3':
+    - 0.3333
+    - 0.4445
+    - 0.1481
+    - 0.0741
+    '5':
+    - 0.2
+    - 0.32
+    - 0.192
+    - 0.1152
+    - 0.1152
+    - 0.0576
+    '7':
+    - 0.1429
+    - 0.2449
+    - 0.1749
+    - 0.1249
+    - 0.0893
+    - 0.0892
+    - 0.0893
+    - 0.0446
+  provenance:
+    source: Rev. Proc. 87-57 Table A-1 (IRS Pub. 946 Appendix A)

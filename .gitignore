@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+state/veritas.db*
+vault/
+maildrop/processed/
+.env
+state/*.log
+state/installed_at
+# runtime agent state (machine-specific)
+state/agent_runs.jsonl
+state/model_scout_report.json
+state/regwatch_seen.json
+state/proposals/

@@ -1,0 +1,40 @@
+# Integration catalog. "available" ships today. "buildable" means the AI Engineer can build it on
+# request from the vendor's public API docs: the request becomes a work item, the Engineer writes the
+# plugin (manifest + code + tests) in an isolated worktree, and a human approves it (supply chain).
+# Every connector, however built, only emits transactions / documents / template postings into the
+# normal pipelines and only gets the permissions its manifest declares.
+connectors:
+  # --- available -------------------------------------------------------------------------------
+  - {id: bank_csv, name: Any bank / card CSV, category: banking, status: available}
+  - {id: ofx, name: OFX / QFX bank downloads, category: banking, status: available}
+  - {id: stripe, name: Stripe, category: payments, status: available}
+  - {id: folder_watch, name: Google Drive / Dropbox / OneDrive (synced folder), category: documents, status: available}
+  - {id: intake_imap, name: Any IMAP mailbox (Gmail, Outlook, Fastmail), category: email, status: available}
+  - {id: mcp_bridge, name: Any MCP server, category: universal, status: available}
+  - {id: webhook_inbound, name: Zapier / Make / n8n / any webhook, category: universal, status: available}
+  - {id: trial_balance_import, name: QuickBooks / Xero / Sage migration (trial balance), category: migration, status: available}
+  - {id: quickbooks_iif_export, name: QuickBooks Desktop (IIF export), category: export, status: available}
+  - {id: tax_trial_balance_export, name: UltraTax / Lacerte / Drake / ProConnect (trial balance), category: export, status: available}
+  - {id: beancount_export, name: Beancount (plain-text ledger), category: export, status: available}
+  # --- buildable on request by the AI Engineer -------------------------------------------------
+  - {id: quickbooks_online, name: QuickBooks Online API, category: accounting, status: buildable, auth: oauth2, docs: "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/journalentry"}
+  - {id: xero, name: Xero API, category: accounting, status: buildable, auth: oauth2, docs: "https://developer.xero.com/documentation/api/accounting/overview"}
+  - {id: plaid, name: Plaid (12,000+ banks), category: banking, status: buildable, auth: api_key, docs: "https://plaid.com/docs/api/products/transactions/"}
+  - {id: gusto, name: Gusto payroll, category: payroll, status: buildable, auth: oauth2, docs: "https://docs.gusto.com/app-integrations/reference"}
+  - {id: adp, name: ADP Workforce Now, category: payroll, status: buildable, auth: oauth2, docs: "https://developers.adp.com/"}
+  - {id: square, name: Square POS, category: pos, status: buildable, auth: oauth2, docs: "https://developer.squareup.com/reference/square"}
+  - {id: clover, name: Clover POS, category: pos, status: buildable, auth: oauth2, docs: "https://docs.clover.com/reference"}
+  - {id: toast, name: Toast POS, category: pos, status: buildable, auth: oauth2, docs: "https://doc.toasttab.com/"}
+  - {id: shopify, name: Shopify, category: ecommerce, status: buildable, auth: oauth2, docs: "https://shopify.dev/docs/api/admin-graphql"}
+  - {id: gmail, name: Gmail API, category: email, status: buildable, auth: oauth2, docs: "https://developers.google.com/gmail/api/reference/rest"}
+  - {id: microsoft365, name: Microsoft 365 / Outlook (Graph), category: email, status: buildable, auth: oauth2, docs: "https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview"}
+  - {id: docusign, name: DocuSign (engagement letters, 8879), category: esign, status: buildable, auth: oauth2, docs: "https://developers.docusign.com/docs/esign-rest-api/"}
+  - {id: slack, name: Slack, category: collaboration, status: available_via_webhook}
+  - {id: teams, name: Microsoft Teams, category: collaboration, status: available_via_webhook}
+  - {id: hubspot, name: HubSpot CRM, category: crm, status: buildable, auth: oauth2, docs: "https://developers.hubspot.com/docs/api/overview"}
+  - {id: salesforce, name: Salesforce, category: crm, status: buildable, auth: oauth2, docs: "https://developer.salesforce.com/docs/apis"}
+  - {id: karbon, name: Karbon practice management, category: practice, status: buildable, auth: api_key, docs: "https://developers.karbonhq.com/"}
+  - {id: taxdome, name: TaxDome, category: practice, status: buildable, auth: api_key}
+  - {id: athenahealth, name: athenahealth (835 / PM totals), category: healthcare, status: buildable, auth: oauth2, docs: "https://docs.athenahealth.com/api/"}
+  - {id: applied_epic, name: Applied Epic (insurance AMS), category: insurance, status: buildable, auth: oauth2}
+  - {id: interactive_brokers, name: Interactive Brokers (Flex queries), category: investments, status: buildable, auth: token, docs: "https://www.interactivebrokers.com/campus/ibkr-api-page/flex-web-service/"}

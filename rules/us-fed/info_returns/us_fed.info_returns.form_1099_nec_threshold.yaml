@@ -1,0 +1,32 @@
+id: us_fed.info_returns.form_1099_nec_threshold
+title: Form 1099-NEC / 1099-MISC reporting threshold (payments in a calendar year)
+jurisdiction: US-FED
+category: info_returns
+value_type: money
+unit: USD
+citation: IRC §6041(a)
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure (indexed after 2026)
+bounds:
+  min: 600.0
+  max: 10000.0
+  max_change_pct: 0.08
+tags:
+- 1099-NEC
+- 1099-MISC
+- information return
+- threshold
+- '6041'
+values:
+- effective_from: '2020-01-01'
+  effective_to: '2025-12-31'
+  value: 600
+  provenance:
+    source: IRC §6041(a)
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 2000
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70433

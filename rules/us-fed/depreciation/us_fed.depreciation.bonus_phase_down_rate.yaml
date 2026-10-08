@@ -1,0 +1,36 @@
+id: us_fed.depreciation.bonus_phase_down_rate
+title: Bonus depreciation rate by placed-in-service date (property acquired before 2025-01-20)
+jurisdiction: US-FED
+category: depreciation
+value_type: rate
+unit: fraction
+citation: IRC §168(k)(6)
+tags:
+- bonus depreciation
+- 168(k)
+- phase-down
+values:
+- effective_from: '2023-01-01'
+  effective_to: '2023-12-31'
+  value: 0.8
+  provenance:
+    source: IRC §168(k)(6)(A)(ii)
+- effective_from: '2024-01-01'
+  effective_to: '2024-12-31'
+  value: 0.6
+  provenance:
+    source: IRC §168(k)(6)(A)(iii)
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value: 0.4
+  provenance:
+    source: IRC §168(k)(6)(A)(iv)
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 0.2
+  provenance:
+    source: IRC §168(k)(6)(A)(v)
+- effective_from: '2027-01-01'
+  value: 0.0
+  provenance:
+    source: IRC §168(k)(6)(A)

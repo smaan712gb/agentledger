@@ -1,0 +1,17 @@
+id: us_fed.business.meals_deductible_pct
+title: Deductible fraction of business meal expenses
+jurisdiction: US-FED
+category: business
+value_type: rate
+unit: fraction
+citation: IRC §274(n)(1)
+tags:
+- meals
+- 274(n)
+- deduction
+- M-1
+values:
+- effective_from: '2018-01-01'
+  value: 0.5
+  provenance:
+    source: IRC §274(n)(1) as amended by P.L. 115-97 §13304

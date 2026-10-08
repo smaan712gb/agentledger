@@ -1,0 +1,16 @@
+id: us_fed.corporate.income_tax_rate
+title: C corporation federal income tax rate
+jurisdiction: US-FED
+category: corporate
+value_type: rate
+unit: fraction
+citation: IRC §11(b)
+tags:
+- corporate tax rate
+- 21%
+- '1120'
+values:
+- effective_from: '2018-01-01'
+  value: 0.21
+  provenance:
+    source: P.L. 115-97 §13001

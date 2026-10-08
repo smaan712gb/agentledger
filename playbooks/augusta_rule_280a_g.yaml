@@ -1,0 +1,23 @@
+id: augusta_rule_280a_g
+title: Renting the owner's home to the business for 14 days or less
+category: planning
+summary: Rental income for fewer than 15 days is excluded for the homeowner, and the business may deduct a fair
+  rent for bona fide business use.
+applies_when: kind == 'business' and domain not in ['pe_fund', 'hedge_fund'] and owner_has_home == True
+domains:
+- '*'
+rule_refs: []
+steps:
+- Hold genuine business meetings at the home with agendas, attendees and minutes.
+- Support the daily rate with comparable local venue rental quotes.
+- Pay by invoice from the business; keep the count at 14 days or fewer per year.
+substance: The meetings must be real and the rent at market. Inflated rates or undocumented 'meetings' are routinely
+  disallowed.
+aggressiveness: moderate
+citations:
+- "IRC \xA7280A(g)"
+- Sinopoli v. Commissioner, T.C. Memo. 2023-105
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

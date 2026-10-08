@@ -1,0 +1,25 @@
+From: Jordan Lee <jordan.lee@example.com>
+To: intake@maya-cpa.example
+Subject: tax docs
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============3980708120419333844=="
+
+--===============3980708120419333844==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Attaching the interest statement from my bank. Thanks!
+
+--===============3980708120419333844==
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="1099-INT_2025.txt"
+MIME-Version: 1.0
+
+Rmlyc3QgS2V5c3RvbmUgQmFuawpGb3JtIDEwOTktSU5UICBJbnRlcmVzdCBJbmNvbWUgIDIwMjUK
+UEFZRVI6IEZpcnN0IEtleXN0b25lIEJhbmssIEhhcnJpc2J1cmcgUEEgICBQQVlFUidTIFRJTiAy
+My0xMTg4MjAwClJFQ0lQSUVOVDogSm9yZGFuIExlZSAgIFJFQ0lQSUVOVCdTIFRJTiAqKiotKiot
+NTMwOAoxIEludGVyZXN0IGluY29tZSAgICAgICAgICAgICAgICAgJCA0MTIuNzcKNCBGZWRlcmFs
+IGluY29tZSB0YXggd2l0aGhlbGQgICAgICQgMC4wMAo=
+
+--===============3980708120419333844==--

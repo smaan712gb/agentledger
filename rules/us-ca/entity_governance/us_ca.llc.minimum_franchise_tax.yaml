@@ -1,0 +1,17 @@
+id: us_ca.llc.minimum_franchise_tax
+title: California LLC annual minimum franchise tax
+jurisdiction: US-CA
+category: entity_governance
+value_type: money
+unit: USD
+citation: Cal. Rev. & Tax. Code §17941
+tags:
+- California
+- LLC
+- franchise tax
+- Form 3522
+values:
+- effective_from: '1997-01-01'
+  value: 800
+  provenance:
+    source: Cal. Rev. & Tax. Code §17941

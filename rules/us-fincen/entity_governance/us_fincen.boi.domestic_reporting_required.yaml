@@ -1,0 +1,28 @@
+id: us_fincen.boi.domestic_reporting_required
+title: Domestic reporting companies must file Beneficial Ownership Information reports
+jurisdiction: US-FINCEN
+category: entity_governance
+value_type: boolean
+citation: 31 U.S.C. §5336; 31 CFR 1010.380
+tags:
+- BOI
+- beneficial ownership
+- CTA
+- FinCEN
+- corporate transparency
+values:
+- effective_from: '2024-01-01'
+  effective_to: '2025-03-25'
+  value: true
+  provenance:
+    source: 31 CFR 1010.380 (final rule, 87 FR 59498)
+- effective_from: '2025-03-26'
+  effective_to: '2026-08-13'
+  value: false
+  provenance:
+    source: FinCEN interim final rule, 90 FR 13688 (2025-03-26)
+- effective_from: '2026-08-14'
+  value: false
+  provenance:
+    source: FinCEN final rule effective 2026-08-14 permanently exempting U.S. companies and U.S. persons
+    url: https://www.ballardspahr.com/insights/alerts-and-articles/2026/08/fincen-permanently-exempts-us-entities-and-persons-from-beneficial-ownership-reporting

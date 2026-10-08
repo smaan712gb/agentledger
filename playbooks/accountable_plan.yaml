@@ -1,0 +1,24 @@
+id: accountable_plan
+title: Accountable plan for owner and employee reimbursements
+category: planning
+summary: Reimbursing business expenses (home office, mileage, phone) under an accountable plan makes them deductible
+  to the company and tax-free to the employee.
+applies_when: kind == 'business' and entity_type in ['s_corp', 'c_corp']
+domains:
+- '*'
+rule_refs:
+- us_fed.business.standard_mileage_rate
+- us_fed.substantiation.receipt_threshold
+steps:
+- Adopt a written plan requiring substantiation within 60 days and return of excess within 120 days.
+- Reimburse mileage at the current standard rate or actual substantiated costs.
+- Keep logs and receipts with each reimbursement.
+substance: Without timely substantiation and return of excess advances, reimbursements become taxable wages.
+aggressiveness: conservative
+citations:
+- "Treas. Reg. \xA71.62-2"
+- "IRC \xA762(c)"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

@@ -1,0 +1,16 @@
+id: us_nasba.cpe.minutes_per_credit
+title: Minutes of instruction per CPE credit
+jurisdiction: US-NASBA
+category: practice
+value_type: integer
+unit: minutes
+citation: AICPA/NASBA Statement on Standards for CPE Programs §S1-01
+tags:
+- CPE
+- NASBA
+- continuing education
+values:
+- effective_from: '2012-01-01'
+  value: 50
+  provenance:
+    source: AICPA/NASBA CPE Standards

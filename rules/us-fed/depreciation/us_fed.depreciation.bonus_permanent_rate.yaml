@@ -1,0 +1,17 @@
+id: us_fed.depreciation.bonus_permanent_rate
+title: Bonus depreciation rate by acquisition date (property acquired after 2025-01-19)
+jurisdiction: US-FED
+category: depreciation
+value_type: rate
+unit: fraction
+citation: IRC §168(k)
+tags:
+- bonus depreciation
+- 168(k)
+- 100%
+notes: Keyed on acquisition date; property must also be placed in service after 2025-01-19.
+values:
+- effective_from: '2025-01-20'
+  value: 1.0
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70301

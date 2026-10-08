@@ -1,0 +1,21 @@
+id: us_fed.info_returns.form_1099_k_threshold
+title: Form 1099-K third-party network de minimis threshold
+jurisdiction: US-FED
+category: info_returns
+value_type: table
+citation: IRC §6050W(e)
+keys:
+- gross_amount
+- transactions
+tags:
+- 1099-K
+- third party settlement
+- 6050W
+- threshold
+values:
+- effective_from: '2022-01-01'
+  value:
+    gross_amount: 20000
+    transactions: 200
+  provenance:
+    source: P.L. 119-21 (One Big Beautiful Bill Act) §70432 (retroactive repeal of ARPA change)

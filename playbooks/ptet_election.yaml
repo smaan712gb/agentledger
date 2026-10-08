@@ -1,0 +1,24 @@
+id: ptet_election
+title: State pass-through entity tax (PTET) election
+category: planning
+summary: Paying state income tax at the entity level can convert owners' capped itemized SALT into an entity-level
+  deduction.
+applies_when: kind == 'business' and entity_type in ['s_corp', 'partnership'] and state_has_ptet == True
+domains:
+- '*'
+rule_refs:
+- us_fed.individual.salt_deduction_cap
+steps:
+- Model owner-level benefit against the current SALT cap and each owner's itemizing position.
+- Confirm the state's election deadline, estimated-payment schedule and owner credit mechanics.
+- Obtain owner consents where the state requires them; calendar the election.
+substance: Benefit depends on the owners' actual federal itemizing position and state credit rules; the election
+  is often irrevocable for the year.
+aggressiveness: conservative
+citations:
+- IRS Notice 2020-75
+- "IRC \xA7164(b)(6)"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

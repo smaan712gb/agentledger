@@ -1,0 +1,86 @@
+# The agent workforce. Each agent observes, proposes, and is verified before anything changes.
+# New agents can be designed in plain English by the Architect (`veritas agents design "..."`).
+agents:
+  - id: regwatch-federal-register
+    kind: federal_register
+    title: Federal Register watcher
+    mission: Read every IRS, Treasury and FinCEN rule and notice; draft grounded rule changes.
+    every_hours: 12
+    params:
+      agencies: [internal-revenue-service, treasury-department, financial-crimes-enforcement-network]
+      lookback_days: 10
+      max_docs: 15
+  - id: regwatch-irs-newsroom
+    kind: irs_newsroom
+    title: IRS newsroom watcher
+    mission: Catch IRS news releases announcing new figures (mileage, inflation adjustments, relief).
+    every_hours: 12
+    params: {max_docs: 8}
+  - id: staleness-hunter
+    kind: staleness
+    title: Staleness hunter
+    mission: Know when every indexed parameter is due; hunt official sources when one is late.
+    every_hours: 24
+    params: {hunt: true, max_hunts: 3}
+  - id: ca-ftb-news
+    kind: web_watch
+    title: California FTB newsroom
+    mission: Watch California Franchise Tax Board news for LLC fee and franchise tax changes.
+    every_hours: 24
+    enabled: false
+    params:
+      url: https://www.ftb.ca.gov/about-ftb/newsroom/index.html
+      keywords: [LLC, franchise tax, pass-through, elective tax, rate, threshold]
+  - id: intake-maildrop
+    kind: intake_maildrop
+    title: Maildrop intake
+    mission: File anything dropped or forwarded into maildrop/ to the right client and folder.
+    every_hours: 0.1
+  - id: intake-imap
+    kind: intake_imap
+    title: Mailbox intake
+    mission: Read the firm's intake mailbox and file every attachment.
+    every_hours: 0.25
+    enabled: false
+    params: {folder: INBOX}
+  - id: integrity-sweeper
+    kind: integrity_sweeper
+    title: Integrity sweeper
+    mission: Re-run every honesty check across all clients.
+    every_hours: 24
+  - id: automations
+    kind: automations
+    title: Automation runner
+    mission: Turn events into tasks, client requests, drafts and notifications.
+    every_hours: 0.05
+  - id: model-scout
+    first_run: after_interval
+    kind: model_scout
+    title: Model scout
+    mission: Keep every AI role on the best open-source model that wins on our evals.
+    every_hours: 168
+  - id: repo-scout
+    first_run: after_interval
+    kind: repo_scout
+    title: Open-source repo scout
+    mission: Track the health of the open-source stack and discover better components.
+    every_hours: 168
+  - id: dependency-watch
+    first_run: after_interval
+    kind: dependency_watch
+    title: Dependency watch
+    mission: Propose upgrades when the libraries we depend on release new versions.
+    every_hours: 24
+  - id: researcher
+    first_run: after_interval
+    kind: researcher
+    title: AI researcher
+    mission: Brief the firm on what changed, propose regression tests and playbook updates.
+    every_hours: 168
+  - id: engineer
+    first_run: after_interval
+    kind: engineer
+    title: AI engineer
+    mission: Turn work items into tested code changes behind deterministic gates.
+    every_hours: 24
+    params: {max_items: 1}

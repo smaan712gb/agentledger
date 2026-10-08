@@ -1,0 +1,21 @@
+id: tips_and_overtime_deductions
+title: Deductions for qualified tips and overtime (2025-2028)
+category: planning
+summary: Individuals with qualified tip income or qualified overtime compensation may deduct part of it, subject
+  to caps and income phase-outs.
+applies_when: kind == 'individual' and (has_tip_income == True or has_overtime == True)
+domains:
+- '*'
+rule_refs: []
+steps:
+- Confirm the occupation and reporting (W-2/1099 statements) qualify.
+- Apply the annual cap and the modified AGI phase-out.
+- Keep employer statements supporting the amounts.
+substance: Only amounts properly reported qualify; the deduction is temporary and income-limited.
+aggressiveness: conservative
+citations:
+- "P.L. 119-21 (One Big Beautiful Bill Act) \xA7\xA770201-70202"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

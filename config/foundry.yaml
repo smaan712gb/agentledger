@@ -1,0 +1,59 @@
+# Guardrail policy for the Agent Foundry. This file is a PROTECTED PATH: agents may
+# propose changes to it, but such proposals always require a human decision.
+
+# Highest risk tier each proposal kind may reach and still be adopted without a human.
+# none < low < medium < high. Unverified proposals are never auto-adopted.
+auto_adopt:
+  rule_change: low          # e.g. next year's inflation-indexed figure, grounded in an official source
+  golden_scenario: low      # a new regression test whose expected value the engine already reproduces
+  model_upgrade: medium     # a challenger model that beat the champion on our evals (reversible)
+  dependency_upgrade: none  # supply chain: always human
+  repo_adoption: none       # supply chain: always human
+  code_change: low          # AI-written code: only when every gate passes and nothing protected is touched
+  agent_spec: none
+  domain_pack: none
+  playbook: none           # expert knowledge changes are reviewed by a CPA
+  automation: none         # new automated behaviour is approved by a person
+
+# Documents must come from these domains to support an automatic rule change.
+official_domains:
+  - irs.gov
+  - federalregister.gov
+  - govinfo.gov
+  - fincen.gov
+  - ssa.gov
+  - treasury.gov
+  - congress.gov
+  - ftb.ca.gov
+  - revenue.delaware.gov
+  - corp.delaware.gov
+
+# Code the AI Engineer may never change without human approval: the guardrails themselves.
+protected_paths:
+  - src/veritas/audit.py
+  - src/veritas/db.py
+  - src/veritas/foundry/core.py
+  - src/veritas/foundry/verify.py
+  - src/veritas/ai/grounding.py
+  - src/veritas/integrity/
+  - config/foundry.yaml
+  - .github/
+
+staleness:
+  warn_days_before_due: 45
+  sunset_horizon_days: 1095
+
+model_scout:
+  margin: 0.03             # challenger must beat champion by this score to be promoted
+  max_size_gb: 6.0         # hardware budget for local models
+  auto_pull: false         # download challengers automatically (weights only; never code)
+  max_new_candidates: 3
+  trusted_publishers: [qwen, llama, gemma, mistral, phi, granite, deepseek, nemotron, glm, olmo]
+
+engineer:
+  # Coding agents tried in order. Placeholders: {prompt}. Open source first.
+  commands:
+    - ["aider", "--yes-always", "--no-auto-commits", "--model", "ollama_chat/qwen2.5-coder:14b", "--message", "{prompt}"]
+    - ["claude", "-p", "{prompt}", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash(python -m pytest:*)"]
+  max_diff_lines: 600
+  test_command: ["python", "-m", "pytest", "-q", "-x"]

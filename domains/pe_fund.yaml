@@ -1,0 +1,100 @@
+id: pe_fund
+title: Private equity fund
+description: >-
+  Capital calls and distributions by partner class, investments at fair value (ASC 820),
+  management fee accruals on committed capital, and carried-interest reallocation between LP
+  and GP capital.
+extends: general
+accounts:
+  - {code: "1600", name: Investments at Fair Value, type: asset}
+  - {code: "1700", name: Capital Call Receivable, type: asset}
+  - {code: "2700", name: Management Fee Payable, type: liability}
+  - {code: "3200", name: Limited Partners Capital, type: equity}
+  - {code: "3210", name: General Partner Capital, type: equity}
+  - {code: "3220", name: Carried Interest Allocation (GP), type: equity}
+  - {code: "4700", name: Dividend and Interest Income, type: revenue}
+  - {code: "4710", name: Realized Gain on Investments, type: revenue}
+  - {code: "4720", name: Unrealized Gain (Loss) on Investments, type: revenue}
+  - {code: "6750", name: Management Fees, type: expense}
+  - {code: "6760", name: Fund Organization and Operating Expenses, type: expense}
+  - {code: "6770", name: Broken Deal Costs, type: expense}
+templates:
+  - id: capital_call
+    title: Capital call issued
+    memo: "Capital call {call_no}"
+    inputs: [{name: call_no, type: text}, {name: lp_amount}, {name: gp_amount}]
+    lines:
+      - {account: "1700", amount: "lp_amount + gp_amount"}
+      - {account: "3200", amount: "-lp_amount"}
+      - {account: "3210", amount: "-gp_amount"}
+    sample: {call_no: "7", lp_amount: 9900000, gp_amount: 100000}
+  - id: capital_call_funded
+    title: Capital call funded
+    memo: "Capital call {call_no} funded"
+    inputs: [{name: call_no, type: text}, {name: amount}]
+    lines:
+      - {account: "1000", amount: "amount"}
+      - {account: "1700", amount: "-amount"}
+    sample: {call_no: "7", amount: 10000000}
+  - id: investment_purchase
+    title: Portfolio investment acquired
+    memo: "Investment in {company}"
+    inputs: [{name: company, type: text}, {name: cost}]
+    lines:
+      - {account: "1600", amount: "cost"}
+      - {account: "1000", amount: "-cost"}
+    sample: {company: Portfolio Co A, cost: 8500000}
+  - id: management_fee
+    title: Management fee accrual on committed capital
+    memo: "Management fee {period}"
+    inputs: [{name: period, type: text}, {name: committed_capital}, {name: annual_rate, type: number}, {name: months, type: number}]
+    lines:
+      - {account: "6750", amount: "committed_capital * annual_rate * months / 12"}
+      - {account: "2700", amount: "-(committed_capital * annual_rate * months / 12)"}
+    sample: {period: 2026-Q2, committed_capital: 250000000, annual_rate: 0.02, months: 3}
+  - id: fair_value_mark
+    title: Quarterly fair-value mark (ASC 820)
+    memo: "FV mark {company} {period}"
+    inputs: [{name: company, type: text}, {name: period, type: text}, {name: change}]
+    lines:
+      - {account: "1600", amount: "change"}
+      - {account: "4720", amount: "-change"}
+    sample: {company: Portfolio Co A, period: 2026-Q2, change: 1250000}
+  - id: realization
+    title: Exit / realization of an investment
+    memo: "Exit {company}"
+    inputs: [{name: company, type: text}, {name: proceeds}, {name: carrying_value}]
+    lines:
+      - {account: "1000", amount: "proceeds"}
+      - {account: "1600", amount: "-carrying_value"}
+      - {account: "4710", amount: "-(proceeds - carrying_value)"}
+    sample: {company: Portfolio Co A, proceeds: 14000000, carrying_value: 9750000}
+  - id: carry_allocation
+    title: Carried interest reallocation (per waterfall)
+    memo: "Carry allocation {period}"
+    inputs: [{name: period, type: text}, {name: amount}]
+    lines:
+      - {account: "3200", amount: "amount"}
+      - {account: "3220", amount: "-amount"}
+    sample: {period: "2026", amount: 850000}
+  - id: distribution
+    title: Distribution to partners
+    memo: "Distribution {dist_no}"
+    inputs: [{name: dist_no, type: text}, {name: lp_amount}, {name: gp_amount}]
+    lines:
+      - {account: "3200", amount: "lp_amount"}
+      - {account: "3210", amount: "gp_amount"}
+      - {account: "1000", amount: "-(lp_amount + gp_amount)"}
+    sample: {dist_no: "3", lp_amount: 12870000, gp_amount: 130000}
+doc_types: [Capital call notice, Distribution notice, Capital account statement, K-1, Valuation memo]
+facts: [committed_capital, vintage_year, investors]
+checks:
+  - id: unfunded_calls
+    title: Capital call receivable is negative (funding recorded twice?)
+    type: min_balance
+    params: {account: "1700", min: 0}
+    severity: medium
+    owner: cpa
+kpis:
+  - {id: value_to_lp_capital, title: Investments at FV / LP capital, expr: "bal_1600 / bal_3200", unit: x}
+  - {id: called_pct, title: Called vs committed, expr: "(bal_3200 + bal_3210) / committed_capital * 100", unit: "%"}

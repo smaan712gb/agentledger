@@ -1,0 +1,74 @@
+id: auto_repair
+title: Auto repair shop
+description: >-
+  Three-way revenue split (parts, labor, sublet), flat-rate technician pay and refundable core
+  deposits held on the balance sheet so they never distort parts margin.
+extends: general
+accounts:
+  - {code: "1360", name: Refundable Core Deposits (vendor), type: asset}
+  - {code: "2360", name: Customer Core Deposits, type: liability}
+  - {code: "4010", name: Parts Revenue, type: revenue}
+  - {code: "4020", name: Labor Revenue, type: revenue}
+  - {code: "4030", name: Sublet Revenue, type: revenue}
+  - {code: "5010", name: Parts Cost, type: expense}
+  - {code: "5030", name: Sublet Cost, type: expense}
+  - {code: "6010", name: Technician Flat-Rate Pay, type: expense}
+templates:
+  - id: supplier_invoice_with_core
+    title: Parts supplier invoice with a core charge
+    memo: "{vendor} invoice {invoice}: parts + core deposit"
+    inputs: [{name: vendor, type: text}, {name: invoice, type: text}, {name: base_cost}, {name: core_amount}]
+    lines:
+      - {account: "5010", amount: "base_cost"}
+      - {account: "1360", amount: "core_amount"}
+      - {account: "2000", amount: "-(base_cost + core_amount)"}
+    sample: {vendor: NAPA, invoice: "88123", base_cost: 210, core_amount: 45}
+  - id: repair_order
+    title: Customer repair order (parts, labor, sublet, core, tax)
+    memo: "RO {ro}: {vehicle}"
+    inputs: [{name: ro, type: text}, {name: vehicle, type: text}, {name: parts}, {name: labor}, {name: sublet}, {name: core_charge}, {name: sales_tax}]
+    lines:
+      - {account: "1000", amount: "parts + labor + sublet + core_charge + sales_tax"}
+      - {account: "4010", amount: "-parts"}
+      - {account: "4020", amount: "-labor"}
+      - {account: "4030", amount: "-sublet"}
+      - {account: "2360", amount: "-core_charge"}
+      - {account: "2200", amount: "-sales_tax"}
+    sample: {ro: "10442", vehicle: 2019 F-150 alternator, parts: 389, labor: 240, sublet: 0, core_charge: 45, sales_tax: 32.10}
+  - id: core_returned_to_vendor
+    title: Old core returned to vendor (vendor credit)
+    memo: "Core return to {vendor}"
+    inputs: [{name: vendor, type: text}, {name: core_amount}]
+    lines:
+      - {account: "2000", amount: "core_amount"}
+      - {account: "1360", amount: "-core_amount"}
+    sample: {vendor: NAPA, core_amount: 45}
+  - id: core_refunded_to_customer
+    title: Core deposit refunded to customer
+    memo: "Core refund RO {ro}"
+    inputs: [{name: ro, type: text}, {name: core_amount}]
+    lines:
+      - {account: "2360", amount: "core_amount"}
+      - {account: "1000", amount: "-core_amount"}
+    sample: {ro: "10442", core_amount: 45}
+doc_types: [Repair order, Parts invoice, Core return credit]
+facts: [bays, technicians, billed_hours]
+checks:
+  - id: core_in_revenue
+    title: Core charges recorded as parts revenue
+    type: memo_account
+    params: {pattern: "\\bcores?\\b", accounts: ["4010", "4000"]}
+    severity: medium
+    owner: cpa
+    detail: Refundable core charges belong in Customer Core Deposits (a liability), not revenue; booking them as sales inflates revenue and sales tax.
+  - id: customer_core_negative
+    title: Customer core deposit liability is negative
+    type: min_balance
+    params: {account: "2360", min: 0}
+    severity: medium
+    owner: cpa
+    detail: More core refunds than core charges collected; look for refunds posted without the original deposit.
+kpis:
+  - {id: parts_margin, title: Parts margin, expr: "(bal_4010 - bal_5010) / bal_4010 * 100", unit: "%"}
+  - {id: labor_share, title: Labor share of sales, expr: "bal_4020 / (bal_4010 + bal_4020 + bal_4030) * 100", unit: "%"}
+  - {id: effective_labor_rate, title: Effective labor rate, expr: "bal_4020 / billed_hours", unit: USD/hr}

@@ -1,0 +1,26 @@
+id: meals_and_entertainment_review
+title: Meals and entertainment classification review
+category: review
+summary: Separate 50% meals from 0% entertainment, and make sure each meal over the receipt threshold has a receipt
+  and a business purpose.
+applies_when: kind == 'business'
+domains:
+- '*'
+rule_refs:
+- us_fed.business.meals_deductible_pct
+- us_fed.business.entertainment_deductible_pct
+- us_fed.substantiation.receipt_threshold
+steps:
+- Scan meal entries for entertainment indicators (tickets, golf, club dues).
+- Confirm attendees and business purpose are recorded.
+- Attach receipts at or above the substantiation threshold.
+substance: Entertainment is nondeductible even when business is discussed.
+aggressiveness: conservative
+citations:
+- "IRC \xA7274(a)"
+- "IRC \xA7274(n)"
+- "IRC \xA7274(d)"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

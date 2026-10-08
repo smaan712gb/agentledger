@@ -1,0 +1,24 @@
+id: domestic_research_expensing
+title: "Domestic research expensing (IRC \xA7174A)"
+category: planning
+summary: Domestic research or experimental expenditures are again deductible currently for tax years beginning after
+  2024; eligible small businesses may revisit 2022-2024 capitalization.
+applies_when: kind == 'business' and domain not in ['pe_fund', 'hedge_fund'] and has_rnd == True
+domains:
+- '*'
+rule_refs: []
+steps:
+- Inventory software development and product R&D costs by year and by domestic vs. foreign.
+- Evaluate current expensing for 2025 forward and any transition elections for prior capitalized amounts.
+- "Coordinate with the \xA741 research credit computation and the \xA7280C election."
+substance: "Costs must be research or experimental in the \xA7174 sense and performed in the US to be expensed currently;\
+  \ foreign research remains capitalized."
+aggressiveness: conservative
+citations:
+- "P.L. 119-21 (One Big Beautiful Bill Act), new IRC \xA7174A"
+- "IRC \xA741"
+- "IRC \xA7280C(c)"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

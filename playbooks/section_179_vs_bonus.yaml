@@ -1,0 +1,25 @@
+id: section_179_vs_bonus
+title: Section 179 vs. bonus depreciation for this year's purchases
+category: planning
+summary: "Choose between \xA7179 (elective, income-limited, phase-out) and bonus depreciation (automatic unless\
+  \ elected out) asset by asset, including state conformity."
+applies_when: assets_placed_this_year == True
+domains:
+- '*'
+rule_refs:
+- us_fed.depreciation.section_179_limit
+- us_fed.depreciation.section_179_phaseout_threshold
+- us_fed.depreciation.bonus_permanent_rate
+steps:
+- List assets placed in service this year with acquisition dates (bonus eligibility depends on them).
+- "Compare \xA7179 headroom against the phase-out and the taxable-income limitation."
+- "Check state conformity; many states decouple from bonus and cap \xA7179."
+substance: 'Accelerating deductions is not always better: consider future rates, loss limitations and state add-backs.'
+aggressiveness: conservative
+citations:
+- "IRC \xA7179"
+- "IRC \xA7168(k)"
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

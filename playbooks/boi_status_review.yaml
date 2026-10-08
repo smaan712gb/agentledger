@@ -1,0 +1,23 @@
+id: boi_status_review
+title: Beneficial ownership (BOI) status review
+category: compliance
+summary: Domestic companies are exempt under FinCEN's 2026 final rule; foreign entities registered in a US state
+  must still report.
+applies_when: kind == 'business'
+domains:
+- '*'
+rule_refs:
+- us_fincen.boi.domestic_reporting_required
+- us_fincen.boi.foreign_filing_deadline_days
+steps:
+- Confirm whether the entity is domestic or foreign-formed and registered to do business in a state.
+- For foreign reporting companies, file within the deadline and report only non-US beneficial owners.
+substance: Status depends on where the entity was formed, not where it operates.
+aggressiveness: conservative
+citations:
+- "31 U.S.C. \xA75336"
+- 31 CFR 1010.380
+status: seed_unreviewed
+last_reviewed: null
+reviewed_by: null
+review_by: '2027-03-31'

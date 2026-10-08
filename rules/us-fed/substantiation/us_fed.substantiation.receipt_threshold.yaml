@@ -1,0 +1,18 @@
+id: us_fed.substantiation.receipt_threshold
+title: Expense amount at or above which documentary evidence (receipt) is required
+jurisdiction: US-FED
+category: substantiation
+value_type: money
+unit: USD
+citation: Treas. Reg. §1.274-5(c)(2)(iii)
+tags:
+- receipt
+- substantiation
+- 274(d)
+- travel
+- meals
+values:
+- effective_from: '1995-10-01'
+  value: 75
+  provenance:
+    source: T.D. 8864; Treas. Reg. §1.274-5(c)(2)(iii)(A)
