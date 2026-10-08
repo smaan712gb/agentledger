@@ -51,3 +51,67 @@ def check_forms(forms: list[str], year: int, *, need: str, path: str | None = No
         if RANK[c["status"]] < RANK[need]:
             out.append({"form": fid, "status": c["status"], "need": need, "limits": c.get("limits", [])})
     return out
+
+
+# ------------------------------------------------------------------ coverage flags
+# A flag says: "something changed that may make this jurisdiction/year/form wrong". It never stops preparation
+# (the preparer sees a review warning) but it blocks filing until the tax-content owner clears it.
+
+def _flags_path(root: Path) -> Path:
+    return Path(root) / "state" / "coverage_flags.json"
+
+
+def _read_flags(root: Path) -> list[dict[str, Any]]:
+    import json
+
+    p = _flags_path(root)
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+
+def flag(root: Path, *, jurisdiction: str, years: list[int], reason: str, source: str, raised_by: str,
+         form: str | None = None) -> dict[str, Any]:
+    import hashlib
+    import json
+    from datetime import datetime, timezone
+
+    fid = "cf_" + hashlib.sha1(f"{jurisdiction}|{form}|{sorted(years)}|{source}".encode()).hexdigest()[:10]
+    flags = _read_flags(root)
+    if any(x["id"] == fid for x in flags):
+        return {"id": fid, "new": False}
+    flags.append({"id": fid, "jurisdiction": jurisdiction, "form": form, "years": sorted(years), "reason": reason[:300],
+                  "source": source, "raised_by": raised_by, "raised_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                  "cleared": None})
+    p = _flags_path(root)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(flags, indent=1), encoding="utf-8")
+    return {"id": fid, "new": True}
+
+
+def active_flags(root: Path, *, jurisdiction: str | None = None, year: int | None = None) -> list[dict[str, Any]]:
+    out = []
+    for x in _read_flags(root):
+        if x.get("cleared"):
+            continue
+        if jurisdiction and x["jurisdiction"] != jurisdiction:
+            continue
+        if year is not None and x["years"] and year not in x["years"]:
+            continue
+        out.append(x)
+    return out
+
+
+def clear_flag(root: Path, flag_id: str, *, by: str, note: str, evidence: list[str]) -> dict[str, Any]:
+    """Only the tax-content owner clears a flag, with evidence that the change is implemented and tested."""
+    import json
+    from datetime import datetime, timezone
+
+    if not note.strip() or not evidence:
+        raise ValueError("clearing a coverage flag needs a note and evidence (tests, fixtures, commit)")
+    flags = _read_flags(root)
+    for x in flags:
+        if x["id"] == flag_id:
+            x["cleared"] = {"by": by, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "note": note,
+                            "evidence": evidence}
+            _flags_path(root).write_text(json.dumps(flags, indent=1), encoding="utf-8")
+            return x
+    raise KeyError(flag_id)

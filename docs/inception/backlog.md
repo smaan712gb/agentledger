@@ -68,6 +68,23 @@ Owner decisions recorded 2026-10-08:
 | T2-04 | ATS scenario harness (Pub 1436 / 4163 / 4164), with results recorded as coverage evidence | — |
 | T2-05 | Federal and state submission states; extensions; payments tracked separately; notices (W09) | Q24 |
 
+## Wave R: Tax Monitoring and Resolution (ADR-0011; notice handling first)
+
+| Id | Ticket | Proves |
+|---|---|---|
+| R-01 | **Notice intake and case:** CP/LT and state notices classified; taxpayer, period, issue and amounts extracted and verified; response deadline computed (CDP 30-day windows included); ResolutionCase with evidence checklist | Q16, Q40 |
+| R-02 | **Response package:** draft response from case evidence, practitioner approval bound to the package hash, submission and delivery evidence, outcome monitoring | Q15, Q22 |
+| R-03 | **Authorizations:** 8821 and 2848 records with scope, periods, CAF and revocation; every access and contact checks the covering authorization; forms rendered and e-signed where allowed | Q12, Q13 |
+| R-04 | **Transcripts:** parser for account, wage-and-income and record-of-account transcripts from uploads; versioned snapshots; change detection; practice-wide exception queue | fixtures from real layouts |
+| R-05 | **IRS-to-records reconciliation:** agency account vs filed returns, payments and books; discrepancy classification with an evidence-backed explanation | independent worked cases |
+| R-06 | Authorized transcript retrieval through IRS-permitted channels only (provider register) | — |
+| R-07 | Collection Financial Standards as effective-dated rules kept current by RegWatch | — |
+| R-08 | Collection information statements (433-A, 433-A (OIC), 433-B, 433-F) from verified records, with missing-fact requests | Q16 |
+| R-09 | Resolution options: guaranteed and streamlined IA, OIC eligibility plus RCP (lump sum and periodic), CNC; comparison for practitioner review; 9465 and 656 | independent worked cases |
+| R-10 | Penalty relief: first-time abatement eligibility, reasonable-cause drafts, Form 843 | — |
+| R-11 | Post-resolution compliance: payment and filing obligations tracked, reminders under the approved policy | — |
+| R-12 | *(after specialist validation)* CSED with suspension and extension events and incomplete-history warnings; bankruptcy dischargeability; appeals and CDP; innocent spouse | specialist-reviewed cases |
+
 Waves V (vertical packs), S1 (fund accounting) and S2 (PE and advanced) follow the spec §20 table. Their
 tickets are written when their wave starts, after representative datasets and specialist reviewers are
 lined up (spec §20, "Required ownership and resourcing").

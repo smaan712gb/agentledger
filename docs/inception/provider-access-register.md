@@ -32,3 +32,5 @@ As of 2026-10-08 nothing is in production.
 | Malware scanning | ClamAV in a worker, or a scanning API | Intake | None or contract | planned |
 | Observability | Grafana Cloud or Cloudflare Logpush + OpenTelemetry | Traces, metrics, logs | Account | planned |
 | Billing | Stripe Billing | SaaS subscriptions and metering | Account | planned |
+| IRS transcripts for representatives | IRS e-Services Transcript Delivery System (authorized representatives with 2848/8821 on file, CAF number) | Resolution early warning and CSED (ADR-0011) | Firm's e-Services access; confirm which automated access the IRS permits | planned (file upload works without it) |
+| Legislation feeds | Open States API (all states), GovInfo / api.data.gov (federal public laws) | legislation-watch (ADR-0010) | Free API keys | planned |

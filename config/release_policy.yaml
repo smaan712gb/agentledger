@@ -1,0 +1,55 @@
+# Release policy: what reaches production without a person, and who signs everything else.
+# PROTECTED PATH. Spec §9 ("each rules release needs authority references ... reviewer sign-off") and §20 gates.
+# Agents do all of the work in every category (find, draft, test, open the PR, prepare the evidence pack). This file
+# decides only whether the final merge-and-deploy step is automatic or waits for one approval click.
+
+tax_content_owner: null        # named person; required for every category with approver: tax_content_owner
+
+categories:
+  routine_indexed_value:
+    description: "A new period's value for a rule marked `indexed`, quoted verbatim from an official source, within bounds"
+    auto_release: true
+    requires: [sentinel_verified, official_source, verbatim_quote, within_bounds, full_suite_green, golden_green, oracle_green]
+  statutory_change:
+    description: "A changed or new statutory amount, rate, threshold or rule from enacted law or regulation"
+    auto_release: false
+    approver: tax_content_owner
+  form_revision:
+    description: "IRS or state form or instructions revised (line numbering, new lines, new worksheets)"
+    auto_release: false
+    approver: tax_content_owner
+  coverage_change:
+    description: "Any rise in a coverage status, or a new jurisdiction package"
+    auto_release: false
+    approver: tax_content_owner
+  model_promotion:
+    description: "A model that won on our evals for a role, with no change in which providers see taxpayer data"
+    auto_release: true
+    requires: [eval_win, data_class_unchanged]
+  dependency_patch:
+    description: "Patch-level dependency update with no licence change"
+    auto_release: true
+    requires: [full_suite_green, golden_green, licence_unchanged]
+  dependency_minor_major:
+    auto_release: false
+    approver: platform_admin
+  code_change:
+    description: "AI-written code"
+    auto_release: false          # becomes true per area only after the Engineer's track record is measured
+    approver: platform_admin
+
+# Paths each auto-releasable category may touch. Anything else in the diff makes the release need review.
+auto_paths:
+  routine_indexed_value: ["rules/", "rules/CHANGELOG.md", "golden/scenarios.yaml"]
+  model_promotion: ["config/models.yaml"]
+  dependency_patch: ["pyproject.toml", "uv.lock"]
+
+deployment:
+  strategy: gradual                  # Cloudflare Workers gradual deployments / container rollout
+  steps_percent: [10, 50, 100]
+  soak_minutes: 15
+  smoke: [health, golden_against_staging, coverage_endpoint]
+  rollback_when: ["error rate > 1% over 5 minutes", "p95 latency above the spec §18 target", "any smoke check fails"]
+
+# No automatic releases in the 72 hours before these deadlines (fixes go through an approved hotfix).
+freeze_before_deadlines: ["01-15", "03-15", "04-15", "06-15", "09-15", "10-15"]

@@ -14,6 +14,7 @@ import secrets
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from .. import audit
@@ -271,15 +272,20 @@ class Returns:
         self._save(rid, cur["inputs"], cur["provenance"], actor, "computed", result=result, crosscheck=cc)
         return result
 
-    @staticmethod
-    def _coverage(forms: list[str], year: int) -> dict[str, Any]:
+    def _coverage(self, forms: list[str], year: int) -> dict[str, Any]:
+        root = Path(self.kb.root).parent if getattr(self.kb, "root", None) else None
         from .. import coverage
 
         statuses = {coverage.form_id(f): coverage.lookup(coverage.form_id(f), year)["status"] for f in forms if coverage.form_id(f)}
         lowest = min(statuses.values(), key=lambda x: coverage.RANK[x]) if statuses else "unsupported"
-        return {"forms": statuses, "lowest": lowest,
+        blockers = coverage.check_forms(forms + ["mef_1040"], year, need="filing-approved")
+        flags = coverage.active_flags(root, jurisdiction="US-FED", year=year) if root else []
+        relevant = [x for x in flags if not x.get("form") or x["form"] in statuses]
+        blockers += [{"form": x.get("form") or "US-FED", "status": "review-required", "need": "flag cleared",
+                      "limits": [f"{x['reason']} ({x['source']})"], "flag": x["id"]} for x in relevant]
+        return {"forms": statuses, "lowest": lowest, "flags": relevant,
                 "below_preparation": coverage.check_forms(forms, year, need="manual-assisted"),
-                "filing_blockers": coverage.check_forms(forms + ["mef_1040"], year, need="filing-approved")}
+                "filing_blockers": blockers}
 
     # ------------------------------------------------------------------ workflow
     def status(self, rid: str) -> State:

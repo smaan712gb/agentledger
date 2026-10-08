@@ -37,6 +37,9 @@ protected_paths:
   - src/veritas/ai/grounding.py
   - src/veritas/integrity/
   - config/foundry.yaml
+  - config/jurisdictions.yaml   # its domains are trusted official sources
+  - config/release_policy.yaml
+  - coverage/coverage.yaml      # coverage status only rises with human-reviewed evidence
   - .github/
 
 staleness:

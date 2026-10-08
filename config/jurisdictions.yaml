@@ -1,0 +1,836 @@
+source: Federation of Tax Administrators member directory (https://taxadmin.org/fta-members/)
+verified_on: '2026-10-08'
+note: Agency links come from the FTA directory and are reachability-checked. News/RSS watch pages are discovered and verified by the state-watch
+  agent; nothing here is typed from memory.
+jurisdictions:
+- code: AL
+  name: Alabama
+  primary_agency: Alabama Department of Revenue
+  agencies:
+  - name: Alabama Department of Revenue
+    url: https://revenue.alabama.gov/
+    domain: www.revenue.alabama.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: AK
+  name: Alaska
+  primary_agency: State of Alaska Department of Revenue
+  agencies:
+  - name: State of Alaska Department of Revenue
+    url: https://dor.alaska.gov/
+    domain: dor.alaska.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: AZ
+  name: Arizona
+  primary_agency: Arizona Department of Revenue
+  agencies:
+  - name: Arizona Department of Revenue
+    url: https://www.azdor.gov/
+    domain: azdor.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: Arizona Department of Transportation
+    url: https://azdot.gov/
+    domain: azdot.gov
+    verified: true
+    http: 403
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: AR
+  name: Arkansas
+  primary_agency: Arkansas Department of Finance and Administration
+  agencies:
+  - name: Arkansas Department of Finance and Administration
+    url: https://www.dfa.arkansas.gov/
+    domain: www.dfa.arkansas.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: CA
+  name: California
+  primary_agency: California Franchise Tax Board (FTB)
+  agencies:
+  - name: California Department of Tax And Fee Administration (CDTFA)
+    url: https://cdtfa.ca.gov/
+    domain: cdtfa.ca.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: California Employment Development Department (EDD)
+    url: https://edd.ca.gov/
+    domain: edd.ca.gov
+    verified: true
+    http: 200
+    tax_agency: false
+  - name: California Franchise Tax Board (FTB)
+    url: https://www.ftb.ca.gov/
+    domain: www.ftb.ca.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: California State Controller’s Office
+    url: https://www.sco.ca.gov/
+    domain: www.sco.ca.gov
+    verified: true
+    http: 403
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: CO
+  name: Colorado
+  primary_agency: Colorado Department of Revenue
+  agencies:
+  - name: Colorado Department of Revenue
+    url: https://www.colorado.gov/tax
+    domain: tax.colorado.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: CT
+  name: Connecticut
+  primary_agency: Connecticut Department of Revenue Services
+  agencies:
+  - name: Connecticut Department of Revenue Services
+    url: https://portal.ct.gov/DRS
+    domain: portal.ct.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: DE
+  name: Delaware
+  primary_agency: Delaware Division of Revenue
+  agencies:
+  - name: Delaware Division of Revenue
+    url: https://revenue.delaware.gov/
+    domain: revenue.delaware.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: Delaware Department of Transportation, Division of Motor Vehicles
+    url: https://dmv.de.gov/
+    domain: dmv.de.gov
+    verified: true
+    http: 200
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: DC
+  name: District of Columbia
+  primary_agency: 'Washington, D.C.: Office of the Chief Financial Officer'
+  agencies:
+  - name: 'Washington, D.C.: Office of the Chief Financial Officer'
+    url: https://cfo.dc.gov/
+    domain: cfo.dc.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: FL
+  name: Florida
+  primary_agency: Florida Department of Revenue
+  agencies:
+  - name: Florida Department of Revenue
+    url: https://floridarevenue.com/
+    domain: floridarevenue.com
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: GA
+  name: Georgia
+  primary_agency: Georgia Department of Revenue
+  agencies:
+  - name: Georgia Department of Revenue
+    url: https://dor.georgia.gov/
+    domain: dor.georgia.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: HI
+  name: Hawaii
+  primary_agency: Hawaii Department of Taxation
+  agencies:
+  - name: Hawaii Department of Taxation
+    url: https://tax.hawaii.gov/
+    domain: tax.hawaii.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: ID
+  name: Idaho
+  primary_agency: Idaho State Tax Commission
+  agencies:
+  - name: Idaho State Tax Commission
+    url: https://tax.idaho.gov/
+    domain: tax.idaho.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: IL
+  name: Illinois
+  primary_agency: Illinois Department of Revenue
+  agencies:
+  - name: Illinois Department of Revenue
+    url: https://www2.illinois.gov/rev/
+    domain: tax.illinois.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: IN
+  name: Indiana
+  primary_agency: Indiana Department of Revenue
+  agencies:
+  - name: Indiana Department of Revenue
+    url: https://www.in.gov/dor/
+    domain: www.in.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: IA
+  name: Iowa
+  primary_agency: Iowa Department of Revenue
+  agencies:
+  - name: Iowa Department of Revenue
+    url: https://tax.iowa.gov/
+    domain: revenue.iowa.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: KS
+  name: Kansas
+  primary_agency: Kansas Department of Revenue
+  agencies:
+  - name: Kansas Department of Revenue
+    url: https://www.ksrevenue.org/
+    domain: www.ksrevenue.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: Kansas City, Missouri
+    url: https://www.kcmo.gov/city-hall/departments/finance/tax-home
+    domain: www.kcmo.gov
+    verified: true
+    http: 403
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: KY
+  name: Kentucky
+  primary_agency: Kentucky Department of Revenue
+  agencies:
+  - name: Kentucky Department of Revenue
+    url: https://revenue.ky.gov/
+    domain: revenue.ky.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: LA
+  name: Louisiana
+  primary_agency: Louisiana Department of Revenue
+  agencies:
+  - name: Louisiana Department of Revenue
+    url: https://revenue.louisiana.gov/
+    domain: revenue.louisiana.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: ME
+  name: Maine
+  primary_agency: Maine Revenue Services
+  agencies:
+  - name: Maine Revenue Services
+    url: https://www.maine.gov/revenue/
+    domain: www.maine.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MD
+  name: Maryland
+  primary_agency: Office of the Comptroller of Maryland
+  agencies:
+  - name: Office of the Comptroller of Maryland
+    url: https://www.marylandtaxes.gov/
+    domain: www.marylandcomptroller.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MA
+  name: Massachusetts
+  primary_agency: Massachusetts Department of Revenue
+  agencies:
+  - name: Massachusetts Department of Revenue
+    url: https://www.mass.gov/orgs/massachusetts-department-of-revenue
+    domain: www.mass.gov
+    verified: true
+    http: 403
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MI
+  name: Michigan
+  primary_agency: Michigan Department of Treasury
+  agencies:
+  - name: Michigan Department of Treasury
+    url: https://www.michigan.gov/treasury
+    domain: www.michigan.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MN
+  name: Minnesota
+  primary_agency: Minnesota Department of Revenue
+  agencies:
+  - name: Minnesota Department of Revenue
+    url: https://www.revenue.state.mn.us/
+    domain: www.revenue.state.mn.us
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MS
+  name: Mississippi
+  primary_agency: Mississippi Department of Revenue
+  agencies:
+  - name: Mississippi Department of Revenue
+    url: https://dor.ms.gov/
+    domain: www.dor.ms.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MO
+  name: Missouri
+  primary_agency: Missouri Department of Revenue
+  agencies:
+  - name: Missouri Department of Revenue
+    url: https://dor.mo.gov/
+    domain: dor.mo.gov
+    verified: false
+    http: 503
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: MT
+  name: Montana
+  primary_agency: Montana Department of Revenue
+  agencies:
+  - name: Montana Department of Revenue
+    url: https://mtrevenue.gov/
+    domain: revenue.mt.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NE
+  name: Nebraska
+  primary_agency: Nebraska Department of Revenue
+  agencies:
+  - name: Nebraska Department of Revenue
+    url: https://revenue.nebraska.gov/
+    domain: revenue.nebraska.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NV
+  name: Nevada
+  primary_agency: State of Nevada Department of Taxation
+  agencies:
+  - name: State of Nevada Department of Taxation
+    url: https://tax.nv.gov/
+    domain: tax.nv.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NH
+  name: New Hampshire
+  primary_agency: New Hampshire Department of Revenue Administration
+  agencies:
+  - name: New Hampshire Department of Revenue Administration
+    url: https://revenue.nh.gov/
+    domain: revenue.nh.gov
+    verified: true
+    http: 403
+    tax_agency: true
+  - name: New Hampshire Department of Safety
+    url: https://www.dos.nh.gov/
+    domain: www.dos.nh.gov
+    verified: true
+    http: 403
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NJ
+  name: New Jersey
+  primary_agency: New Jersey Division of Taxation
+  agencies:
+  - name: New Jersey Division of Taxation
+    url: https://www.state.nj.us/treasury/taxation/
+    domain: www.nj.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NM
+  name: New Mexico
+  primary_agency: New Mexico Taxation and Revenue Department
+  agencies:
+  - name: New Mexico Taxation and Revenue Department
+    url: https://tax.newmexico.gov/
+    domain: www.tax.newmexico.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NY
+  name: New York
+  primary_agency: New York Department of Taxation and Finance
+  agencies:
+  - name: New York Department of Taxation and Finance
+    url: https://tax.ny.gov/
+    domain: www.tax.ny.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: New York City Department of Finance
+    url: https://www.nyc.gov/site/finance/taxes/taxes.page
+    domain: www.nyc.gov
+    verified: true
+    http: 200
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: NC
+  name: North Carolina
+  primary_agency: North Carolina Department of Revenue
+  agencies:
+  - name: North Carolina Department of Revenue
+    url: https://www.ncdor.gov/
+    domain: www.ncdor.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: ND
+  name: North Dakota
+  primary_agency: North Dakota Office of the State Tax Commissioner
+  agencies:
+  - name: North Dakota Office of the State Tax Commissioner
+    url: https://www.nd.gov/tax/
+    domain: www.tax.nd.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: OH
+  name: Ohio
+  primary_agency: Ohio Department of Taxation
+  agencies:
+  - name: Ohio Department of Taxation
+    url: https://tax.ohio.gov/
+    domain: tax.ohio.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: OK
+  name: Oklahoma
+  primary_agency: Oklahoma Tax Commission
+  agencies:
+  - name: Oklahoma Tax Commission
+    url: https://www.ok.gov/tax
+    domain: oklahoma.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: OR
+  name: Oregon
+  primary_agency: Oregon Department of Revenue
+  agencies:
+  - name: Oregon Department of Revenue
+    url: https://www.oregon.gov/DOR/Pages/index.aspx
+    domain: www.oregon.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: Oregon Department of Transportation
+    url: https://www.oregon.gov/odot/pages/index.aspx
+    domain: www.oregon.gov
+    verified: true
+    http: 200
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: PA
+  name: Pennsylvania
+  primary_agency: Pennsylvania Department of Revenue
+  agencies:
+  - name: Pennsylvania Department of Revenue
+    url: https://www.revenue.pa.gov/Pages/default.aspx
+    domain: www.pa.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: RI
+  name: Rhode Island
+  primary_agency: State of Rhode Island Department of Taxation
+  agencies:
+  - name: State of Rhode Island Department of Taxation
+    url: http://www.tax.ri.gov/
+    domain: tax.ri.gov
+    verified: true
+    http: 403
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: SC
+  name: South Carolina
+  primary_agency: South Carolina Department of Revenue
+  agencies:
+  - name: South Carolina Department of Revenue
+    url: https://dor.sc.gov/
+    domain: dor.sc.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: SD
+  name: South Dakota
+  primary_agency: South Dakota Department of Revenue
+  agencies:
+  - name: South Dakota Department of Revenue
+    url: https://dor.sd.gov/
+    domain: dor.sd.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: TN
+  name: Tennessee
+  primary_agency: Tennessee Department of Revenue
+  agencies:
+  - name: Tennessee Department of Revenue
+    url: https://www.tn.gov/revenue/
+    domain: www.tn.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: TX
+  name: Texas
+  primary_agency: Office of the Comptroller of Texas
+  agencies:
+  - name: Office of the Comptroller of Texas
+    url: https://comptroller.texas.gov/
+    domain: comptroller.texas.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: UT
+  name: Utah
+  primary_agency: Utah State Tax Commission
+  agencies:
+  - name: Utah State Tax Commission
+    url: https://tax.utah.gov/
+    domain: tax.utah.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: VT
+  name: Vermont
+  primary_agency: Vermont Department of Taxes
+  agencies:
+  - name: Vermont Department of Taxes
+    url: https://tax.vermont.gov/
+    domain: tax.vermont.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: VA
+  name: Virginia
+  primary_agency: Virginia Department of Taxation
+  agencies:
+  - name: Virginia Department of Taxation
+    url: https://tax.virginia.gov/
+    domain: www.tax.virginia.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: Virginia Department of Motor Vehicles
+    url: https://www.dmv.virginia.gov/
+    domain: www.dmv.virginia.gov
+    verified: true
+    http: 200
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: WA
+  name: Washington
+  primary_agency: Washington Department of Revenue
+  agencies:
+  - name: Washington Department of Revenue
+    url: https://dor.wa.gov/
+    domain: dor.wa.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: WV
+  name: West Virginia
+  primary_agency: West Virginia Tax Division
+  agencies:
+  - name: West Virginia Tax Division
+    url: https://tax.wv.gov/Pages/default.aspx
+    domain: tax.wv.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: WI
+  name: Wisconsin
+  primary_agency: State of Wisconsin Department of Revenue
+  agencies:
+  - name: State of Wisconsin Department of Revenue
+    url: https://www.revenue.wi.gov/
+    domain: www.revenue.wi.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded
+- code: WY
+  name: Wyoming
+  primary_agency: Wyoming Department of Revenue
+  agencies:
+  - name: Wyoming Department of Revenue
+    url: http://revenue.wyo.gov/
+    domain: revenue.wyo.gov
+    verified: true
+    http: 200
+    tax_agency: true
+  - name: Wyoming Department of Transportation
+    url: https://www.dot.state.wy.us/home.html
+    domain: www.dot.state.wy.us
+    verified: true
+    http: 200
+    tax_agency: false
+  watch:
+    news_url: null
+    rss: null
+    legislature: null
+  status: seeded

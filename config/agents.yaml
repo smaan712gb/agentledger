@@ -22,6 +22,24 @@ agents:
     mission: Know when every indexed parameter is due; hunt official sources when one is late.
     every_hours: 24
     params: {hunt: true, max_hunts: 3}
+  - id: state-watch
+    kind: state_watch
+    title: State tax agency watcher (all 50 states and DC)
+    mission: Read every state tax agency's news and guidance; draft grounded rule changes; flag coverage.
+    every_hours: 3
+    params: {batch: 8, max_docs_per_state: 3}
+  - id: legislation-watch
+    kind: legislation_watch
+    title: Enacted tax law watcher (Congress and all states)
+    mission: Catch tax bills that became law; flag affected jurisdictions and years; draft rule changes.
+    every_hours: 12
+    params: {lookback_days: 14, federal: true, max_docs: 10}
+  - id: irs-forms-watch
+    kind: irs_forms_watch
+    title: IRS forms and instructions watcher
+    mission: Detect new drafts and revisions of every form we compute; queue the engine update and flag filing.
+    every_hours: 24
+    params: {alert_on_first_sighting: false}
   - id: ca-ftb-news
     kind: web_watch
     title: California FTB newsroom

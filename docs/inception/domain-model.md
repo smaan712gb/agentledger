@@ -15,6 +15,7 @@ rules and prices carry both effective time and recorded time.
 | Tax | TaxCase, TaxYear, Jurisdiction, Election, Carryforward, BasisSchedule, BookTaxAdjustment, CalculationRun, FormInstance, FilingPackage, Submission, Acknowledgment | `returns/`, `filing/` (new) | firm DB | Return (TaxCase plus versions with a pinned CalculationRun), M-1 built. Elections, carryforwards, packages, submissions and acks todo. |
 | Practice | Opportunity, Proposal, Job, Task, Request, Deadline, ReviewNote, TimeEntry, WIPItem, PracticeInvoice | `crm/` | firm DB | Engagements, tasks, messages, deadlines built. Time, WIP and practice billing todo. |
 | Automation | WorkflowRun, AgentRun, ActionProposal, Approval, SkillVersion, PluginInstallation, ToolInvocation, ProviderReceipt | `workflow/`, `foundry/`, `plugins/` | firm DB (tenant work); platform DB (platform agents) | Workflow events, agent runs, foundry proposals, plugins built. Generic ActionProposal/Approval binding todo. |
+| Monitoring & resolution | Authorization (8821/2848), TranscriptSnapshot, Assessment, Notice, ResolutionCase, CollectionEvent | `resolution/` (new, ADR-0011) | firm DB | Not started; IRS notices are already classified at intake |
 | Investments | Instrument … WaterfallRun | `funds/` (wave S) | firm DB | Not started |
 | Operations | AuditEvent, OutboxEvent, SyncCursor, ImportBatch, CoverageRecord, ReleaseManifest, RetentionPolicy, Incident | `ops/` | both | Audit (hash-chained) and coverage registry built. Outbox, import batches, retention todo. |
 

@@ -184,6 +184,42 @@ def models_inventory(refresh: bool = typer.Option(True, help="fetch the sources 
     con.print(t)
 
 
+release_app = typer.Typer(help="Release classification and coverage flags", no_args_is_help=True)
+app.add_typer(release_app, name="release")
+
+
+@release_app.command("classify")
+def release_classify(base: str = typer.Option("origin/main", help="git ref the change set is compared against")):
+    """Decide whether the current change set may ship without a person (exit 0 = auto, 10 = needs review)."""
+    import subprocess
+
+    from .release import classify
+
+    paths = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"], capture_output=True, text=True, check=True,
+                           cwd=home()).stdout.split()
+    d = classify(home(), paths)
+    print(json.dumps(d.__dict__, indent=2))
+    raise typer.Exit(0 if d.verdict == "auto" else 10)
+
+
+@release_app.command("flags")
+def release_flags():
+    """Open coverage flags: changes that block filing until the tax-content owner clears them."""
+    from . import coverage
+
+    for x in coverage.active_flags(home()):
+        con.print(f"[yellow]{x['id']}[/] {x['jurisdiction']} {x.get('form') or ''} {x['years']} - {x['reason']}  ({x['source']})")
+
+
+@release_app.command("clear-flag")
+def release_clear_flag(flag_id: str, by: str = typer.Option(...), note: str = typer.Option(...),
+                       evidence: list[str] = typer.Option(..., help="test files, fixture ids, commit hashes")):
+    """Tax-content owner: clear a coverage flag once the change is implemented and tested."""
+    from . import coverage
+
+    con.print(coverage.clear_flag(home(), flag_id, by=by, note=note, evidence=evidence))
+
+
 @app.command("return")
 def compute_return(path: Path, as_json: bool = typer.Option(False, "--json", help="print the full return as JSON")):
     """Compute an individual return (Form 1040) from a JSON or YAML file of facts and documents."""

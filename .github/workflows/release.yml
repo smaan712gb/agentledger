@@ -1,0 +1,67 @@
+# Continuous delivery: every merge to main is tested, deployed to staging, smoke-tested, then rolled out to
+# production gradually with automatic rollback (config/release_policy.yaml -> deployment).
+# The deploy jobs activate once the Cloudflare project exists (wrangler.jsonc) and its secrets are set (backlog F-02).
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: {group: release, cancel-in-progress: false}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev,oracle]"
+      - name: Full suite, golden regression and independent cross-checks
+        run: |
+          python -m pytest -q
+          VERITAS_HOME=$PWD veritas golden
+
+  staging:
+    needs: verify
+    if: ${{ hashFiles('wrangler.jsonc') != '' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Deploy to staging
+        env: {CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}", CLOUDFLARE_ACCOUNT_ID: "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"}
+        run: npx wrangler deploy --env staging
+      - name: Smoke tests against staging (health, coverage, golden through the API)
+        env: {STAGING_URL: "${{ vars.STAGING_URL }}", SMOKE_TOKEN: "${{ secrets.STAGING_SMOKE_TOKEN }}"}
+        run: python scripts/smoke.py "$STAGING_URL"
+
+  production:
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Gradual rollout with automatic rollback
+        env: {CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}", CLOUDFLARE_ACCOUNT_ID: "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}",
+              PROD_URL: "${{ vars.PROD_URL }}", SMOKE_TOKEN: "${{ secrets.PROD_SMOKE_TOKEN }}"}
+        run: |
+          set -e
+          npx wrangler versions upload --env production --message "release ${GITHUB_SHA::7}"
+          NEW=$(npx wrangler versions list --env production --json | python -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
+          OLD=$(npx wrangler deployments list --env production --json | python -c "import json,sys;print(json.load(sys.stdin)[0]['versions'][0]['version_id'])")
+          for pct in 10 50 100; do
+            npx wrangler versions deploy "$NEW@$pct%" "$OLD@$((100-pct))%" --env production -y
+            sleep 900
+            if ! python scripts/smoke.py "$PROD_URL"; then
+              echo "smoke failed at ${pct}%: rolling back"
+              npx wrangler versions deploy "$OLD@100%" --env production -y
+              exit 1
+            fi
+          done

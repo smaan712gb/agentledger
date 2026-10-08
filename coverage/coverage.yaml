@@ -67,8 +67,58 @@ capabilities:
   - {id: f990,       name: "Form 990 family",                   jurisdiction: US-FED, years: [2026], status: unsupported}
   # ---------------------------------------------------------------- information returns (owner priority)
   - {id: f1099_nec,  name: "1099-NEC/MISC filing (IRIS/FIRE)",  jurisdiction: US-FED, years: [2026], status: unsupported}
-  # ---------------------------------------------------------------- states (owner to name the first states)
-  - {id: state_any,  name: "Any state income or franchise tax return", jurisdiction: US-STATES, years: [2026], status: unsupported}
+  # ---------------------------------------------------------------- states (owner: all states; certified one package at a time)
+  - {id: state_al, name: "Alabama returns", jurisdiction: US-AL, years: [2026], status: unsupported}
+  - {id: state_ak, name: "Alaska returns", jurisdiction: US-AK, years: [2026], status: unsupported}
+  - {id: state_az, name: "Arizona returns", jurisdiction: US-AZ, years: [2026], status: unsupported}
+  - {id: state_ar, name: "Arkansas returns", jurisdiction: US-AR, years: [2026], status: unsupported}
+  - {id: state_ca, name: "California returns", jurisdiction: US-CA, years: [2026], status: unsupported}
+  - {id: state_co, name: "Colorado returns", jurisdiction: US-CO, years: [2026], status: unsupported}
+  - {id: state_ct, name: "Connecticut returns", jurisdiction: US-CT, years: [2026], status: unsupported}
+  - {id: state_de, name: "Delaware returns", jurisdiction: US-DE, years: [2026], status: unsupported}
+  - {id: state_dc, name: "District of Columbia returns", jurisdiction: US-DC, years: [2026], status: unsupported}
+  - {id: state_fl, name: "Florida returns", jurisdiction: US-FL, years: [2026], status: unsupported}
+  - {id: state_ga, name: "Georgia returns", jurisdiction: US-GA, years: [2026], status: unsupported}
+  - {id: state_hi, name: "Hawaii returns", jurisdiction: US-HI, years: [2026], status: unsupported}
+  - {id: state_id, name: "Idaho returns", jurisdiction: US-ID, years: [2026], status: unsupported}
+  - {id: state_il, name: "Illinois returns", jurisdiction: US-IL, years: [2026], status: unsupported}
+  - {id: state_in, name: "Indiana returns", jurisdiction: US-IN, years: [2026], status: unsupported}
+  - {id: state_ia, name: "Iowa returns", jurisdiction: US-IA, years: [2026], status: unsupported}
+  - {id: state_ks, name: "Kansas returns", jurisdiction: US-KS, years: [2026], status: unsupported}
+  - {id: state_ky, name: "Kentucky returns", jurisdiction: US-KY, years: [2026], status: unsupported}
+  - {id: state_la, name: "Louisiana returns", jurisdiction: US-LA, years: [2026], status: unsupported}
+  - {id: state_me, name: "Maine returns", jurisdiction: US-ME, years: [2026], status: unsupported}
+  - {id: state_md, name: "Maryland returns", jurisdiction: US-MD, years: [2026], status: unsupported}
+  - {id: state_ma, name: "Massachusetts returns", jurisdiction: US-MA, years: [2026], status: unsupported}
+  - {id: state_mi, name: "Michigan returns", jurisdiction: US-MI, years: [2026], status: unsupported}
+  - {id: state_mn, name: "Minnesota returns", jurisdiction: US-MN, years: [2026], status: unsupported}
+  - {id: state_ms, name: "Mississippi returns", jurisdiction: US-MS, years: [2026], status: unsupported}
+  - {id: state_mo, name: "Missouri returns", jurisdiction: US-MO, years: [2026], status: unsupported}
+  - {id: state_mt, name: "Montana returns", jurisdiction: US-MT, years: [2026], status: unsupported}
+  - {id: state_ne, name: "Nebraska returns", jurisdiction: US-NE, years: [2026], status: unsupported}
+  - {id: state_nv, name: "Nevada returns", jurisdiction: US-NV, years: [2026], status: unsupported}
+  - {id: state_nh, name: "New Hampshire returns", jurisdiction: US-NH, years: [2026], status: unsupported}
+  - {id: state_nj, name: "New Jersey returns", jurisdiction: US-NJ, years: [2026], status: unsupported}
+  - {id: state_nm, name: "New Mexico returns", jurisdiction: US-NM, years: [2026], status: unsupported}
+  - {id: state_ny, name: "New York returns", jurisdiction: US-NY, years: [2026], status: unsupported}
+  - {id: state_nc, name: "North Carolina returns", jurisdiction: US-NC, years: [2026], status: unsupported}
+  - {id: state_nd, name: "North Dakota returns", jurisdiction: US-ND, years: [2026], status: unsupported}
+  - {id: state_oh, name: "Ohio returns", jurisdiction: US-OH, years: [2026], status: unsupported}
+  - {id: state_ok, name: "Oklahoma returns", jurisdiction: US-OK, years: [2026], status: unsupported}
+  - {id: state_or, name: "Oregon returns", jurisdiction: US-OR, years: [2026], status: unsupported}
+  - {id: state_pa, name: "Pennsylvania returns", jurisdiction: US-PA, years: [2026], status: unsupported}
+  - {id: state_ri, name: "Rhode Island returns", jurisdiction: US-RI, years: [2026], status: unsupported}
+  - {id: state_sc, name: "South Carolina returns", jurisdiction: US-SC, years: [2026], status: unsupported}
+  - {id: state_sd, name: "South Dakota returns", jurisdiction: US-SD, years: [2026], status: unsupported}
+  - {id: state_tn, name: "Tennessee returns", jurisdiction: US-TN, years: [2026], status: unsupported}
+  - {id: state_tx, name: "Texas returns", jurisdiction: US-TX, years: [2026], status: unsupported}
+  - {id: state_ut, name: "Utah returns", jurisdiction: US-UT, years: [2026], status: unsupported}
+  - {id: state_vt, name: "Vermont returns", jurisdiction: US-VT, years: [2026], status: unsupported}
+  - {id: state_va, name: "Virginia returns", jurisdiction: US-VA, years: [2026], status: unsupported}
+  - {id: state_wa, name: "Washington returns", jurisdiction: US-WA, years: [2026], status: unsupported}
+  - {id: state_wv, name: "West Virginia returns", jurisdiction: US-WV, years: [2026], status: unsupported}
+  - {id: state_wi, name: "Wisconsin returns", jurisdiction: US-WI, years: [2026], status: unsupported}
+  - {id: state_wy, name: "Wyoming returns", jurisdiction: US-WY, years: [2026], status: unsupported}
   # ---------------------------------------------------------------- filing channels
   - {id: mef_1040,   name: "IRS MeF transmission, 1040 family", jurisdiction: US-FED, years: [2026], status: unsupported,
      limits: ["requires EFIN/ETIN, ATS approval and A2A credentials (docs/GO_LIVE.md Part A)"]}
@@ -76,3 +126,13 @@ capabilities:
   - {id: export_tax_tb, name: "Trial-balance export for tax software", jurisdiction: US-FED, years: [2026], status: manual-assisted,
      limits: ["CSV layout not yet verified against Drake, UltraTax, Lacerte/ProConnect or CCH imports"]}
   - {id: export_qb_iif, name: "QuickBooks IIF export",           jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  # ---------------------------------------------------------------- tax monitoring and resolution (ADR-0011)
+  - {id: res_notices,     name: "IRS and state notice intake, deadlines and response workflow", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_authorizations, name: "Authorizations (8821 information, 2848 representation)", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_transcripts, name: "Transcript parsing, versioning and change detection", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_reconcile,   name: "IRS-to-records reconciliation", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_collection,  name: "Installment agreement / OIC / CNC analysis (433 series, 656, 9465)", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_penalty,     name: "Penalty relief (first-time abatement, reasonable cause, 843)", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_csed,        name: "Collection statute expiration (specialist validation required)", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_bankruptcy,  name: "Bankruptcy dischargeability (specialist validation required)", jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: res_appeals,     name: "Appeals, CDP hearings, innocent spouse (specialist validation required)", jurisdiction: US-FED, years: [2026], status: unsupported}

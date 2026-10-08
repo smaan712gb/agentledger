@@ -43,9 +43,9 @@ def mark(f: Foundry, doc: docs.Document, outcome: str, detail: str = "") -> None
 # -- the pipeline shared by every regulatory source -------------------------------------------
 
 def process(f: Foundry, agent_id: str, items: Iterable[docs.Document], res: AgentResult, *,
-            force: bool = False, max_docs: int = 25) -> None:
+            force: bool = False, max_docs: int = 25, official_extra: list[str] | None = None) -> None:
     memory = seen(f)
-    official = f.policy.get("official_domains", [])
+    official = sorted(set(f.policy.get("official_domains", [])) | set(official_extra or []))
     golden = load_golden(f.paths.golden / "scenarios.yaml")
     stats = res.stats
     for doc in items:

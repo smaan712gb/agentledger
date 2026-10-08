@@ -1,4 +1,4 @@
-# The always-on workforce for teams that run Veritas from a repository.
+# The always-on AgentLedger workforce.
 # Every 6 hours: run every due agent, run the full test + golden suites, and open a pull
 # request with whatever the agents changed (rules, playbooks, models, proposals, research).
 # Auto-adopted routine changes arrive already verified; everything else is a pending
@@ -22,13 +22,17 @@ jobs:
       VERITAS_HOME: ${{ github.workspace }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: frontier tier, budget-capped in config/models.yaml
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}             # repo scout rate limits
+      OPENSTATES_API_KEY: ${{ secrets.OPENSTATES_API_KEY }} # enacted state tax laws (all states)
+      DATA_GOV_API_KEY: ${{ secrets.DATA_GOV_API_KEY }}     # enacted federal laws (GovInfo)
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}  # Workers AI model inventory
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,oracle]"
       - name: Local open-source models (Ollama)
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
@@ -44,9 +48,10 @@ jobs:
         run: veritas agents due
       - name: Tests and golden regression must stay green
         run: |
-          python -m pytest -q
+          python -m pytest -q          # includes the PolicyEngine cross-checks
           veritas golden
       - name: Open a pull request with the workforce's changes
+        id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
           branch: veritas/autonomy
@@ -70,3 +75,28 @@ jobs:
             state/regwatch_seen.json
             state/agent_runs.jsonl
             research/**
+            state/state_watch.json
+            state/irs_forms_seen.json
+            state/coverage_flags.json
+            state/model_inventory.json
+      - name: Release decision (config/release_policy.yaml)
+        if: steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin main
+          set +e
+          veritas release classify --base origin/main > decision.json
+          code=$?
+          set -e
+          pr=${{ steps.cpr.outputs.pull-request-number }}
+          if [ "$code" = "0" ]; then
+            gh pr edit "$pr" --add-label auto-release
+            gh pr merge "$pr" --auto --squash     # merges once required checks pass, then release.yml deploys
+          else
+            gh pr edit "$pr" --add-label needs-approval
+            gh pr comment "$pr" --body-file <(python -c "import json;d=json.load(open('decision.json'));print('**Needs approval by:** '+str(d['approver'])+'
+
+'+'
+'.join('- '+r for r in d['reasons']))")
+          fi
