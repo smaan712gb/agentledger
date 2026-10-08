@@ -20,7 +20,7 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 | Q13 | Access revoked mid-workflow | F | partial | disable revokes sessions; queued-task re-check todo |
 | Q14 | Vendor bank change embedded in invoice | A1 | todo | |
 | Q15 | Approved action modified before execution | F | pass (returns) | approval and signature bound to the full package hash; recompute and edits reopen (`test_rule_change_after_signature_voids_it`) |
-| Q16 | OCR ambiguity needs review | A1 | partial | grounding drops unsupported numbers; date, decimal and entity cases todo |
+| Q16 | OCR ambiguity needs review | A1 | partial | grounding drops unsupported numbers; re-population never overwrites (conflicts block review), a missing amount is never zero, every value keeps its source and history (`tests/test_facts.py`); date, decimal and entity OCR cases todo |
 | Q17 | Close snapshot equals exports | A1 | todo | |
 | Q18 | Tax package regression, exact | T1 | partial | 26 hand-worked tests, 5 golden returns, 11 PolicyEngine cross-checks; needs an independent preparer's set |
 | Q19 | Unsupported form/state/election blocked | T1 | pass | blocking diagnostics plus coverage gate (`tests/test_return_workflow.py`) |

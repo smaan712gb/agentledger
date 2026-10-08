@@ -992,6 +992,38 @@ def populate_return(rid: str, user=Depends(me)) -> dict[str, Any]:
         raise _wf_error(e)
 
 
+@app.get("/api/returns/{rid}/conflicts")
+def return_conflicts(rid: str, user=Depends(me)) -> list[dict[str, Any]]:
+    """Where a document disagrees with what the return holds (nothing was overwritten)."""
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    return rs.conflicts(rid)
+
+
+@app.post("/api/returns/{rid}/conflicts/{conflict_id}")
+def resolve_return_conflict(rid: str, conflict_id: int, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    try:
+        return rs.resolve_conflict(rid, conflict_id, str(body.get("choice", "")), user["id"], str(body.get("note", "")))
+    except KeyError:
+        raise HTTPException(404, "no such open conflict")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except TransitionError as e:
+        raise _wf_error(e)
+
+
+@app.get("/api/returns/{rid}/facts")
+def return_fact_history(rid: str, path: str, user=Depends(me)) -> list[dict[str, Any]]:
+    """Every value a field has had, where each came from, and what it superseded."""
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    from ..returns import facts as fact_log
+
+    return fact_log.history(rs.conn, rs.sealer, rid, path)
+
+
 @app.post("/api/returns/{rid}/confirm")
 def confirm_return_amounts(rid: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
     cpa_only(user)

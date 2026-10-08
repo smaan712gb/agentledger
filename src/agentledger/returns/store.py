@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import audit
+from . import facts
 from ..db import is_pg
 from ..calc.engine import Ctx
 from ..kb.store import KnowledgeBase
@@ -52,6 +53,43 @@ CREATE TABLE IF NOT EXISTS tax_return_versions (
     note TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (return_id, version)
 );
+CREATE TABLE IF NOT EXISTS fact_assertions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    path TEXT NOT NULL,
+    value TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_ref TEXT,
+    asserted_by TEXT NOT NULL,
+    asserted_at TEXT NOT NULL,
+    supersedes INTEGER REFERENCES fact_assertions(id)
+);
+CREATE INDEX IF NOT EXISTS fact_assertions_path ON fact_assertions (return_id, path, id);
+CREATE TABLE IF NOT EXISTS fact_conflicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    path TEXT NOT NULL,
+    anchor TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    box TEXT,
+    current_value TEXT NOT NULL,
+    proposed_value TEXT NOT NULL,
+    current_source TEXT NOT NULL,
+    raised_by TEXT NOT NULL,
+    raised_at TEXT NOT NULL,
+    resolution TEXT,
+    resolved_by TEXT,
+    resolved_at TEXT,
+    note TEXT
+);
+CREATE TRIGGER IF NOT EXISTS fact_assertions_no_update BEFORE UPDATE ON fact_assertions
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS fact_assertions_no_delete BEFORE DELETE ON fact_assertions
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS fact_conflicts_no_delete BEFORE DELETE ON fact_conflicts
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS fact_conflicts_resolve_once BEFORE UPDATE ON fact_conflicts WHEN OLD.resolved_at IS NOT NULL
+BEGIN SELECT RAISE(ABORT, 'a fact conflict is resolved once (append-only)'); END;
 CREATE TRIGGER IF NOT EXISTS tax_return_versions_no_update BEFORE UPDATE ON tax_return_versions
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS tax_return_versions_no_delete BEFORE DELETE ON tax_return_versions
@@ -70,6 +108,8 @@ def _g_review(st: State, c: dict[str, Any]) -> list[str]:
         out.append(f"{c['blocking']} blocking diagnostic(s) must be resolved")
     if c.get("unconfirmed"):
         out.append(f"{c['unconfirmed']} document-sourced amount(s) are not confirmed by the preparer")
+    if c.get("conflicts"):
+        out.append(f"{c['conflicts']} fact conflict(s) between documents and entered values must be resolved")
     if c.get("crosscheck") == "differ" and not c.get("explained"):
         out.append("the independent cross-check disagrees; explain each difference before review")
     return out
@@ -240,28 +280,67 @@ class Returns:
                     note: str = "edited") -> dict[str, Any]:
         IndividualReturn.model_validate(inputs)  # reject malformed input before it is stored
         cur = self.latest(rid)
-        prov = cur["provenance"] if provenance is None else provenance
         st = self.wf.state(rid)
         if st.status in REVIEWABLE:
             self.wf.send(rid, "reopen", actor, note=f"inputs changed while {st.status}")
         elif st.status not in ("preparing",):
             raise TransitionError(f"a return that is {st.status} cannot be edited")
+        if provenance is None:      # a person's edit: changed document values become the preparer's, on record
+            prov, changed = facts.mark_edits(cur["inputs"], inputs, cur["provenance"], actor)
+        else:
+            prov, changed = provenance, facts.changed_paths(cur["inputs"], inputs)
         self._save(rid, inputs, prov, actor, note)
+        facts.record(self.conn, self.sealer, rid, inputs, prov, changed, actor=actor)
         return self.compute(rid, actor)
 
     def populate_from_documents(self, rid: str, actor: str) -> dict[str, Any]:
+        """Fill the return from its filed documents without overwriting anything (backlog F-07): disagreements with
+        what is already there become fact conflicts for a person to resolve."""
         r = self.get(rid)
         cur = self.latest(rid)
-        inputs = dict(cur["inputs"])
-        pop = docs.populate(self.conn, r["client_id"], r["tax_year"], joint=inputs.get("filing_status") == "mfj")
-        for key, value in pop.inputs.items():
-            if isinstance(value, list):
-                inputs[key] = value  # documents are the source of truth for these lists
-            else:
-                inputs[key] = {**inputs.get(key, {}), **value}
-        prov = {k: {**v, "confirmed": False} for k, v in pop.provenance.items()}
-        self.save_inputs(rid, inputs, actor, provenance=prov, note=f"populated from {len(pop.documents)} document(s)")
-        return {"documents": pop.documents, "issues": pop.issues, "fields": len(prov)}
+        pop = docs.populate(self.conn, r["client_id"], r["tax_year"], joint=cur["inputs"].get("filing_status") == "mfj")
+        inputs, prov, conflicts, issues, changed = facts.merge_population(
+            cur["inputs"], cur["provenance"], pop.inputs, pop.provenance, facts.resolved_keeps(self.conn, self.sealer, rid))
+        for i in issues:   # an amount a document should carry but does not: a person decides, it is never zero
+            if i["code"] == "missing_value":
+                conflicts.append({"path": i["path"], "anchor": i["anchor"], "current": None, "proposed": None,
+                                  "document_id": i["document_id"] or "", "box": "required amount", "current_source": "missing"})
+        if changed or inputs != cur["inputs"]:
+            self.save_inputs(rid, inputs, actor, provenance=prov, note=f"populated from {len(pop.documents)} document(s)")
+        else:
+            self.compute(rid, actor)
+        raised = facts.raise_conflicts(self.conn, self.sealer, rid, conflicts, actor)
+        if raised:
+            audit.record(self.conn, actor, "agent", "return.fact_conflicts", {"return_id": rid, "conflicts": len(raised)},
+                         client_id=r["client_id"])
+        return {"documents": pop.documents, "issues": pop.issues + issues, "fields": len(changed),
+                "conflicts": len(facts.open_conflicts(self.conn, self.sealer, rid))}
+
+    def conflicts(self, rid: str) -> list[dict[str, Any]]:
+        return facts.open_conflicts(self.conn, self.sealer, rid)
+
+    def resolve_conflict(self, rid: str, conflict_id: int, choice: str, actor: str, note: str = "") -> dict[str, Any]:
+        """keep: the current value stands (and this document value is not raised again); document: take the
+        document's value, which supersedes the current assertion."""
+        c = next((x for x in self.conflicts(rid) if x["id"] == conflict_id), None)
+        if c is None:
+            raise KeyError(f"no open conflict {conflict_id}")
+        if choice not in ("keep", "document"):
+            raise ValueError("choose 'keep' or 'document'")
+        if choice == "document" and c["anchor"].startswith("missing:"):
+            raise ValueError("the document has no value here; enter the amount, then keep it")
+        if choice == "document":
+            cur = self.latest(rid)
+            path = facts.locate(c["anchor"], cur["provenance"], cur["inputs"]) or c["path"]
+            inputs = facts.set_path(cur["inputs"], path, c["proposed_value"])
+            prov = {**cur["provenance"], path: {"source": "resolution", "document_id": c["document_id"], "box": c["box"],
+                                                "value": str(c["proposed_value"]), "resolved_by": actor, "confirmed": True}}
+            self.save_inputs(rid, inputs, actor, provenance=prov, note=f"fact conflict {conflict_id}: document value taken")
+        facts.close_conflict(self.conn, conflict_id, resolution="replaced" if choice == "document" else "kept", actor=actor,
+                             note=note)
+        audit.record(self.conn, actor, "cpa", "return.fact_conflict_resolved",
+                     {"return_id": rid, "conflict_id": conflict_id, "choice": choice}, client_id=self.get(rid)["client_id"])
+        return {"open": len(self.conflicts(rid))}
 
     def confirm(self, rid: str, paths: list[str] | None, actor: str) -> int:
         """The preparer confirms document-sourced amounts (all of them when paths is None)."""
@@ -358,6 +437,7 @@ class Returns:
         below = len((result.get("coverage") or {}).get("below_preparation", []))
         return {"computed": bool(result), "blocking": below + sum(1 for d in result.get("diagnostics", []) if d["severity"] == "error"),
                 "unconfirmed": sum(1 for p in v["provenance"].values() if not p.get("confirmed")),
+                "conflicts": len(facts.open_conflicts(self.conn, self.sealer, rid)),
                 "crosscheck": cc.get("status"), "explained": explained,
                 "package_hash": package_hash(v["inputs"], v["result"], v["provenance"])}
 
