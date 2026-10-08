@@ -48,5 +48,5 @@ def verify(secret: str, code: str, *, last_used_step: int | None = None, now: fl
     return None
 
 
-def provisioning_uri(secret: str, account: str, issuer: str = "Veritas") -> str:
+def provisioning_uri(secret: str, account: str, issuer: str = "AgentLedger") -> str:
     return f"otpauth://totp/{quote(issuer)}:{quote(account)}?secret={secret}&issuer={quote(issuer)}&digits={DIGITS}&period={STEP}"

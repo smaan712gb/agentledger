@@ -44,7 +44,7 @@ from ..workflow.engine import TransitionError
 ROOT = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
 WEB = Path(__file__).resolve().parent.parent / "web"
 
-app = FastAPI(title="Veritas", version="0.1.0")
+app = FastAPI(title="AgentLedger", version="0.1.0")
 # Dev mode keeps the single-firm layout and the demo identities in config/users.yaml. It must never be
 # enabled on a deployment that holds real taxpayer data.
 DEV = os.environ.get("VERITAS_DEV_AUTH") == "1"
@@ -873,13 +873,14 @@ def request_connector(body: dict[str, Any] = Body(...), user=Depends(me)) -> dic
 
 
 @app.post("/api/hooks/{firm_id}/{client_id}")
-async def inbound_hook(firm_id: str, client_id: str, request: Request, x_veritas_signature: str = Header(default="")) -> dict[str, Any]:
+async def inbound_hook(firm_id: str, client_id: str, request: Request, x_agentledger_signature: str = Header(default=""),
+                       x_veritas_signature: str = Header(default="")) -> dict[str, Any]:
     secret = os.environ.get("VERITAS_WEBHOOK_SECRET")
     if not secret:
         raise HTTPException(503, "webhooks disabled (VERITAS_WEBHOOK_SECRET not set)")
     raw = await request.body()
     expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, x_veritas_signature):
+    if not hmac.compare_digest(expected, x_agentledger_signature or x_veritas_signature):
         raise HTTPException(401, "bad signature")
     ctx = APP if (DEV and firm_id == DEV_FIRM) else firm_context(firm_id)
     store.get_client(ctx.conn, client_id)

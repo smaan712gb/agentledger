@@ -1,4 +1,4 @@
-# Veritas go-live plan: TY2026 filing season
+# AgentLedger go-live plan: TY2026 filing season
 
 Target: production for the TY2026 filing season (IRS MeF production opens in late January 2027).
 Scope: everything in `BL.md`, delivered as multi-firm SaaS on a cloud VPS, with interoperability
@@ -104,4 +104,4 @@ Each milestone ends with: full test suite green, golden scenarios green, a commi
 - FinCEN's March 2025 interim final rule removed BOI reporting for domestic companies. BOIR is built for
   foreign reporting companies and remains driven by rules, so it switches back on if the law changes.
 - BL.md cites Rev. Proc. 2008-35 for §7216 consents. The current consent rules are in Treas. Reg.
-  §301.7216-3 and Rev. Proc. 2013-14. Veritas follows the current authority.
+  §301.7216-3 and Rev. Proc. 2013-14. AgentLedger follows the current authority.

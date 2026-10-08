@@ -1,4 +1,4 @@
-/* Veritas web app — no build step. Everything rendered here is escaped: document text and AI
+/* AgentLedger web app — no build step. Everything rendered here is escaped: document text and AI
    output are untrusted. */
 "use strict";
 
@@ -52,7 +52,7 @@ async function loadMe() {
 
 // ---------------------------------------------------------------------------------------- sign-in
 function authShell(inner) {
-  $("#nav").innerHTML = `<div class="brand"><div class="mark">V</div><div>Veritas<small>Autonomous accounting & tax</small></div></div>`;
+  $("#nav").innerHTML = `<div class="brand"><div class="mark">V</div><div>AgentLedger<small>Autonomous accounting & tax</small></div></div>`;
   $("#main").innerHTML = `<div class="card" style="max-width:420px;margin:60px auto">${inner}</div>`;
 }
 
@@ -72,7 +72,7 @@ function renderLogin(msg = "") {
 function mfaStep(step) {
   const enrol = step.next === "enroll";
   authShell(`<h2>${enrol ? "Set up two-step verification" : "Two-step verification"}</h2>
-    ${enrol ? `<p>Add Veritas to your authenticator app, then enter the 6-digit code it shows.</p>
+    ${enrol ? `<p>Add AgentLedger to your authenticator app, then enter the 6-digit code it shows.</p>
       <p><a href="${esc(step.otpauth_uri)}">Open in authenticator app</a></p>
       <p class="small muted">Or enter this key manually:</p><p><code style="font-size:15px;letter-spacing:1px">${esc(step.secret.replace(/(.{4})/g, "$1 ").trim())}</code></p>`
       : `<p>Enter the 6-digit code from your authenticator app.</p>`}
@@ -88,7 +88,7 @@ function mfaStep(step) {
 }
 
 function renderAccept(token) {
-  authShell(`<h2>Join Veritas</h2><p class="muted">Choose your name and a password of at least 12 characters.</p>
+  authShell(`<h2>Join AgentLedger</h2><p class="muted">Choose your name and a password of at least 12 characters.</p>
     <form id="accept"><label>Full name<input name="name" required style="width:100%"></label>
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" required style="width:100%"></label>
     <button class="btn primary" style="margin-top:10px">Continue</button></form><p class="small muted" id="err"></p>`);
@@ -125,16 +125,16 @@ function renderNav() {
     ["firms", "▦", "Firms"], ["group", "", "Shared platform"], ["foundry", "⚙", "Agent foundry"], ["rules", "§", "Regulations"],
     ["security", "⛨", "Sign-in activity"],
   ] : cpa ? [
-    ["home", "◎", "Command center"], ["ask", "✦", "Ask Veritas"], ["clients", "▦", "Clients"], ["inbox", "⇩", "Intake inbox"],
+    ["home", "◎", "Command center"], ["ask", "✦", "Ask AgentLedger"], ["clients", "▦", "Clients"], ["inbox", "⇩", "Intake inbox"],
     ["crm", "◇", "CRM & tasks"], ["group", "", "Autonomy"], ["foundry", "⚙", "Agent foundry"], ["rules", "§", "Regulations"],
     ["brain", "✧", "CPA second brain"], ["integrations", "⇄", "Integrations"], ["audit", "⛓", "Audit trail"],
     ["group", "", "Firm"], ["team", "☺", "Team & access"], ["security", "⛨", "Sign-in activity"],
   ] : [
-    ["home", "◎", "My business"], ["ask", "✦", "Ask Veritas"], ["client/" + S.me.client_id + "/documents", "⇩", "Upload documents"],
+    ["home", "◎", "My business"], ["ask", "✦", "Ask AgentLedger"], ["client/" + S.me.client_id + "/documents", "⇩", "Upload documents"],
     ["client/" + S.me.client_id + "/business", "◇", "Customers & vendors"], ["audit", "⛓", "Activity"],
   ];
   const h = location.hash.slice(2) || "home";
-  $("#nav").innerHTML = `<div class="brand"><div class="mark">V</div><div>Veritas<small>Autonomous accounting & tax</small></div></div>` +
+  $("#nav").innerHTML = `<div class="brand"><div class="mark">V</div><div>AgentLedger<small>Autonomous accounting & tax</small></div></div>` +
     items.map(([id, ic, label]) => id === "group" ? `<div class="group">${label}</div>` :
       `<a class="item ${h.startsWith(id) ? "active" : ""}" href="#/${id}"><span>${ic}</span>${label}</a>`).join("") +
     (S.dev ? `<div class="group">Signed in</div><div style="padding:0 8px"><select id="who" style="width:100%">${S.users.map((u) =>
@@ -202,7 +202,7 @@ async function viewClientHome(main, d) {
   const c = d.clients[0];
   main.innerHTML = page(`Welcome, ${esc(S.me.name.split(" ")[0])}`, esc(c.name)) + `
   <div class="hero" style="margin-bottom:16px"><div style="font-size:30px">✦</div><div style="flex:1"><h2>Your books are being kept for you.</h2>
-    <p>Forward receipts and tax forms, or drop them here. Veritas files them, matches them and tells you — and your CPA — exactly what's missing.</p></div>
+    <p>Forward receipts and tax forms, or drop them here. AgentLedger files them, matches them and tells you — and your CPA — exactly what's missing.</p></div>
     <a class="btn" href="#/client/${esc(c.id)}/documents">Upload</a><a class="btn" href="#/ask">Ask a question</a></div>
   <div class="grid g3">
     <div class="card"><h3>Integrity</h3><div class="row"><div class="ring" style="--v:${c.integrity}"><span>${c.integrity}</span></div>
@@ -228,7 +228,7 @@ function bindTasks(root) {
 const ASK_HISTORY = [];
 async function viewAsk(main) {
   const cpa = S.me.role === "cpa";
-  main.innerHTML = page("Ask Veritas", "Answers come only from cited evidence. Every number is checked against its source before you see it as verified.",
+  main.innerHTML = page("Ask AgentLedger", "Answers come only from cited evidence. Every number is checked against its source before you see it as verified.",
     cpa ? `<select id="askClient"><option value="">Firm-wide (rules only)</option>${S.clients.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>
       <label class="small row"><input type="checkbox" id="deep"> Deep reasoning</label>` : "") +
     `<div class="chat" id="chat">${ASK_HISTORY.join("") || `<div class="card"><h3>Try asking</h3><div class="list">
@@ -365,7 +365,7 @@ async function tabLedger(el, d) {
 function tabDocuments(el, d) {
   const id = d.client.id;
   el.innerHTML = `<div class="drop" id="drop" style="margin-bottom:16px"><b>Drop anything here</b> — PDFs, photos of receipts, Word, Excel, CSV, emails (.eml), even ZIPs.<br>
-    <span class="small">Veritas reads it, classifies it, files it in this client's vault and links it to the books.</span><br><input type="file" id="file" multiple style="margin-top:10px"></div>
+    <span class="small">AgentLedger reads it, classifies it, files it in this client's vault and links it to the books.</span><br><input type="file" id="file" multiple style="margin-top:10px"></div>
     <div class="card"><table><tr><th>Document</th><th>Type</th><th>Year</th><th>Status</th><th>Filed under</th><th>Read by</th></tr>
     ${d.documents.map((x) => `<tr><td><a href="#" data-download="/api/documents/${esc(x.id)}/file">${esc(x.original_name)}</a><div class="small muted">${esc(x.summary || "")}</div></td>
       <td>${esc(x.doc_type)}</td><td>${esc(x.tax_year || "")}</td><td>${statusPill(x.status)} <span class="small muted">${Math.round((x.confidence || 0) * 100)}%</span></td>
@@ -447,7 +447,7 @@ function tabFacts(el, d) {
 async function viewInbox(main) {
   const docs = await api("/api/documents/review");
   main.innerHTML = page("Intake inbox", "Everything that arrived by email, maildrop, upload or connector and could not be filed with confidence. Nothing is ever guessed into a client.") +
-    `<div class="drop" id="drop" style="margin-bottom:16px"><b>Drop documents for any client</b> — Veritas will work out whose they are.<br><input type="file" id="file" multiple style="margin-top:10px"></div>
+    `<div class="drop" id="drop" style="margin-bottom:16px"><b>Drop documents for any client</b> — AgentLedger will work out whose they are.<br><input type="file" id="file" multiple style="margin-top:10px"></div>
     <div class="card"><table><tr><th>Document</th><th>Looks like</th><th>Why it's here</th><th>File to</th></tr>
     ${docs.map((x) => `<tr><td><a href="#" data-download="/api/documents/${esc(x.id)}/file">${esc(x.original_name)}</a><div class="small muted">${esc(x.sender || x.channel)} · ${esc(x.received_at.slice(0, 16))}</div></td>
       <td>${esc(x.doc_type)} ${esc(x.tax_year || "")}<div class="small muted">${esc(x.summary || "")}</div></td><td class="small">${Math.round((x.confidence || 0) * 100)}% confidence · ${esc(x.classified_by)}</td>
@@ -572,9 +572,9 @@ async function viewIntegrations(main) {
       ${p.catalog.map((c) => `<tr><td><b>${esc(c.name)}</b>${c.docs ? ` <a class="small" href="${esc(c.docs)}" target="_blank" rel="noopener">docs</a>` : ""}</td><td>${esc(c.category)}</td>
         <td><span class="pill ${c.status === "available" ? "p-good" : c.status === "buildable" ? "p-accent" : "p-info"}">${esc(c.status.replaceAll("_", " "))}</span></td>
         <td>${c.status === "buildable" ? `<button class="btn sm" data-build="${esc(c.id)}" data-docs="${esc(c.docs || "")}">Request build</button>` : ""}</td></tr>`).join("")}</table></div>
-    <div class="grid g2"><div class="card"><h3>Webhooks</h3><div class="small">Inbound: <span class="mono">POST /api/hooks/&lt;client-id&gt;</span> with header <span class="mono">X-Veritas-Signature: hex(HMAC-SHA256(body, VERITAS_WEBHOOK_SECRET))</span>.
+    <div class="grid g2"><div class="card"><h3>Webhooks</h3><div class="small">Inbound: <span class="mono">POST /api/hooks/&lt;firm-id&gt;/&lt;client-id&gt;</span> with header <span class="mono">X-AgentLedger-Signature: hex(HMAC-SHA256(body, VERITAS_WEBHOOK_SECRET))</span>.
       Body: <span class="mono">{"transactions": [...], "documents": [...]}</span>. Works with Zapier, Make, n8n and any SaaS.<br><br>Outbound: automations with <span class="mono">type: webhook</span> post to Slack, Teams or any URL held in an environment variable.</div></div>
-      <div class="card"><h3>MCP (Model Context Protocol)</h3><div class="small">Run <span class="mono">veritas mcp</span> to expose Veritas to Claude Desktop, Claude Code or any MCP agent. Scope is set by the operator:
+      <div class="card"><h3>MCP (Model Context Protocol)</h3><div class="small">Run <span class="mono">veritas mcp</span> to expose AgentLedger to Claude Desktop, Claude Code or any MCP agent. Scope is set by the operator:
       <span class="mono">VERITAS_MCP_ROLE=client VERITAS_MCP_CLIENT=&lt;id&gt;</span> limits it to one client.<br><br>The <b>Any MCP server</b> connector pulls from external MCP servers (QuickBooks, Gmail, Drive, banks) into the normal pipelines.</div></div></div>`;
   main.querySelectorAll("[data-dl]").forEach((b) => b.onclick = () => { const cid = main.querySelector(`[data-exp="${b.dataset.dl}"]`).value; download(`/api/clients/${encodeURIComponent(cid)}/export/${b.dataset.dl}`).catch((err) => toast(err.message)); });
   main.querySelectorAll("[data-build]").forEach((b) => b.onclick = async () => { await api("/api/plugins/request", { method: "POST", body: { connector_id: b.dataset.build, docs: b.dataset.docs } }); toast("Queued for the AI Engineer. You'll approve the result."); b.disabled = true; });

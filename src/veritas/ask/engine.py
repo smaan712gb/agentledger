@@ -18,7 +18,7 @@ from ..integrity.checks import list_findings
 from ..kb.store import KnowledgeBase
 from ..ledger import m1, store
 
-SYSTEM = """You are Veritas, the AI shared by a CPA firm and its client. Both see the same facts and the same answers.
+SYSTEM = """You are AgentLedger, the AI shared by a CPA firm and its client. Both see the same facts and the same answers.
 
 Answer ONLY from the EVIDENCE block. Tag every fact with its citation exactly as shown, e.g.
 [R:us_fed.individual.standard_deduction] for a rule, [E:42] for a ledger entry, [M:2026:10] for an M-1 line,

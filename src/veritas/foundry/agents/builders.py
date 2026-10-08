@@ -72,7 +72,7 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
         wt = Path(tempfile.mkdtemp(prefix="veritas-wt-"))
         _git(f.paths.root, "worktree", "add", "-b", branch, str(wt))
         try:
-            prompt = (f"You are maintaining the Veritas accounting/tax platform. Work item: {item['title']}\n"
+            prompt = (f"You are maintaining the AgentLedger accounting/tax platform. Work item: {item['title']}\n"
                       + "\n".join(f"- {x}" for x in item["items"])
                       + f"\nSource: {item.get('source')}\n\nRules: prefer changing data (rules/, domains/, playbooks/) over code; "
                         "add or update tests under tests/ for every behaviour change; never modify these protected paths: "
@@ -105,8 +105,8 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
                 Check(name="test_suite", ok=tests.returncode == 0, detail=tests.stdout.strip().splitlines()[-1] if tests.stdout.strip() else tests.stderr[-300:]),
                 Check(name="golden_regression", ok=not golden_fail, detail=", ".join(golden_fail) or f"{len(golden)} scenarios pass"),
             ]
-            _git(wt, "-c", "user.name=Veritas Engineer", "-c", "user.email=engineer@veritas.local", "commit", "-q", "-m",
-                 f"{item['title']}\n\nAutomated change by the Veritas AI Engineer ({used}).")
+            _git(wt, "-c", "user.name=AgentLedger Engineer", "-c", "user.email=engineer@veritas.local", "commit", "-q", "-m",
+                 f"{item['title']}\n\nAutomated change by the AgentLedger AI Engineer ({used}).")
             p = Proposal(kind="code_change", agent=spec.id, title=item["title"],
                          summary=f"Code change written by {used} in branch {branch}: {len(files)} file(s), {lines} line(s).",
                          risk="critical" if touched else ("low" if all(c.ok for c in checks) else "high"),
@@ -189,7 +189,7 @@ def researcher(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
         res.log.append(f"research unavailable: {e}")
         return
     f.paths.research.mkdir(exist_ok=True)
-    md = [f"# {brief.headline}", f"_{date.today().isoformat()} — Veritas Researcher ({by})_", "", "## What changed",
+    md = [f"# {brief.headline}", f"_{date.today().isoformat()} — AgentLedger Researcher ({by})_", "", "## What changed",
           *[f"- {x}" for x in brief.what_changed], "", "## Who is affected", *[f"- {x}" for x in brief.who_is_affected], "",
           "## Actions for CPAs", *[f"- {x}" for x in brief.actions_for_cpas], "", "## Playbook ideas",
           *[f"- **{x.title}** — {x.why_now} ({'; '.join(x.citations)})" for x in brief.playbook_ideas], "", "## Engineering needs",

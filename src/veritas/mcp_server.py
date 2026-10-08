@@ -1,4 +1,4 @@
-"""Veritas as an MCP server: any MCP-capable AI (Claude Desktop, Claude Code, other agents)
+"""AgentLedger as an MCP server: any MCP-capable AI (Claude Desktop, Claude Code, other agents)
 can use the platform's tools — with the same segregation and audit as the web app.
 
 Scope is fixed at launch, not chosen by the calling AI:
@@ -25,7 +25,7 @@ ROLE = os.environ.get("VERITAS_MCP_ROLE", "cpa")
 SCOPE = os.environ.get("VERITAS_MCP_CLIENT")
 ACTOR = os.environ.get("VERITAS_MCP_ACTOR", f"mcp:{ROLE}")
 
-server = MCPServer(name="veritas", title="Veritas accounting & tax",
+server = MCPServer(name="veritas", title="AgentLedger accounting & tax",
                    instructions="Grounded accounting, tax and compliance tools. Numbers come from deterministic engines; "
                                 "every answer cites its evidence. Data access is scoped by the server's configured role.")
 _app: AppContext | None = None

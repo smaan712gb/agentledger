@@ -52,7 +52,7 @@ def _seal(key: bytes, plaintext: bytes, aad: bytes, version: int) -> bytes:
 
 def _open(key_for_version, blob: bytes, aad: bytes) -> bytes:
     if blob[:3] != MAGIC:
-        raise CryptoError("not a Veritas ciphertext")
+        raise CryptoError("not a AgentLedger ciphertext")
     version = int.from_bytes(blob[3:5], "big")
     return AESGCM(key_for_version(version)).decrypt(blob[5:17], blob[17:], aad)
 

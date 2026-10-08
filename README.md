@@ -1,6 +1,6 @@
-# Veritas
+# AgentLedger
 
-**An AI-native accounting, general ledger and tax platform that keeps itself current.**
+**Open-source accounting, ledger and tax platform where AI agents do the work and deterministic code proves every number.**
 
 A workforce of AI agents watches the law, the documents arriving from clients, and the AI and
 open-source landscape. They propose changes, a deterministic layer proves those changes are
@@ -63,7 +63,7 @@ veritas ingest ./scans --client ortiz-auto           # any format, any folder
 veritas proposals list | show | approve | reject | rollback
 veritas golden                                       # regression scenarios
 veritas stale                                        # what is due, overdue, sunsetting
-veritas mcp                                          # expose Veritas to any MCP client
+veritas mcp                                          # expose AgentLedger to any MCP client
 python -m pytest -q
 ```
 
@@ -108,9 +108,9 @@ python -m pytest -q
 - **Privacy.** Tier-1 models run on-premises. Frontier calls require a §7216 consent on file,
   redact direct identifiers, and are capped per day.
 
-## How Veritas fixes the pain points of current US tools
+## How AgentLedger fixes the pain points of current US tools
 
-| Pain point (QuickBooks, Xero, FreshBooks, Wave, Sage, Drake, UltraTax, Lacerte, ProConnect, …) | Veritas |
+| Pain point (QuickBooks, Xero, FreshBooks, Wave, Sage, Drake, UltraTax, Lacerte, ProConnect, …) | AgentLedger |
 |---|---|
 | Books and tax live in different products, so trial balances get re-keyed into tax software | One ledger with tax attributes on every posting. M-1 is computed live. A tax-software trial-balance export is there for coexistence. |
 | Payroll and tax tables lag behind law changes, and you wait for the vendor's release | Regulation as code, maintained by agents with citations. Routine indexed updates adopt themselves once verified. |

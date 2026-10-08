@@ -26,7 +26,7 @@ from ...ai.local import LocalUnavailable
 from ...ai.router import Unavailable
 from ..core import AgentResult, AgentSpec, Check, Foundry, Proposal, agent_kind, applier
 
-UA = {"User-Agent": "Veritas-Scout/0.1"}
+UA = {"User-Agent": "AgentLedger-Scout/0.1"}
 
 
 # ============================================================================ evaluation suite

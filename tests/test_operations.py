@@ -189,6 +189,6 @@ def test_api_segregation_and_webhook(home, monkeypatch):
     body = json.dumps({"transactions": [{"date": "2026-05-01", "description": "POS SHELL OIL", "amount": "-40"}]}).encode()
     sig = hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
     assert c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-Veritas-Signature": "bad"}).status_code == 401
-    r = c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-Veritas-Signature": sig})
+    r = c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-AgentLedger-Signature": sig})
     assert r.status_code == 200 and r.json()["suggestions"][0]["account"] == "6400"
     assert c.get("/api/audit", headers=cpa).json()["verification"]["ok"]

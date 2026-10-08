@@ -1,12 +1,12 @@
 # Alignment with the production specification (v1.0, 2026-10-08)
 
-This compares `unified-accounting-tax-production-spec.md` with the Veritas codebase as of commit `67cb5ec`.
+This compares `unified-accounting-tax-production-spec.md` with the AgentLedger codebase as of commit `67cb5ec`.
 Each item records a decision: **adopt** (the spec's approach is better and we switch), **keep** (our design
 already meets the requirement or does better), or **defer** (adopt at a named milestone).
 
 ## Already consistent
 
-| Spec requirement | Veritas today |
+| Spec requirement | AgentLedger today |
 |---|---|
 | Deterministic calculations; AI proposes, never decides (§1, §12) | Calculators and the Sentinel verifier are code. Models draft only. Guards are deterministic. |
 | PolicyEngine is a reference, not a filing engine (§2, §9) | Used only as an independent cross-check oracle (`returns/oracle.py`) |

@@ -1,6 +1,6 @@
 """Independent cross-check of a computed return against PolicyEngine US.
 
-PolicyEngine is an open-source microsimulation model maintained separately from Veritas.
+PolicyEngine is an open-source microsimulation model maintained separately from AgentLedger.
 Agreement between two independently built engines is evidence the computation is right.
 A disagreement is a finding for a preparer (or the Researcher agent) to resolve; it never
 changes the return. PolicyEngine is optional: install it with `pip install policyengine-us`.

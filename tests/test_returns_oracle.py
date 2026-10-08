@@ -1,4 +1,4 @@
-"""Two-engine verification: Veritas returns against PolicyEngine US (skipped if not installed)."""
+"""Two-engine verification: AgentLedger returns against PolicyEngine US (skipped if not installed)."""
 
 from datetime import date
 

@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-UA = {"User-Agent": "Veritas-RegWatch/0.1 (+compliance monitoring)"}
+UA = {"User-Agent": "AgentLedger-RegWatch/0.1 (+compliance monitoring)"}
 
 
 @dataclass

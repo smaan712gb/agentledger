@@ -35,7 +35,7 @@ automations:
           Hello,
 
           Our review found something that needs your attention: {payload_title}.
-          You can see the details and respond directly in your Veritas portal.
+          You can see the details and respond directly in your AgentLedger portal.
 
           Thank you.
 

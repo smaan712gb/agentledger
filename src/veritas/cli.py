@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-app = typer.Typer(help="Veritas — autonomous accounting, ledger and tax platform", no_args_is_help=True)
+app = typer.Typer(help="AgentLedger — autonomous accounting, ledger and tax platform", no_args_is_help=True)
 agents_app = typer.Typer(help="The agent workforce", no_args_is_help=True)
 rules_app = typer.Typer(help="Regulation knowledge base", no_args_is_help=True)
 prop_app = typer.Typer(help="Changes proposed by agents", no_args_is_help=True)
@@ -52,7 +52,7 @@ def serve(host: str = "127.0.0.1", port: int = 8740, agents: bool = typer.Option
                   "your secrets manager, or run `veritas serve --dev` for a local demo.")
         raise typer.Exit(2)
     mode = "dev (demo identities)" if dev else "multi-firm"
-    con.print(f"[bold]Veritas[/] on http://{host}:{port}  ({mode}; agents {'on' if agents else 'off'})")
+    con.print(f"[bold]AgentLedger[/] on http://{host}:{port}  ({mode}; agents {'on' if agents else 'off'})")
     uvicorn.run("veritas.api.app:app", host=host, port=port, log_level="warning")
 
 
@@ -67,7 +67,7 @@ def demo():
 
 @app.command()
 def mcp():
-    """Run Veritas as an MCP server over stdio (scope via VERITAS_MCP_ROLE / VERITAS_MCP_CLIENT)."""
+    """Run AgentLedger as an MCP server over stdio (scope via VERITAS_MCP_ROLE / VERITAS_MCP_CLIENT)."""
     from .mcp_server import main
 
     main()

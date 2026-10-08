@@ -1,7 +1,7 @@
 [project]
 name = "veritas"
 version = "0.1.0"
-description = "Autonomous accounting, general ledger and tax platform with self-updating regulation-as-code"
+description = "Open-source accounting, ledger and tax platform where AI agents do the work and deterministic code proves every number"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=1.12",
@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-# Independent cross-check of computed returns (Veritas never depends on it to compute).
+# Independent cross-check of computed returns (AgentLedger never depends on it to compute).
 oracle = ["policyengine-us>=1.400"]
 
 [project.scripts]
