@@ -39,6 +39,7 @@ from ..ledger import bankfeed, m1, store
 from ..plugins.registry import discover, run_plugin
 from ..security.platform import PLATFORM_FIRM, AuthError, Platform
 from ..security.vault import Vault
+from ..workflow.engine import TransitionError
 
 ROOT = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -618,6 +619,123 @@ def compute_individual_return(body: dict[str, Any] = Body(...), user=Depends(me)
 @app.get("/api/staleness")
 def staleness(user=Depends(me)) -> list[dict[str, Any]]:
     return staleness_scan(A(user).kb, date.today())
+
+
+# ------------------------------------------------------------------------------ tax returns
+
+def R(user: dict[str, Any]) -> "Returns":
+    from ..returns.store import Returns, Sealer
+
+    ctx = A(user)
+    v = ctx.foundry.vault
+    # Segregation of duties (preparer != reviewer) is on for real firms; the single-CPA demo turns it off.
+    return Returns(ctx.conn, ctx.kb, Sealer(v.keyring, v.firm_id), segregation=not (DEV and user.get("firm_id") == DEV_FIRM))
+
+
+def _return_for(user: dict[str, Any], rid: str) -> tuple[Any, dict[str, Any]]:
+    rs = R(user)
+    try:
+        r = rs.get(rid)
+    except KeyError:
+        raise HTTPException(404, "return not found")
+    scope(user, r["client_id"])
+    return rs, r
+
+
+def _wf_error(e: Exception) -> HTTPException:
+    return HTTPException(409, str(e))
+
+
+@app.get("/api/clients/{client_id}/returns")
+def client_returns(client_id: str, user=Depends(me)) -> list[dict[str, Any]]:
+    scope(user, client_id)
+    return R(user).for_client(client_id)
+
+
+@app.post("/api/clients/{client_id}/returns")
+def create_return(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    scope(user, client_id)
+    try:
+        rid = R(user).create(client_id, int(body["tax_year"]), user["id"], body.get("inputs"))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"id": rid}
+
+
+@app.get("/api/returns/{rid}")
+def get_return(rid: str, user=Depends(me)) -> dict[str, Any]:
+    rs, r = _return_for(user, rid)
+    v = rs.latest(rid)
+    st = rs.status(rid)
+    out = {"return": r, "version": v["version"], "status": st.status, "history": st.history, "summary": json.loads(v["summary"]),
+           "allowed": rs.wf.defs["return_1040"].allowed(st.status), "waiting_on": rs.wf.defs["return_1040"].waiting.get(st.status),
+           "crosscheck": json.loads(v["crosscheck"]) if v["crosscheck"] else None}
+    if user["role"] == "cpa":
+        out.update({"inputs": v["inputs"], "provenance": v["provenance"], "result": v["result"]})
+    else:  # a client sees the outcome and the status, not working papers
+        res = v["result"] or {}
+        out["forms"] = {"f1040": res.get("forms", {}).get("f1040", {})}
+    return jsonable(out)
+
+
+@app.put("/api/returns/{rid}/inputs")
+def put_return_inputs(rid: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    from pydantic import ValidationError
+
+    try:
+        return jsonable(rs.save_inputs(rid, body, user["id"]))
+    except ValidationError as e:
+        raise HTTPException(422, e.errors(include_url=False))
+    except TransitionError as e:
+        raise _wf_error(e)
+
+
+@app.post("/api/returns/{rid}/populate")
+def populate_return(rid: str, user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    try:
+        return rs.populate_from_documents(rid, user["id"])
+    except TransitionError as e:
+        raise _wf_error(e)
+
+
+@app.post("/api/returns/{rid}/confirm")
+def confirm_return_amounts(rid: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    return {"confirmed": rs.confirm(rid, body.get("paths"), user["id"])}
+
+
+@app.post("/api/returns/{rid}/compute")
+def compute_return(rid: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    return jsonable(rs.compute(rid, user["id"], oracle=bool(body.get("crosscheck"))))
+
+
+@app.post("/api/returns/{rid}/{action}")
+def return_action(rid: str, action: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    try:
+        if action == "submit":
+            st = rs.submit_for_review(rid, user["id"], explanation=body.get("explanation", ""))
+        elif action == "approve":
+            st = rs.approve(rid, user["id"], user["role"])
+        elif action == "request-changes":
+            st = rs.request_changes(rid, user["id"], user["role"], body.get("note", ""))
+        elif action == "request-signature":
+            st = rs.request_signature(rid, user["id"], user["role"])
+        else:
+            raise HTTPException(404, "unknown action")
+    except TransitionError as e:
+        raise _wf_error(e)
+    audit.record(A(user).conn, user["id"], user["role"], f"return.{action}", {"return_id": rid, "status": st.status})
+    return {"status": st.status, "history": st.history}
 
 
 # ------------------------------------------------------------------------------ foundry
