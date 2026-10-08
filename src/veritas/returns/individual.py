@@ -758,9 +758,26 @@ class _Individual:
             return bool(p and p.ssn and p.ssn_valid_for_employment)
 
         tips_rule = self.ctx.try_param("us_fed.individual.qualified_tips_deduction", self.on)
-        tips_emp = sum((w.tips() for w in r.w2s if valid(w.owner)), Z)
-        tips_emp = max(tips_emp, r.tips_form_4137 if valid("taxpayer") else Z)
-        tips_biz = sum((min(b.qualified_tips, pos(n)) for b, n in self.biz_net if valid(b.owner)), Z)
+        def occupation_ok(code: int | None, sstb: bool, amount: Decimal, source: str) -> bool:
+            if not amount:
+                return False
+            if sstb:
+                self.s.diag("info", "tips_sstb", f"{source}: tips received in a specified service trade or business do not "
+                                                 "qualify (IRC §224(d)(2)(B)).", f, "4")
+                return False
+            if not code:
+                self.s.diag("warning", "tips_occupation_code",
+                            f"{source}: {whole(amount)} of tips excluded until the Treasury Tipped Occupation Code is entered "
+                            "(IRC §224(d)(1); prop. Reg. §1.224-1(f)).", f, "4")
+                return False
+            return True
+
+        tips_emp = sum((w.tips() for w in r.w2s if valid(w.owner)
+                        and occupation_ok(w.tipped_occupation_code, w.employer_sstb, w.tips(), w.employer_name or "W-2")), Z)
+        if r.tips_form_4137 and valid("taxpayer") and occupation_ok(r.tips_form_4137_occupation_code, False, r.tips_form_4137, "Form 4137"):
+            tips_emp = max(tips_emp, r.tips_form_4137)
+        tips_biz = sum((min(b.qualified_tips, pos(n)) for b, n in self.biz_net if valid(b.owner)
+                        and occupation_ok(b.tipped_occupation_code, b.sstb, b.qualified_tips, b.name)), Z)
         if tips_rule and (tips_emp or tips_biz):
             if married_separate:
                 self.s.diag("info", "tips_mfs", "No qualified tips deduction when married filing separately (IRC §224(f)).")

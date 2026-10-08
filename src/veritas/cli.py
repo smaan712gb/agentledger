@@ -106,6 +106,37 @@ def golden():
     raise typer.Exit(0 if all(v["ok"] for v in res.values()) else 1)
 
 
+@app.command("return")
+def compute_return(path: Path, as_json: bool = typer.Option(False, "--json", help="print the full return as JSON")):
+    """Compute an individual return (Form 1040) from a JSON or YAML file of facts and documents."""
+    import yaml
+
+    from .calc.engine import Ctx
+    from .returns.individual import compute_individual
+    from .returns.model import IndividualReturn
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    res = compute_individual(Ctx(ctx().kb), IndividualReturn.model_validate(data))
+    if as_json:
+        print(json.dumps(res.to_dict(), indent=2, default=str))
+        return
+    con = Console()
+    t = Table(title=f"Form 1040 ({res.tax_year}), {res.filing_status}")
+    t.add_column("Line")
+    t.add_column("Amount", justify="right")
+    t.add_column("How")
+    notes = res.sheets.notes.get("f1040", {})
+    for line, value in res.forms.get("f1040", {}).items():
+        if value:
+            t.add_row(line, f"{value:,}", notes.get(line, ""))
+    con.print(t)
+    for d in res.diagnostics:
+        style = {"error": "red", "warning": "yellow"}.get(d.severity, "dim")
+        con.print(f"[{style}]{d.severity.upper()}[/] {d.code}: {d.message}")
+    if res.blocking:
+        raise typer.Exit(2)
+
+
 @app.command()
 def stale():
     """What's due, overdue or sunsetting in the regulation knowledge base."""

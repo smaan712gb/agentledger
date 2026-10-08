@@ -142,14 +142,14 @@ def test_seniors_social_security_and_senior_deduction():
 
 
 def test_no_tax_on_tips():
-    r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=45000, box12={"TP": 12000})])
+    r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=45000, box12={"TP": 12000}, tipped_occupation_code=101)])
     assert r.line("sch_1a", "15") == 12000
     assert r.line("f1040", "15") == 16900
     assert r.line("f1040", "16") == 1783
 
 
 def test_tips_overtime_and_car_loan_phaseouts():
-    r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=180000, box12={"TP": 20000, "TT": 5000})])
+    r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=180000, box12={"TP": 20000, "TT": 5000}, tipped_occupation_code=101)])
     assert r.line("sch_1a", "14") == 3000         # 30 full $1,000 steps x $100
     assert r.line("sch_1a", "15") == 17000
     assert r.line("sch_1a", "27") == 2000
@@ -160,7 +160,7 @@ def test_tips_overtime_and_car_loan_phaseouts():
 
 
 def test_tips_not_allowed_married_separately():
-    r = run(filing_status="mfs", taxpayer=you(), spouse=spouse(), w2s=[W2(wages=40000, box12={"TP": 5000})])
+    r = run(filing_status="mfs", taxpayer=you(), spouse=spouse(), w2s=[W2(wages=40000, box12={"TP": 5000}, tipped_occupation_code=101)])
     assert r.line("f1040", "13a") == 0
     assert any(d.code == "tips_mfs" for d in r.diagnostics)
 
@@ -230,3 +230,12 @@ def test_trace_cites_authorities():
 def test_w2_box_mismatch_is_flagged():
     r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=25000, medicare_tax=362.5)])
     assert any(d.code == "w2_box_mismatch" for d in r.diagnostics)
+
+
+def test_tips_need_listed_occupation_and_not_sstb():
+    r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=45000, box12={"TP": 12000})])
+    assert r.line("f1040", "13a") == 0
+    assert any(d.code == "tips_occupation_code" for d in r.diagnostics)
+    r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=45000, box12={"TP": 12000}, tipped_occupation_code=101,
+                                                           employer_sstb=True)])
+    assert r.line("f1040", "13a") == 0

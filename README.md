@@ -134,7 +134,11 @@ python -m pytest -q
 - the Model Scout's benchmark-driven promotion and rollback
 - all of the deterministic core
 
-**Not built yet** (the blueprint in `BL.md` covers these):
+- the TY2026 Form 1040 engine (`src/veritas/returns`). It covers 20 forms and schedules, including OBBBA
+  Schedule 1-A and Schedule 3-A, and every return is cross-checked against PolicyEngine US
+  (`pip install -e .[oracle]`). Try it with `veritas return samples/return_hoh_2026.yaml`
+
+**Not built yet** (see `docs/GO_LIVE.md` for the full plan):
 
 - IRS MeF e-file transmission and AcroForm generation (requires an EFIN/ETIN and ATS certification)
 - state income tax engines (policyengine-us is tracked by the Repo Scout but not integrated)

@@ -70,3 +70,52 @@
   calc: corporate_tax
   inputs: {taxable_income: 100000, tax_year: 2026}
   expect: 21000
+# Whole-return scenarios (TY2026). Expected values worked by hand from Rev. Proc. 2025-32,
+# P.L. 119-21 and the 2026 draft forms; see tests/test_returns_1040.py.
+- id: f1040-2026-single-wages-tax
+  calc: form_1040_line
+  inputs:
+    form: f1040
+    line: "16"
+    return: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             w2s: [{wages: 60000, federal_withholding: 6000}]}
+  expect: 5023
+  source: Rev. Proc. 2025-32 §4.01, §4.14
+- id: f1040-2026-hoh-eic
+  calc: form_1040_line
+  inputs:
+    form: f1040
+    line: "27a"
+    return: {tax_year: 2026, filing_status: hoh, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             dependents: [{first_name: Ana, ssn: "400-00-0100", dob: "2022-01-15", relationship: daughter}],
+             w2s: [{wages: 25000, ss_wages: 25000, medicare_wages: 25000}]}
+  expect: 4246
+  source: Rev. Proc. 2025-32 §4.06; IRC §32(b)
+- id: f1040-2026-self-employed-qbi
+  calc: form_1040_line
+  inputs:
+    form: f8995
+    line: "15"
+    return: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             businesses: [{name: Design, gross_receipts: 100000, expenses: {supplies: 20000}}]}
+  expect: 11650
+  source: IRC §199A; IRC §1401-1402
+- id: f1040-2026-senior-deduction
+  calc: form_1040_line
+  inputs:
+    form: sch_1a
+    line: "43"
+    return: {tax_year: 2026, filing_status: mfj, taxpayer: {ssn: "400-00-0003", dob: "1960-05-01"},
+             spouse: {ssn: "400-00-0004", dob: "1959-08-01"},
+             social_security: [{net_benefits: 40000}], retirement: [{gross_distribution: 50000, taxable_amount: 50000}]}
+  expect: 12000
+  source: P.L. 119-21 §70103
+- id: f1040-2026-amt-iso
+  calc: form_1040_line
+  inputs:
+    form: sch_2
+    line: "2"
+    return: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             w2s: [{wages: 200000}], amt_adjustments: {iso: 300000}}
+  expect: 73148
+  source: Rev. Proc. 2025-32 §4.10; IRC §55

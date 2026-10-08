@@ -144,6 +144,17 @@ CALCULATORS: dict[str, tuple[str, Callable[[Ctx, dict[str, Any]], Any]]] = {
 }
 
 
+def _form_1040_line(c: Ctx, i: dict[str, Any]) -> Any:
+    from ..returns.individual import compute_individual
+    from ..returns.model import IndividualReturn
+
+    result = compute_individual(c, IndividualReturn.model_validate(i["return"]))
+    return result.line(i.get("form", "f1040"), str(i["line"]))
+
+
+CALCULATORS["form_1040_line"] = ("One line of a computed individual return (inputs: return, form, line)", _form_1040_line)
+
+
 def run_calc(ctx: Ctx, name: str, inputs: dict[str, Any]) -> Any:
     if name not in CALCULATORS:
         raise KeyError(f"unknown calculator {name}; available: {sorted(CALCULATORS)}")

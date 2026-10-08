@@ -33,7 +33,7 @@ Status key: **done** (built and tested) · **partial** · **todo**.
 | §2 | Schedule M-1 live | done | — |
 | §2 | Schedule M-3; permanent and temporary classification | todo | M6 |
 | §2 | Fixed-asset register (book SL vs MACRS, M-1 line 5a/8a) | partial (calculators only) | M6 |
-| §2 | Deterministic engines (policyengine-us, tenforty) | todo | M1 (as independent oracles) |
+| §2 | Deterministic engines (policyengine-us, tenforty) | done: policyengine-us cross-checks every return | M1 |
 | §3 | AcroForm population, flattening, SHA-256 tamper evidence | todo | M4 |
 | §3 | MeF XML serialization plus XSD validation (lxml) | todo | M5 (needs A3) |
 | §3 | A2A SOAP MTOM/XOP, WS-Security signing, EFIN/ETIN/TCC, ACK/NACK ingestion | todo | M5 (needs A4) |
@@ -52,11 +52,18 @@ Status key: **done** (built and tested) · **partial** · **todo**.
 | §7 | Tiered models (local, deterministic, frontier) | done | — |
 | SaaS | Multi-firm tenancy, onboarding, billing | todo | M2 |
 | Interop | Trial-balance export to Drake, UltraTax, Lacerte/ProConnect, CCH; QBO/Xero import | partial | M10 |
-| Returns | 1040 + schedules TY2026 (OBBBA) | todo | M1 |
+| Returns | 1040 + schedules TY2026 (OBBBA) | partial: core forms done; 1116, 8615, 8880, 8962, 8606, 8889, 4797, Sch F, 2210 todo | M1 |
 | Returns | 1120-S, 1065, 1120 with K-1s | todo | M6 |
 | Returns | State income tax returns | todo | M11 |
 
 ## Part C: engineering milestones (dependency order)
+
+Progress log:
+- 2026-10-08: M1 core done. Form 1040 and Schedules 1, 1-A, 2, 3, 3-A, A, B, C, D, E, SE, 8812, 8995/8995-A,
+  6251, 8959, 8960, 2441, 8863 follow the 2026 draft forms. 33 cited rules. 26 hand-verified tests,
+  5 golden whole-return scenarios, 11 PolicyEngine cross-checks that all agree. The cross-check
+  found two gaps that are now fixed: the Treasury tipped-occupation requirement and the SSTB tips
+  exclusion.
 
 Each milestone ends with: full test suite green, golden scenarios green, a commit.
 

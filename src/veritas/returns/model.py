@@ -70,6 +70,8 @@ class W2(BaseModel):
     statutory_employee: bool = False     # box 13
     qualified_tips: Money | None = None  # box 12 code TP, if not in box12
     qualified_overtime: Money | None = None  # box 12 code TT, if not in box12
+    tipped_occupation_code: int | None = None  # Treasury Tipped Occupation Code (W-2 box 14b; prop. Reg. §1.224-1(f))
+    employer_sstb: bool = False          # tips from an SSTB employer do not qualify (IRC §224(d)(2)(B))
 
     def tips(self) -> Money:
         return self.qualified_tips if self.qualified_tips is not None else self.box12.get("TP", Z)
@@ -167,6 +169,7 @@ class Business(BaseModel):  # Schedule C
     ubia: Money = Z                      # unadjusted basis of qualified property
     federal_withholding: Money = Z       # backup withholding on 1099-NEC/K
     qualified_tips: Money = Z            # tips received in the business (Schedule 1-A Part II)
+    tipped_occupation_code: int | None = None
 
 
 SCHEDULE_C_LINES = {
@@ -302,6 +305,7 @@ class IndividualReturn(BaseModel):
     itemized: Itemized = Itemized()
     car_loans: list[CarLoan] = []
     tips_form_4137: Money = Z            # qualified tips reported on Form 4137
+    tips_form_4137_occupation_code: int | None = None
     dependent_care_expenses: Money = Z
     dependent_care_qualifying_persons: int = 0
     students: list[Student] = []

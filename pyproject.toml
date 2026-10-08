@@ -20,6 +20,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+# Independent cross-check of computed returns (Veritas never depends on it to compute).
+oracle = ["policyengine-us>=1.400"]
 
 [project.scripts]
 veritas = "veritas.cli:app"

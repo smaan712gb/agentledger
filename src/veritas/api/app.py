@@ -381,6 +381,24 @@ def calculate(name: str, inputs: dict[str, Any] = Body(...), user=Depends(me)) -
         raise HTTPException(400, f"{type(e).__name__}: {e}")
 
 
+@app.post("/api/returns/individual")
+def compute_individual_return(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """Compute a Form 1040 from facts and source documents. Nothing is stored."""
+    from pydantic import ValidationError
+
+    from ..returns.individual import compute_individual
+    from ..returns.model import IndividualReturn
+
+    try:
+        r = IndividualReturn.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(422, e.errors(include_url=False))
+    try:
+        return compute_individual(Ctx(APP.kb), r).to_dict()
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/api/staleness")
 def staleness(user=Depends(me)) -> list[dict[str, Any]]:
     return staleness_scan(APP.kb, date.today())
