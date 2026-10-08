@@ -1,8 +1,8 @@
 """Sign-in through WorkOS AuthKit, with authority kept in AgentLedger (ADR-0004, backlog F-05).
 
 The real WorkOS client runs against a fake WorkOS server that checks PKCE (sha256 of the verifier must equal the
-challenge sent in the authorize URL), the client secret and the grant type, and returns users with or without a
-second factor.
+challenge sent in the authorize URL), the client secret and the grant type, publishes a JWKS, and issues RS256 access
+tokens whose auth_time says when the person really authenticated (possibly an older provider session).
 """
 
 from __future__ import annotations
@@ -22,18 +22,48 @@ from agentledger.security import totp
 PW = "correct horse battery staple"
 
 
+def _b64u(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
 class FakeWorkOS:
     def __init__(self):
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
         self.codes: dict[str, dict] = {}
         self.factors: dict[str, list] = {}
+        self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.kid = "key_" + secrets.token_hex(4)
 
-    def issue(self, authorize_url: str, user: dict, method: str = "Password", impersonator: dict | None = None) -> tuple[str, str]:
-        """What the hosted page does after the person signs in: returns (code, state) for the callback."""
+    def jwks(self) -> dict:
+        n = self.key.public_key().public_numbers()
+        return {"keys": [{"kty": "RSA", "kid": self.kid, "alg": "RS256", "use": "sig",
+                          "n": _b64u(n.n.to_bytes((n.n.bit_length() + 7) // 8, "big")), "e": _b64u(n.e.to_bytes(3, "big"))}]}
+
+    def token(self, sub: str, auth_time: float, **extra) -> str:
+        import json
+
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+
+        header = _b64u(json.dumps({"alg": "RS256", "kid": self.kid, "typ": "JWT"}).encode())
+        claims = {"iss": "https://api.workos.com", "sub": sub, "client_id": "client_test", "sid": "session_x",
+                  "exp": int(time.time()) + 300, "iat": int(time.time()), "auth_time": int(auth_time), **extra}
+        payload = _b64u(json.dumps(claims).encode())
+        sig = self.key.sign(f"{header}.{payload}".encode(), padding.PKCS1v15(), hashes.SHA256())
+        return f"{header}.{payload}.{_b64u(sig)}"
+
+    def issue(self, authorize_url: str, user: dict, method: str = "Password", impersonator: dict | None = None, *,
+              auth_age: int = 0, organization: str | None = None) -> tuple[str, str]:
+        """What the hosted page does after the person signs in: returns (code, state) for the callback. `auth_age`
+        is how long ago the person really authenticated (an existing provider session reused without max_age)."""
         q = {k: v[0] for k, v in parse_qs(urlparse(authorize_url).query).items()}
         assert q["response_type"] == "code" and q["provider"] == "authkit" and q["code_challenge_method"] == "S256"
+        if q.get("max_age") == "0":
+            auth_age = 0                     # a forced re-authentication is fresh by definition
         code = "code_" + secrets.token_hex(8)
         self.codes[code] = {"challenge": q["code_challenge"], "user": user, "method": method, "impersonator": impersonator,
-                            "max_age": q.get("max_age")}
+                            "auth_time": time.time() - auth_age, "organization": organization}
         return code, q["state"]
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -50,11 +80,14 @@ class FakeWorkOS:
             digest = base64.urlsafe_b64encode(hashlib.sha256(body["code_verifier"].encode()).digest()).rstrip(b"=").decode()
             if digest != grant["challenge"]:
                 return httpx.Response(400, json={"error": "invalid_grant", "error_description": "PKCE mismatch"})
-            out = {"user": grant["user"], "organization_id": None, "access_token": "jwt", "refresh_token": "r",
+            out = {"user": grant["user"], "organization_id": grant["organization"], "refresh_token": "r",
+                   "access_token": self.token(grant["user"]["id"], grant["auth_time"]),
                    "authentication_method": grant["method"]}
             if grant["impersonator"]:
                 out["impersonator"] = grant["impersonator"]
             return httpx.Response(200, json=out)
+        if path == "/sso/jwks/client_test":
+            return httpx.Response(200, json=self.jwks())
         if path.startswith("/user_management/users/") and path.endswith("/auth_factors"):
             uid = path.split("/")[3]
             return httpx.Response(200, json={"data": self.factors.get(uid, [])})
@@ -95,10 +128,10 @@ def api(home, monkeypatch):
     return mod, c, fake, invite
 
 
-def sign_in(c, fake, purpose, user, *, invite="", headers=None, method="Passkey", impersonator=None):
+def sign_in(c, fake, purpose, user, *, invite="", headers=None, method="Passkey", impersonator=None, auth_age=0, organization=None):
     r = c.get("/api/auth/idp/start", params={"purpose": purpose, "invite": invite}, headers=headers or {})
     assert r.status_code == 200, r.text
-    code, state = fake.issue(r.json()["url"], user, method, impersonator)
+    code, state = fake.issue(r.json()["url"], user, method, impersonator, auth_age=auth_age, organization=organization)
     return c.get("/api/auth/idp/callback", params={"code": code, "state": state}, follow_redirects=False), r.json()["url"], (code, state)
 
 
@@ -159,9 +192,9 @@ def test_step_up_is_required_for_consequential_actions(api):
     lee = session_from(resp)
     close = {"through": "2026-01-31"}
     assert c.post("/api/clients/ortiz-auto/periods/close", json=close, headers=lee).status_code == 200   # just signed in
-    # Ten minutes later the session is no longer fresh.
-    old = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() - 600))
-    mod.PLATFORM.conn.execute("UPDATE sessions SET created_at = ? WHERE user_id = (SELECT id FROM users WHERE email = 'lee@rivera.example')", (old,))
+    # Signing in again by reusing an hour-old provider session: our session is new, the authentication is not.
+    resp, _, _ = sign_in(c, fake, "login", wuser("lee@rivera.example", "user_lee"), auth_age=3600)
+    lee = session_from(resp)
     r = c.post("/api/clients/ortiz-auto/periods/close", json={"through": "2026-02-28"}, headers=lee)
     assert r.status_code == 403 and r.json()["detail"] == "step_up_required"
     # A different identity cannot step up this session; the right one, re-authenticated (max_age=0), can.
@@ -183,7 +216,7 @@ def test_local_account_steps_up_with_its_code_and_links_the_provider(api):
     r = c.post("/api/auth/mfa", json={"challenge": ops_login["challenge"], "code": totp.code_at(secret, step + 1)})
     ops = {"Authorization": f"Bearer {r.json()['token']}"}
     old = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() - 600))
-    mod.PLATFORM.conn.execute("UPDATE sessions SET created_at = ? WHERE token_hash = ?",
+    mod.PLATFORM.conn.execute("UPDATE sessions SET authenticated_at = ? WHERE token_hash = ?",
                               (old, hashlib.sha256(ops["Authorization"][7:].encode()).hexdigest()))
     firm = {"id": "lake-tax", "name": "Lake Tax", "admin_email": "lee@lake.example"}
     assert c.post("/api/platform/firms", json=firm, headers=ops).status_code == 403
@@ -219,3 +252,74 @@ def test_live_workos_credentials_reach_the_real_api():
     with pytest.raises(WorkOSError) as exc:
         w.authenticate("not-a-real-code", verifier)
     assert " 401 " not in str(exc.value) and " 403 " not in str(exc.value), str(exc.value)
+
+
+# --------------------------------------------------------------------------- re-audit of 2b42c07
+def test_workos_mode_never_creates_local_password_accounts(api):
+    mod, c, fake, invite = api
+    r = c.post("/api/auth/accept", json={"token": invite, "name": "Maya", "password": PW})
+    assert r.status_code == 400 and "sign-in provider" in r.json()["detail"]
+    assert not mod.PLATFORM.conn.execute("SELECT 1 FROM users WHERE email = 'maya@rivera.example'").fetchone()
+
+
+def test_sso_counts_as_mfa_only_for_an_attested_organization(api):
+    mod, c, fake, invite = api
+    resp, _, _ = sign_in(c, fake, "invite", wuser("maya@rivera.example", "user_maya"), invite=invite, method="SSO",
+                         organization="org_rivera")
+    assert "two-step" in resp.headers["location"]                       # SSO alone proves nothing about MFA
+    ops = c.post("/api/auth/login", json={"email": "ops@agentledger.example", "password": PW}).json()
+    u = mod.PLATFORM.conn.execute("SELECT * FROM users WHERE email = 'ops@agentledger.example'").fetchone()
+    secret = mod.PLATFORM.keys.open_text(u["firm_id"], u["totp_secret"], f"totp:{u['id']}")
+    mod.PLATFORM.conn.execute("UPDATE users SET totp_last_step = NULL WHERE id = ?", (u["id"],))
+    ops_h = {"Authorization": "Bearer " + c.post("/api/auth/mfa", json={"challenge": ops["challenge"],
+             "code": totp.code_at(secret, int(time.time() // 30))}).json()["token"]}
+    att = {"organization_id": "org_rivera", "firm_id": "rivera-cpa", "evidence": "Okta policy export: MFA required for all apps"}
+    assert c.post("/api/platform/sso-mfa", json=att, headers=ops_h).status_code == 200
+    resp, _, _ = sign_in(c, fake, "invite", wuser("maya@rivera.example", "user_maya"), invite=invite, method="SSO",
+                         organization="org_other")
+    assert "two-step" in resp.headers["location"]                       # another organization's SSO does not count
+    resp, _, _ = sign_in(c, fake, "invite", wuser("maya@rivera.example", "user_maya"), invite=invite, method="SSO",
+                         organization="org_rivera")
+    assert resp.headers["location"].startswith("/#session=")
+
+
+def test_step_up_needs_a_fresh_provider_authentication(api):
+    mod, c, fake, invite = api
+    maya = session_from(sign_in(c, fake, "invite", wuser("maya@rivera.example", "user_maya"), invite=invite)[0])
+    old = session_from(sign_in(c, fake, "login", wuser("maya@rivera.example", "user_maya"), auth_age=3600)[0])
+    # The provider ignored max_age and returned the old authentication: refused.
+    r = c.get("/api/auth/idp/start", params={"purpose": "step_up"}, headers=old)
+    code, state = fake.issue(r.json()["url"], wuser("maya@rivera.example", "user_maya"), "Passkey")
+    fake.codes[code]["auth_time"] = time.time() - 3600          # as if max_age had been ignored
+    back = c.get("/api/auth/idp/callback", params={"code": code, "state": state}, follow_redirects=False)
+    assert "did%20not%20re-authenticate" in back.headers["location"]
+    assert maya  # the first, genuinely fresh session is unaffected
+
+
+def test_granting_engagements_needs_a_recent_sign_in(api):
+    mod, c, fake, invite = api
+    maya = session_from(sign_in(c, fake, "invite", wuser("maya@rivera.example", "user_maya"), invite=invite)[0])
+    assert c.post("/api/clients", json={"id": "ortiz-auto", "name": "Ortiz Auto"}, headers=maya).status_code == 200
+    tok = c.post("/api/auth/invite", json={"email": "sam@rivera.example", "role": "staff"}, headers=maya).json()["invite_token"]
+    session_from(sign_in(c, fake, "invite", wuser("sam@rivera.example", "user_sam"), invite=tok)[0])
+    sam_id = mod.PLATFORM.conn.execute("SELECT id FROM users WHERE email = 'sam@rivera.example'").fetchone()[0]
+    stale = session_from(sign_in(c, fake, "login", wuser("maya@rivera.example", "user_maya"), auth_age=3600)[0])
+    for call in (lambda h: c.post(f"/api/auth/users/{sam_id}/grants", json={"client_id": "ortiz-auto"}, headers=h),
+                 lambda h: c.delete(f"/api/auth/users/{sam_id}/grants/ortiz-auto", headers=h),
+                 lambda h: c.post("/api/auth/invite", json={"email": "x@rivera.example", "role": "staff"}, headers=h)):
+        r = call(stale)
+        assert r.status_code == 403 and r.json()["detail"] == "step_up_required"
+    assert c.post(f"/api/auth/users/{sam_id}/grants", json={"client_id": "ortiz-auto"}, headers=maya).status_code == 200
+
+
+def test_callback_must_come_back_to_the_browser_that_started(api):
+    mod, c, fake, invite = api
+    from fastapi.testclient import TestClient
+
+    r = c.get("/api/auth/idp/start", params={"purpose": "invite", "invite": invite})
+    code, state = fake.issue(r.json()["url"], wuser("maya@rivera.example", "user_maya"), "Passkey")
+    other_browser = TestClient(mod.app)                                  # no cookie from the start request
+    back = other_browser.get("/api/auth/idp/callback", params={"code": code, "state": state}, follow_redirects=False)
+    assert "same%20browser" in back.headers["location"]
+    again = c.get("/api/auth/idp/callback", params={"code": code, "state": state}, follow_redirects=False)
+    assert "expired" in again.headers["location"]                        # and the state is spent

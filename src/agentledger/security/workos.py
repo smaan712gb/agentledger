@@ -7,20 +7,25 @@ Endpoints used (https://workos.com/docs/reference/authkit):
   GET  /user_management/authorize                       hosted sign-in (PKCE S256, state, max_age=0 for step-up)
   POST /user_management/authenticate                     authorization code -> user, organization, method
   GET  /user_management/users/{id}/auth_factors          enrolled TOTP factors (MFA evidence)
+  GET  /sso/jwks/{client_id}                              keys that sign access tokens (auth_time for freshness)
 """
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import os
 import secrets
+import time
 from typing import Any
 from urllib.parse import urlencode
 
 API = "https://api.workos.com"
-# Sign-in methods that are multi-factor or phishing-resistant on their own. Anything else needs an enrolled factor.
-STRONG_METHODS = {"SSO", "Passkey"}
+# A passkey is multi-factor on its own. SSO is not evidence of MFA (WorkOS: "The MFA requirement does not apply to
+# SSO users"): it counts only for organizations whose identity provider is recorded as enforcing MFA. Anything else
+# needs a TOTP factor enrolled at WorkOS.
+PASSKEY = "Passkey"
 
 
 class WorkOSError(RuntimeError):
@@ -42,6 +47,7 @@ class WorkOS:
         self.client_id = client_id or os.environ.get("WORKOS_CLIENT_ID", "")
         if not self.api_key or not self.client_id:
             raise WorkOSError("WorkOS needs WORKOS_API_KEY and WORKOS_CLIENT_ID")
+        self._jwks: tuple[float, dict[str, Any]] | None = None
         self.http = client or httpx.Client(base_url=API, timeout=20,
                                            headers={"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"})
 
@@ -81,8 +87,58 @@ class WorkOS:
     def auth_factors(self, user_id: str) -> list[dict[str, Any]]:
         return list(self._call("GET", f"/user_management/users/{user_id}/auth_factors", params={"limit": 10}).get("data", []))
 
-    def multi_factor(self, auth: dict[str, Any]) -> bool:
-        """Whether this sign-in is multi-factor: SSO or a passkey, or the user has an enrolled TOTP factor."""
-        if auth.get("authentication_method") in STRONG_METHODS:
-            return True
-        return any(f.get("type") == "totp" for f in self.auth_factors(auth["user"]["id"]))
+    def has_totp_factor(self, user_id: str) -> bool:
+        return any(f.get("type") == "totp" for f in self.auth_factors(user_id))
+
+    # ------------------------------------------------------------------ access token (auth_time)
+    def jwks(self) -> dict[str, Any]:
+        cached = self._jwks
+        if cached and cached[0] > time.monotonic():
+            return cached[1]
+        keys = self._call("GET", f"/sso/jwks/{self.client_id}")
+        self._jwks = (time.monotonic() + 3600, keys)
+        return keys
+
+    def verify_access_token(self, token: str, *, subject: str, leeway: int = 60) -> dict[str, Any]:
+        """Verify an AuthKit access token (RS256, WorkOS JWKS) and return its claims. The caller relies on
+        `auth_time`, the moment the person actually authenticated, never on when our own session was created."""
+        try:
+            header_b64, payload_b64, sig_b64 = token.split(".")
+            header = json.loads(_b64(header_b64))
+            claims = json.loads(_b64(payload_b64))
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise WorkOSError("malformed access token") from exc
+        if header.get("alg") != "RS256":
+            raise WorkOSError("access token must be RS256")
+        key = next((k for k in self.jwks().get("keys", []) if k.get("kid") == header.get("kid")), None)
+        if key is None:
+            self._jwks = None                      # keys may have rotated: refresh once
+            key = next((k for k in self.jwks().get("keys", []) if k.get("kid") == header.get("kid")), None)
+        if key is None or key.get("kty") != "RSA":
+            raise WorkOSError("access token signed with an unknown key")
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+        public = rsa.RSAPublicNumbers(int.from_bytes(_b64(key["e"]), "big"), int.from_bytes(_b64(key["n"]), "big")).public_key()
+        try:
+            public.verify(_b64(sig_b64), f"{header_b64}.{payload_b64}".encode(), padding.PKCS1v15(), hashes.SHA256())
+        except InvalidSignature as exc:
+            raise WorkOSError("access token signature is invalid") from exc
+        now = time.time()
+        if not str(claims.get("iss", "")).startswith(API):
+            raise WorkOSError("access token from an unexpected issuer")
+        if claims.get("client_id") not in (None, self.client_id):
+            raise WorkOSError("access token issued to another application")
+        if claims.get("sub") != subject:
+            raise WorkOSError("access token is for another user")
+        if float(claims.get("exp", 0)) + leeway < now:
+            raise WorkOSError("access token has expired")
+        auth_time = claims.get("auth_time")
+        if not isinstance(auth_time, (int, float)) or auth_time > now + leeway:
+            raise WorkOSError("access token has no valid auth_time")
+        return claims
+
+
+def _b64(part: str) -> bytes:
+    return base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))

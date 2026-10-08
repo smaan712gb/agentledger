@@ -145,6 +145,25 @@ def platform_bootstrap_admin(email: str = typer.Option(...), name: str = typer.O
     con.print(f"Platform administrator {email} created. Sign in at the web app to enrol two-step verification.")
 
 
+@platform_app.command("provision")
+def platform_provision():
+    """The provisioning worker: create the stores of firms waiting in 'provisioning'. Runs with owner database
+    credentials (AGENTLEDGER_MIGRATION_URL) as a release or operations job; the API never holds them."""
+    from .pg import migration_url
+    from .security.platform import Platform
+
+    if not migration_url():
+        con.print("[red]AGENTLEDGER_MIGRATION_URL (owner credentials) is required to provision firm stores[/]")
+        raise typer.Exit(1)
+    plat = Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1",
+                    identity=os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower())
+    results = plat.provision_pending(by="provisioning-worker")
+    for r in results:
+        con.print(f"{r['firm']}: {r['status']}" + (f" [red]{r['error']}[/]" if r.get("error") else ""))
+    if any(r.get("error") for r in results):
+        raise typer.Exit(1)
+
+
 @platform_app.command("firms")
 def platform_firms():
     """List firms on this platform."""

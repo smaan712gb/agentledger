@@ -9,6 +9,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import threading
 import time
 from datetime import date
@@ -19,7 +20,7 @@ from typing import Any
 import yaml
 from urllib.parse import quote
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import audit, db
@@ -58,7 +59,10 @@ APP: AppContext = AppContext.open(ROOT, scope="all" if DEV else "platform")
 # local demo profile; a self-hosted trial can opt in explicitly.
 if not DEV and db.backend() != "postgres" and os.environ.get("AGENTLEDGER_ALLOW_SQLITE") != "1":
     raise RuntimeError("production needs AGENTLEDGER_DATABASE=postgres (or AGENTLEDGER_ALLOW_SQLITE=1 for a trial)")
-PLATFORM = Platform(ROOT, dev=DEV)
+# AGENTLEDGER_IDENTITY=workos: firm users sign in through WorkOS AuthKit (MFA and passkeys at the provider); the
+# password + TOTP stack stays for platform administrators (break-glass) and for self-hosting (identity "local").
+IDENTITY = os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower()
+PLATFORM = Platform(ROOT, dev=DEV, identity=IDENTITY)
 _TENANTS: dict[str, AppContext] = {}
 _TENANT_LOCK = threading.Lock()
 LINK_TTL = 120
@@ -227,9 +231,7 @@ def _as_actor(user: dict[str, Any]) -> dict[str, Any]:
 
 # ------------------------------------------------------------------------------ authentication
 
-# AGENTLEDGER_IDENTITY=workos: firm users sign in through WorkOS AuthKit (MFA and passkeys at the provider); the
-# password + TOTP stack stays for platform administrators (break-glass) and for self-hosting (identity "local").
-IDENTITY = os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower()
+IDP_COOKIE = "agentledger_idp"   # binds a hosted sign-in to the browser that started it
 
 
 def idp() -> Any:
@@ -262,16 +264,21 @@ def auth_config() -> dict[str, Any]:
 
 
 @app.get("/api/auth/idp/start")
-def idp_start(purpose: str = "login", invite: str = "", authorization: str = Header(default="")) -> dict[str, Any]:
+def idp_start(request: Request, purpose: str = "login", invite: str = "", authorization: str = Header(default="")) -> Response:
     redirect = os.environ.get("WORKOS_REDIRECT_URI", "")
     if not redirect:
         raise HTTPException(503, "WORKOS_REDIRECT_URI is not configured")
+    nonce = secrets.token_urlsafe(32)
     try:
         url = PLATFORM.idp_begin(idp(), purpose, redirect, invite_token=invite or None,
-                                 session_token=authorization.removeprefix("Bearer ").strip() or None)
+                                 session_token=authorization.removeprefix("Bearer ").strip() or None, browser_nonce=nonce)
     except AuthError as e:
         raise HTTPException(400, str(e))
-    return {"url": url}
+    resp = JSONResponse({"url": url})
+    # HttpOnly, SameSite=Lax: sent on the provider's top-level redirect back to us, never readable by scripts.
+    resp.set_cookie(IDP_COOKIE, nonce, max_age=600, httponly=True, samesite="lax", path="/api/auth/idp",
+                    secure=request.url.scheme == "https")
+    return resp
 
 
 @app.get("/api/auth/idp/callback")
@@ -279,12 +286,14 @@ def idp_callback(request: Request, code: str = "", state: str = "") -> Response:
     """The provider redirects the browser here. The session token goes to the app in the URL fragment, which is
     never sent to a server."""
     try:
-        out = PLATFORM.idp_complete(idp(), code, state, ip=_ip(request), user_agent=request.headers.get("user-agent"))
+        out = PLATFORM.idp_complete(idp(), code, state, ip=_ip(request), user_agent=request.headers.get("user-agent"),
+                                    browser_nonce=request.cookies.get(IDP_COOKIE, ""))
     except AuthError as e:
-        return RedirectResponse(f"/#signin_error={quote(str(e))}", status_code=303)
-    if out.get("token"):
-        return RedirectResponse(f"/#session={out['token']}", status_code=303)
-    return RedirectResponse(f"/#{out['purpose']}=ok", status_code=303)
+        resp: Response = RedirectResponse(f"/#signin_error={quote(str(e))}", status_code=303)
+    else:
+        resp = RedirectResponse(f"/#session={out['token']}" if out.get("token") else f"/#{out['purpose']}=ok", status_code=303)
+    resp.delete_cookie(IDP_COOKIE, path="/api/auth/idp")
+    return resp
 
 
 @app.post("/api/auth/step-up")
@@ -298,8 +307,6 @@ def auth_step_up(request: Request, body: dict[str, Any] = Body(...), authorizati
 
 @app.post("/api/auth/login")
 def auth_login(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    if IDENTITY == "workos" and not PLATFORM.is_platform_admin(str(body.get("email", ""))):
-        raise HTTPException(401, "sign in with your firm's sign-in page")
     try:
         step = PLATFORM.login(str(body.get("email", "")), str(body.get("password", "")), ip=_ip(request))
     except AuthError as e:
@@ -338,6 +345,7 @@ def auth_logout(authorization: str = Header(default="")) -> dict[str, Any]:
 
 @app.post("/api/auth/invite")
 def auth_invite(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    fresh(user)          # an invitation grants access
     firm = body.get("firm_id") or user["firm_id"]
     if body.get("role") == "client" and body.get("client_id"):
         scope(user, body["client_id"])
@@ -372,6 +380,7 @@ def auth_grants(user_id: str, user=Depends(me)) -> list[str]:
 @app.post("/api/auth/users/{user_id}/grants")
 def auth_grant(user_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     _firm_manager(user, user_id)
+    fresh(user)          # engaging someone on a client grants access to its records
     scope(user, str(body.get("client_id", "")))
     try:
         PLATFORM.grant(user_id, str(body["client_id"]), by=_as_actor(user))
@@ -383,6 +392,7 @@ def auth_grant(user_id: str, body: dict[str, Any] = Body(...), user=Depends(me))
 @app.delete("/api/auth/users/{user_id}/grants/{client_id}")
 def auth_revoke(user_id: str, client_id: str, user=Depends(me)) -> dict[str, Any]:
     _firm_manager(user, user_id)
+    fresh(user)
     try:
         PLATFORM.revoke(user_id, client_id, by=_as_actor(user))
     except AuthError as e:
@@ -443,7 +453,25 @@ def platform_create_firm(body: dict[str, Any] = Body(...), user=Depends(me)) -> 
         token = PLATFORM.invite(firm["id"], str(body["admin_email"]), "firm_admin", by=_as_actor(user))
     except AuthError as e:
         raise HTTPException(400, str(e))
+    # "provisioning": the store is created by the provisioning worker (this process holds no owner credentials);
+    # the invitation works once the firm is active.
     return {"firm": firm, "admin_invite_token": token}
+
+
+@app.post("/api/platform/sso-mfa")
+def platform_sso_mfa(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """Record (or revoke) that an organization's own identity provider enforces MFA, so its SSO sign-ins count."""
+    platform_admin(user)
+    fresh(user)
+    try:
+        if body.get("revoke"):
+            PLATFORM.revoke_sso_mfa(str(body["organization_id"]), by=_as_actor(user))
+        else:
+            PLATFORM.attest_sso_mfa(str(body["organization_id"]), str(body["firm_id"]), by=_as_actor(user),
+                                    evidence=str(body.get("evidence", "")))
+    except AuthError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
 
 
 # ------------------------------------------------------------------------------ pages

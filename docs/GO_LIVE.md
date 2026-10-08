@@ -89,3 +89,12 @@ Each milestone ends with: full test suite green, golden scenarios green, a commi
   foreign reporting companies and remains driven by rules, so it switches back on if the law changes.
 - BL.md cites Rev. Proc. 2008-35 for §7216 consents. The current consent rules are in Treas. Reg.
   §301.7216-3 and Rev. Proc. 2013-14. AgentLedger follows the current authority.
+
+## Operator settings for identity and provisioning (2026-10-08)
+
+- WorkOS environment: MFA set to **Required**; the callback `https://<app>/api/auth/idp/callback` registered and set as
+  `WORKOS_REDIRECT_URI`; `AGENTLEDGER_IDENTITY=workos` in the API environment.
+- SSO customers: record their identity provider's MFA enforcement (`POST /api/platform/sso-mfa`) after reviewing the
+  evidence, and review it periodically; until then their SSO sign-ins are refused for lack of MFA.
+- The API environment holds no owner database credentials. Run `agentledger platform provision` with
+  `AGENTLEDGER_MIGRATION_URL` as a release or scheduled operations job; firms stay in `provisioning` until it runs.

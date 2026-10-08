@@ -295,3 +295,17 @@ def test_abandon_removes_only_what_provisioning_created(neon_env):
     assert plat.firm("gone-cpa")["status"] == "deleted" and plat.get("gone-cpa")["state"] == "removed"
     with pytest.raises(Exception):
         plat.create_firm("gone-cpa", "Gone CPA", by="ops")                 # a retired id is never reused
+
+
+# --------------------------------------------------------------------------- re-audit of 2b42c07: no owner credentials in the API
+def test_api_without_owner_credentials_queues_provisioning_for_the_worker(neon_env, monkeypatch):
+    plat, fake, _, migrations, _ = neon_env
+    owner = "postgresql://owner:pw@ep-x.neon.tech/neondb"
+    for var in ("AGENTLEDGER_MIGRATION_URL", "DATABASE_URL_UNPOOLED", "DATABASE_URL"):
+        monkeypatch.delenv(var, raising=False)
+    firm = plat.create_firm("queued-cpa", "Queued CPA", by="ops")          # what the production API does
+    assert firm["status"] == "provisioning" and not [c for c in fake.calls if c[0] == "POST"]
+    assert any(e["event"] == "firm_store_provisioning_queued" for e in plat.events("queued-cpa"))
+    monkeypatch.setenv("AGENTLEDGER_MIGRATION_URL", owner)                 # the provisioning worker's environment
+    assert plat.provision_pending(by="worker") == [{"firm": "queued-cpa", "status": "active"}]
+    assert plat.firm("queued-cpa")["status"] == "active" and migrations["calls"] == 1

@@ -13,6 +13,7 @@ Controls (FTC Safeguards Rule 16 CFR 314.4(c); IRS Pub. 4557 and Pub. 1345):
 from __future__ import annotations
 
 import hashlib
+import hmac
 import re
 import secrets
 import shutil
@@ -83,6 +84,10 @@ CREATE TABLE IF NOT EXISTS engagement_grants (
     granted_by TEXT NOT NULL, granted_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_by TEXT, revoked_at TEXT
 );
 CREATE INDEX IF NOT EXISTS engagement_grants_user ON engagement_grants (user_id, client_id);
+CREATE TABLE IF NOT EXISTS sso_mfa_attestations (
+    organization_id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, evidence TEXT NOT NULL, attested_by TEXT NOT NULL,
+    attested_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_at TEXT
+);
 CREATE TABLE IF NOT EXISTS idp_states (
     state_hash TEXT PRIMARY KEY, purpose TEXT NOT NULL CHECK (purpose IN ('login','invite','link','step_up')),
     invite_hash TEXT, session_hash TEXT, verifier TEXT NOT NULL, redirect_uri TEXT NOT NULL,
@@ -147,8 +152,13 @@ class Enrolment:
 
 
 class Platform:
-    def __init__(self, root: Path, *, dev: bool = False):
+    def __init__(self, root: Path, *, dev: bool = False, identity: str = "local"):
         self.root = Path(root)
+        # "workos": firm users sign in only through the identity provider; the password + TOTP stack stays for
+        # platform administrators (break-glass). "local": password + TOTP for everyone (self-hosting).
+        if identity not in ("local", "workos"):
+            raise ValueError("identity must be 'local' or 'workos'")
+        self.identity = identity
         state = self.root / "state"
         state.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(state / "platform.db", check_same_thread=False, isolation_level=None)
@@ -165,7 +175,8 @@ class Platform:
         """Columns added after the first release, for platform stores created before them."""
         for table, col, ddl in (("users", "idp_subject", "TEXT"), ("users", "reviewer", "INTEGER NOT NULL DEFAULT 0"),
                                 ("users", "reviewer_credential", "TEXT"), ("sessions", "auth_method", "TEXT NOT NULL DEFAULT 'password+totp'"),
-                                ("sessions", "stepped_up_at", "TEXT")):
+                                ("sessions", "stepped_up_at", "TEXT"),
+                                ("sessions", "authenticated_at", "TEXT"), ("idp_states", "browser_hash", "TEXT")):
             if col not in {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_idp_subject ON users (idp_subject) WHERE idp_subject IS NOT NULL")
@@ -200,8 +211,13 @@ class Platform:
                 self.tenant_dir(firm_id).mkdir(parents=True, exist_ok=True)
                 self.event("firm_created", firm_id=firm_id, user_id=by, detail=name)
         if db.backend() == "postgres":   # outside the lock: provisioning talks to the database service
-            from ..pg import provision
+            from ..pg import migration_url, provision
 
+            if not migration_url():
+                # Production API processes hold no owner credentials: the provisioning worker
+                # (`agentledger platform provision`) creates the store; the firm stays unusable until then.
+                self.event("firm_store_provisioning_queued", firm_id=firm_id, user_id=by)
+                return self.firm(firm_id)
             try:
                 detail = provision.provision(firm_id, self)
             except Exception as exc:
@@ -210,6 +226,16 @@ class Platform:
             self.conn.execute("UPDATE firms SET status = 'active' WHERE id = ? AND status = 'provisioning'", (firm_id,))
             self.event("firm_store_provisioned", firm_id=firm_id, user_id=by, detail=detail)
         return self.firm(firm_id)
+
+    def provision_pending(self, *, by: str) -> list[dict[str, Any]]:
+        """The provisioning worker: run with owner credentials (a release or operations job, never the API)."""
+        out = []
+        for f in self.conn.execute("SELECT id, name FROM firms WHERE status = 'provisioning' ORDER BY created_at").fetchall():
+            try:
+                out.append({"firm": f["id"], "status": self.create_firm(f["id"], f["name"], by=by)["status"]})
+            except Exception as exc:  # recorded by create_firm; the next run resumes from the journal
+                out.append({"firm": f["id"], "status": "provisioning", "error": f"{type(exc).__name__}: {exc}"[:300]})
+        return out
 
     def abandon_firm(self, firm_id: str, *, by: str) -> str:
         """Give up on a firm whose provisioning never finished: remove what provisioning recorded creating, shred its
@@ -326,6 +352,8 @@ class Platform:
         return token
 
     def accept_invite(self, token: str, name: str, password: str, ip: str | None = None) -> Enrolment:
+        if self.identity == "workos":
+            raise AuthError("this firm signs in through its sign-in provider; open the invitation link to continue there")
         with self.lock:
             inv = self.conn.execute("SELECT * FROM invites WHERE token_hash = ?", (_hash(token),)).fetchone()
             if not inv or inv["accepted_at"] or inv["expires_at"] < _iso(_now()):
@@ -436,6 +464,10 @@ class Platform:
                 self.event("login_failed", email=email, ip=ip, detail="unknown account")
                 raise generic
             u = dict(r)
+            if self.identity == "workos" and u["role"] != "platform_admin":
+                self.ph.hash(password)
+                self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="password sign-in is off for firm users")
+                raise generic
             if u["disabled"]:
                 self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="disabled")
                 raise generic
@@ -496,12 +528,16 @@ class Platform:
                               (step, u["id"]))
             return self._start_session(u, ip, user_agent, "password+totp")
 
-    def _start_session(self, u: dict[str, Any], ip: str | None, user_agent: str | None, method: str) -> str:
+    def _start_session(self, u: dict[str, Any], ip: str | None, user_agent: str | None, method: str,
+                       authenticated_at: datetime | None = None) -> str:
+        """`authenticated_at` is when the person proved who they are: now for password + TOTP here, the provider's
+        verified auth_time for a provider sign-in (which may be an older provider session)."""
         token = secrets.token_urlsafe(32)
         now = _now()
-        self.conn.execute("INSERT INTO sessions (token_hash, user_id, created_at, last_seen_at, expires_at, ip, user_agent, auth_method) "
-                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                          (_hash(token), u["id"], _iso(now), _iso(now), _iso(now + ABSOLUTE), ip, (user_agent or "")[:200], method))
+        self.conn.execute("INSERT INTO sessions (token_hash, user_id, created_at, last_seen_at, expires_at, ip, user_agent, auth_method, "
+                          "authenticated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                          (_hash(token), u["id"], _iso(now), _iso(now), _iso(now + ABSOLUTE), ip, (user_agent or "")[:200], method,
+                           _iso(authenticated_at or now)))
         self.conn.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?", (u["id"],))
         self.event("login", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail=method)
         return token
@@ -519,7 +555,7 @@ class Platform:
         if u["firm_id"] != PLATFORM_FIRM and self.firm(u["firm_id"])["status"] != "active":
             return None
         self.conn.execute("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", (_iso(now), _hash(token)))
-        fresh_at = max(r["created_at"], r["stepped_up_at"] or "")
+        fresh_at = max(r["authenticated_at"] or r["created_at"], r["stepped_up_at"] or "")
         return {**self.public_user(u), "session_id": r["token_hash"], "auth_method": r["auth_method"], "fresh_at": fresh_at}
 
     # ------------------------------------------------------------------ step-up
@@ -549,8 +585,41 @@ class Platform:
             self.event("step_up", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="totp")
 
     # ------------------------------------------------------------------ identity provider (WorkOS AuthKit, ADR-0004)
+    def attest_sso_mfa(self, organization_id: str, firm_id: str, *, by: dict[str, Any], evidence: str) -> None:
+        """Record that an organization's own identity provider enforces MFA (SSO sign-ins skip WorkOS's MFA). Only a
+        platform administrator records it, with the evidence reviewed (policy screenshot, IdP configuration export)."""
+        if by["role"] != "platform_admin":
+            raise AuthError("only a platform administrator records SSO MFA enforcement")
+        if len(evidence.strip()) < 10:
+            raise AuthError("describe the evidence that the identity provider enforces MFA")
+        self.firm(firm_id)
+        self.conn.execute("INSERT INTO sso_mfa_attestations (organization_id, firm_id, evidence, attested_by) VALUES (?, ?, ?, ?) "
+                          "ON CONFLICT (organization_id) DO UPDATE SET firm_id = excluded.firm_id, evidence = excluded.evidence, "
+                          "attested_by = excluded.attested_by, attested_at = datetime('now'), revoked_at = NULL",
+                          (organization_id, firm_id, evidence.strip(), by["id"]))
+        self.event("sso_mfa_attested", firm_id=firm_id, user_id=by["id"], detail=f"{organization_id}: {evidence.strip()[:150]}")
+
+    def revoke_sso_mfa(self, organization_id: str, *, by: dict[str, Any]) -> None:
+        if by["role"] != "platform_admin":
+            raise AuthError("only a platform administrator changes SSO MFA records")
+        self.conn.execute("UPDATE sso_mfa_attestations SET revoked_at = datetime('now') WHERE organization_id = ?", (organization_id,))
+        self.event("sso_mfa_revoked", user_id=by["id"], detail=organization_id)
+
+    def _multi_factor(self, idp: Any, auth: dict[str, Any], firm_id: str | None) -> bool:
+        from .workos import PASSKEY
+
+        method = auth.get("authentication_method")
+        if method == PASSKEY:
+            return True
+        if method == "SSO":
+            org = auth.get("organization_id")
+            return bool(org and firm_id and self.conn.execute(
+                "SELECT 1 FROM sso_mfa_attestations WHERE organization_id = ? AND firm_id = ? AND revoked_at IS NULL",
+                (org, firm_id)).fetchone())
+        return idp.has_totp_factor(auth["user"]["id"])
+
     def idp_begin(self, idp: Any, purpose: str, redirect_uri: str, *, invite_token: str | None = None,
-                  session_token: str | None = None) -> str:
+                  session_token: str | None = None, browser_nonce: str = "") -> str:
         """Start a hosted sign-in. `login` signs in an account already linked; `invite` accepts an invitation (the
         verified email must match it); `link` attaches the provider to the signed-in local account; `step_up` forces
         a fresh authentication for the signed-in account (max_age=0)."""
@@ -573,18 +642,27 @@ class Platform:
         state = secrets.token_urlsafe(32)
         verifier, challenge = pkce_pair()
         sealed = self.keys.seal_text(PLATFORM_FIRM, verifier, f"idp:{_hash(state)}")
-        self.conn.execute("INSERT INTO idp_states (state_hash, purpose, invite_hash, session_hash, verifier, redirect_uri, expires_at) "
-                          "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                          (_hash(state), purpose, invite_hash, session_hash, sealed, redirect_uri, _iso(_now() + IDP_STATE_TTL)))
+        if len(browser_nonce) < 32:
+            raise AuthError("sign-in must start from the browser that finishes it")
+        self.conn.execute("INSERT INTO idp_states (state_hash, purpose, invite_hash, session_hash, verifier, redirect_uri, expires_at, "
+                          "browser_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                          (_hash(state), purpose, invite_hash, session_hash, sealed, redirect_uri, _iso(_now() + IDP_STATE_TTL),
+                           _hash(browser_nonce)))
         return idp.authorization_url(redirect_uri, state, challenge, login_hint=hint, max_age=0 if purpose == "step_up" else None)
 
-    def idp_complete(self, idp: Any, code: str, state: str, *, ip: str | None = None, user_agent: str | None = None) -> dict[str, Any]:
-        """Finish a hosted sign-in. Returns {"purpose", "token"?}. Refuses unverified email, impersonation and
-        sign-ins without a second factor; never creates an account without a matching invitation."""
+    def idp_complete(self, idp: Any, code: str, state: str, *, ip: str | None = None, user_agent: str | None = None,
+                     browser_nonce: str = "") -> dict[str, Any]:
+        """Finish a hosted sign-in. Returns {"purpose", "token"?}. Refuses a callback in another browser, unverified
+        email, impersonation and sign-ins without a second factor; never creates an account without a matching
+        invitation. Freshness comes from the provider's signed auth_time, not from when this session was created."""
         with self.lock:
             st = self.conn.execute("SELECT * FROM idp_states WHERE state_hash = ?", (_hash(state),)).fetchone()
             if not st or st["used_at"] or st["expires_at"] < _iso(_now()):
                 raise AuthError("this sign-in attempt has expired; start again")
+            if not st["browser_hash"] or not hmac.compare_digest(st["browser_hash"], _hash(browser_nonce or "")):
+                self.conn.execute("UPDATE idp_states SET used_at = datetime('now') WHERE state_hash = ?", (_hash(state),))
+                self.event("idp_refused", ip=ip, detail="callback from a different browser")
+                raise AuthError("finish signing in from the same browser you started in")
             self.conn.execute("UPDATE idp_states SET used_at = datetime('now') WHERE state_hash = ?", (_hash(state),))
         verifier = self.keys.open_text(PLATFORM_FIRM, st["verifier"], f"idp:{st['state_hash']}")
         try:
@@ -600,10 +678,17 @@ class Platform:
         if not wu.get("email_verified"):
             self.event("idp_refused", email=email, ip=ip, detail="email not verified")
             raise AuthError("verify your email address with the sign-in provider first")
-        if not idp.multi_factor(auth):
-            self.event("idp_refused", email=email, ip=ip, detail=f"no second factor ({auth.get('authentication_method')})")
-            raise AuthError("turn on two-step verification or use a passkey in your sign-in settings, then try again")
         subject, method = str(wu["id"]), f"workos:{auth.get('authentication_method', 'unknown')}"
+        try:
+            claims = idp.verify_access_token(str(auth.get("access_token", "")), subject=subject)
+        except Exception as exc:
+            self.event("idp_refused", email=email, ip=ip, detail=f"access token: {exc}"[:200])
+            raise AuthError("the sign-in provider did not confirm this sign-in") from exc
+        auth_time = datetime.fromtimestamp(float(claims["auth_time"]), timezone.utc)
+        firm_for_mfa = self._idp_firm(st, subject)
+        if not self._multi_factor(idp, auth, firm_for_mfa):
+            self.event("idp_refused", firm_id=firm_for_mfa, email=email, ip=ip, detail=f"no second factor ({auth.get('authentication_method')})")
+            raise AuthError("turn on two-step verification or use a passkey in your sign-in settings, then try again")
         with self.lock:
             if st["purpose"] == "invite":
                 inv = self.conn.execute("SELECT * FROM invites WHERE token_hash = ?", (st["invite_hash"],)).fetchone()
@@ -621,7 +706,7 @@ class Platform:
                                   (user_id, inv["firm_id"], email, name, inv["role"], inv["client_id"], NO_PASSWORD, subject))
                 self.conn.execute("UPDATE invites SET accepted_at = datetime('now') WHERE token_hash = ?", (st["invite_hash"],))
                 self.event("invite_accepted", firm_id=inv["firm_id"], user_id=user_id, email=email, ip=ip, detail=method)
-                return {"purpose": "invite", "token": self._start_session(self.user(user_id), ip, user_agent, method)}
+                return {"purpose": "invite", "token": self._start_session(self.user(user_id), ip, user_agent, method, auth_time)}
             if st["purpose"] in ("link", "step_up"):
                 r = self.conn.execute("SELECT * FROM sessions WHERE token_hash = ? AND revoked_at IS NULL", (st["session_hash"],)).fetchone()
                 if not r:
@@ -638,7 +723,10 @@ class Platform:
                 if u["idp_subject"] != subject:
                     self.event("step_up_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="different identity")
                     raise AuthError("step up with the account you are signed in as")
-                self.conn.execute("UPDATE sessions SET stepped_up_at = ? WHERE token_hash = ?", (_iso(_now()), st["session_hash"]))
+                if auth_time < _now() - FRESH:      # max_age=0 asked for a fresh sign-in; the token must show one
+                    self.event("step_up_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="provider session not re-authenticated")
+                    raise AuthError("the sign-in provider did not re-authenticate you; try again")
+                self.conn.execute("UPDATE sessions SET stepped_up_at = ? WHERE token_hash = ?", (_iso(auth_time), st["session_hash"]))
                 self.event("step_up", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail=method)
                 return {"purpose": "step_up"}
             row = self.conn.execute("SELECT * FROM users WHERE idp_subject = ?", (subject,)).fetchone()
@@ -649,7 +737,19 @@ class Platform:
             if u["disabled"] or (u["firm_id"] != PLATFORM_FIRM and self.firm(u["firm_id"])["status"] != "active"):
                 self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="disabled or inactive firm")
                 raise AuthError("this account cannot sign in")
-            return {"purpose": "login", "token": self._start_session(u, ip, user_agent, method)}
+            return {"purpose": "login", "token": self._start_session(u, ip, user_agent, method, auth_time)}
+
+    def _idp_firm(self, st: Any, subject: str) -> str | None:
+        """The firm a provider sign-in is for (its SSO MFA attestation is per firm)."""
+        if st["purpose"] == "invite":
+            inv = self.conn.execute("SELECT firm_id FROM invites WHERE token_hash = ?", (st["invite_hash"],)).fetchone()
+            return inv["firm_id"] if inv else None
+        if st["purpose"] in ("link", "step_up"):
+            r = self.conn.execute("SELECT u.firm_id FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
+                                  (st["session_hash"],)).fetchone()
+            return r["firm_id"] if r else None
+        r = self.conn.execute("SELECT firm_id FROM users WHERE idp_subject = ?", (subject,)).fetchone()
+        return r["firm_id"] if r else None
 
     def logout(self, token: str) -> None:
         r = self.conn.execute("SELECT user_id FROM sessions WHERE token_hash = ?", (_hash(token),)).fetchone()

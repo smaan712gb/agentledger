@@ -44,7 +44,10 @@ Spec references: §4 (identity), §5 C01, §12 (approval binding), §14 (RBAC + 
 Status (2026-10-08): implemented in `security/workos.py` and `Platform.idp_begin/idp_complete`. WorkOS proves the
 person; AgentLedger keeps membership, role and authority. A WorkOS identity creates an account only through an
 invitation whose verified email matches, or is linked from an already signed-in local session; never by matching
-email alone. Every sign-in must be multi-factor (SSO, passkey, or a TOTP factor enrolled at WorkOS, checked through the
-auth-factors API), and impersonated sessions are refused. Consequential actions require a sign-in or step-up within
-five minutes: WorkOS re-authentication with `max_age=0`, or the local TOTP code. With `AGENTLEDGER_IDENTITY=workos`
-the password stack remains only for platform administrators (break-glass).
+email alone. Every sign-in must be multi-factor: a passkey, a TOTP factor enrolled at WorkOS (checked through the
+auth-factors API), or SSO from an organization whose identity provider is recorded as enforcing MFA (WorkOS's MFA
+requirement does not apply to SSO users). Impersonated sessions are refused, and the callback must return to the
+browser that started the sign-in. Freshness is the verified access token's `auth_time` (RS256, WorkOS JWKS), never the
+moment our session was created. Consequential actions, including granting access, require a sign-in or step-up
+within five minutes: WorkOS re-authentication with `max_age=0` (whose `auth_time` must be fresh), or the local TOTP
+code. With `AGENTLEDGER_IDENTITY=workos` the password stack remains only for platform administrators (break-glass).
