@@ -38,13 +38,21 @@ def ctx():
 
 
 @app.command()
-def serve(host: str = "127.0.0.1", port: int = 8740, agents: bool = typer.Option(True, help="run the agent workforce in the background")):
+def serve(host: str = "127.0.0.1", port: int = 8740, agents: bool = typer.Option(True, help="run the agent workforce in the background"),
+          dev: bool = typer.Option(False, "--dev", help="single-firm demo with built-in identities; never with real client data")):
     """Start the web app (and the agent workforce)."""
     import uvicorn
 
     os.environ["VERITAS_HOME"] = str(home())
     os.environ["VERITAS_AGENTS"] = "1" if agents else "0"
-    con.print(f"[bold]Veritas[/] on http://{host}:{port}  (agents {'on' if agents else 'off'})")
+    if dev:
+        os.environ["VERITAS_DEV_AUTH"] = "1"
+    elif not os.environ.get("VERITAS_MASTER_KEY"):
+        con.print("[red]VERITAS_MASTER_KEY is not set.[/] Generate one with `veritas platform new-master-key`, keep it in "
+                  "your secrets manager, or run `veritas serve --dev` for a local demo.")
+        raise typer.Exit(2)
+    mode = "dev (demo identities)" if dev else "multi-firm"
+    con.print(f"[bold]Veritas[/] on http://{host}:{port}  ({mode}; agents {'on' if agents else 'off'})")
     uvicorn.run("veritas.api.app:app", host=host, port=port, log_level="warning")
 
 
@@ -73,7 +81,7 @@ def ingest(path: Path, client: str = typer.Option(None, help="client id, if know
     c = ctx()
     files = [p for p in path.rglob("*") if p.is_file()] if path.is_dir() else [path]
     for f in files:
-        for d in run(c.conn, c.router, c.root / "vault", f.name, f.read_bytes(), channel="cli", client_hint=client):
+        for d in run(c.conn, c.router, c.foundry.vault, f.name, f.read_bytes(), channel="cli", client_hint=client):
             con.print(f"{d['name']}: [bold]{d['doc_type']}[/] -> {d['status']} {d.get('vault_path', '')} ({d.get('match', '')})")
 
 
@@ -104,6 +112,46 @@ def golden():
         t.add_row(k, "[green]✓[/]" if v["ok"] else "[red]✗[/]", str(v["got"]), str(v["expect"]))
     con.print(t)
     raise typer.Exit(0 if all(v["ok"] for v in res.values()) else 1)
+
+
+platform_app = typer.Typer(help="Multi-firm platform administration", no_args_is_help=True)
+app.add_typer(platform_app, name="platform")
+
+
+@platform_app.command("new-master-key")
+def platform_new_master_key():
+    """Print a fresh 256-bit master key (store it in a secrets manager; losing it loses all firm data)."""
+    import base64
+    import secrets
+
+    print(base64.b64encode(secrets.token_bytes(32)).decode())
+
+
+@platform_app.command("bootstrap-admin")
+def platform_bootstrap_admin(email: str = typer.Option(...), name: str = typer.Option(...)):
+    """Create the first platform administrator. They enrol two-step verification at first sign-in."""
+    from .security.platform import AuthError, Platform
+
+    password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    try:
+        Platform(home(), dev=os.environ.get("VERITAS_DEV_AUTH") == "1").bootstrap_admin(email, name, password)
+    except AuthError as e:
+        con.print(f"[red]{e}[/]")
+        raise typer.Exit(1)
+    con.print(f"Platform administrator {email} created. Sign in at the web app to enrol two-step verification.")
+
+
+@platform_app.command("firms")
+def platform_firms():
+    """List firms on this platform."""
+    from .security.platform import Platform
+
+    t = Table(title="Firms")
+    for col in ("id", "name", "status", "created_at"):
+        t.add_column(col)
+    for f in Platform(home(), dev=os.environ.get("VERITAS_DEV_AUTH") == "1").firms():
+        t.add_row(f["id"], f["name"], f["status"], f["created_at"])
+    con.print(t)
 
 
 @app.command("return")

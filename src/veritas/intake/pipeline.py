@@ -20,6 +20,7 @@ from .. import audit
 from ..ai.router import Router, Unavailable
 from ..db import one, rows
 from ..ledger import store
+from ..security.vault import Vault, as_vault
 from .classify import FOLDERS, SYSTEM, Classification, detect, ground_fields
 from .extract import Part, explode
 
@@ -27,15 +28,16 @@ AUTO_FILE_CONFIDENCE = 0.75
 SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
-def ingest(conn: sqlite3.Connection, router: Router | None, vault: Path, name: str, data: bytes, *, channel: str,
+def ingest(conn: sqlite3.Connection, router: Router | None, vault: "Vault | Path", name: str, data: bytes, *, channel: str,
            sender: str | None = None, client_hint: str | None = None, actor: str = "intake-agent") -> list[dict[str, Any]]:
+    vault = as_vault(vault)
     results = []
     for part in explode(name, data, sender=sender):
         results.append(_ingest_part(conn, router, vault, part, channel, client_hint, actor))
     return results
 
 
-def _ingest_part(conn, router, vault: Path, part: Part, channel: str, client_hint: str | None, actor: str) -> dict[str, Any]:
+def _ingest_part(conn, router, vault: Vault, part: Part, channel: str, client_hint: str | None, actor: str) -> dict[str, Any]:
     sha = hashlib.sha256(part.data).hexdigest()
     dup = one(conn, "SELECT id, client_id, status, vault_path FROM documents WHERE sha256 = ?", sha)
     if dup:
@@ -85,9 +87,7 @@ def _ingest_part(conn, router, vault: Path, part: Part, channel: str, client_hin
     status = "filed" if client_id and confidence >= AUTO_FILE_CONFIDENCE else "needs_review"
     doc_id = "doc_" + secrets.token_hex(6)
     rel = _vault_path(client_id if status == "filed" else None, tax_year, doc_type, part.name, sha)
-    dest = vault / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(part.data)
+    vault.write(rel, part.data)
     fields = {kv.name: kv.value for kv in cls.fields} if cls else {}
     conn.execute(
         "INSERT INTO documents (id, client_id, sha256, original_name, media_type, channel, received_at, sender, parent_id, doc_type, "
@@ -219,15 +219,14 @@ def link_receipt(conn, client_id: str, doc_id: str, total: Decimal, when: str | 
     return candidates[0]["id"]
 
 
-def assign(conn, vault: Path, doc_id: str, client_id: str, actor: str, role: str = "cpa") -> dict[str, Any]:
+def assign(conn, vault: "Vault | Path", doc_id: str, client_id: str, actor: str, role: str = "cpa") -> dict[str, Any]:
     """A human resolves a review-queue document to a client (moves it into that client's vault)."""
     d = one(conn, "SELECT * FROM documents WHERE id = ?", doc_id)
     if not d:
         raise KeyError(doc_id)
     store.get_client(conn, client_id)
     new_rel = _vault_path(client_id, d["tax_year"], d["doc_type"], d["original_name"], d["sha256"])
-    (vault / new_rel).parent.mkdir(parents=True, exist_ok=True)
-    (vault / d["vault_path"]).replace(vault / new_rel)
+    as_vault(vault).move(d["vault_path"], new_rel)
     conn.execute("UPDATE documents SET client_id = ?, status = 'filed', vault_path = ? WHERE id = ?",
                  (client_id, str(new_rel).replace("\\", "/"), doc_id))
     audit.record(conn, actor, role, "document.assigned", {"document_id": doc_id, "name": d["original_name"]}, client_id=client_id)

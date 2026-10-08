@@ -106,3 +106,28 @@ def test_firm_deletion_locks_everyone_out(api):
     assert c.get("/api/clients", headers=admin).status_code == 200
     mod.PLATFORM.delete_firm("gone-cpa", by="test")
     assert c.get("/api/clients", headers=admin).status_code == 401
+
+
+def test_documents_are_encrypted_at_rest(api):
+    mod, c = api
+    mod.PLATFORM.bootstrap_admin("ops@veritas.example", "Ops", PW)
+    step = c.post("/api/auth/login", json={"email": "ops@veritas.example", "password": PW}).json()
+    ops = enrol(c, step["challenge"], step["secret"])
+    heads = {}
+    for fid, email in (("rivera-cpa", "maya@rivera.example"), ("lake-tax", "lee@lake.example")):
+        r = c.post("/api/platform/firms", json={"id": fid, "name": fid, "admin_email": email}, headers=ops)
+        heads[fid] = accept(c, r.json()["admin_invite_token"], fid)
+    a, b = heads["rivera-cpa"], heads["lake-tax"]
+    c.post("/api/clients", json={"id": "jordan-lee", "name": "Jordan Lee", "kind": "individual"}, headers=a)
+    secret_text = b"Form 1099-INT 2025 Payer: First Bank Recipient: Jordan Lee SSN 123-45-6789 Interest income 1,234.56"
+    r = c.post("/api/documents/upload", files={"file": ("1099int.txt", secret_text, "text/plain")},
+               data={"client_id": "jordan-lee"}, headers=a)
+    assert r.status_code == 200, r.text
+    doc = r.json()[0]
+    stored = mod.firm_context("rivera-cpa").foundry.paths.vault / doc["vault_path"]
+    raw = stored.read_bytes()
+    assert raw[:3] == b"VX1" and b"123-45-6789" not in raw
+    path = f"/api/documents/{doc['id']}/file"
+    link = c.post("/api/links", json={"path": path}, headers=a).json()["url"]
+    assert c.get(link).content == secret_text
+    assert c.get(path, headers=b).status_code == 404

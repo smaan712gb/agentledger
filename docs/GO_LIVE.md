@@ -46,11 +46,11 @@ Status key: **done** (built and tested) · **partial** · **todo**.
 | §5 | SOS lifecycle: name check, Articles, operating agreement, SS-4, annual reports, franchise tax | todo | M8 |
 | §5 | NASBA CPE: credit math, multi-state renewal rules, certificate OCR | todo | M8 |
 | §6 | §7216 redaction (regex + local NER) and consent capture | partial (Ask redaction) | M9 |
-| §6 | FIDO2/WebAuthn MFA; AES-256 at rest with customer-managed keys; TLS 1.3; immutable audit log | partial (audit only) | M2, M12 |
+| §6 | FIDO2/WebAuthn MFA; AES-256 at rest with customer-managed keys; TLS 1.3; immutable audit log | partial: TOTP MFA, AES-256-GCM per-firm keys, append-only auth log done; WebAuthn and TLS todo | M2, M12 |
 | §7 | Beancount + PostgreSQL | partial (SQLite + Beancount export) | M2 |
 | §7 | Tesseract/PaddleOCR + local vision models | partial | M7 |
 | §7 | Tiered models (local, deterministic, frontier) | done | — |
-| SaaS | Multi-firm tenancy, onboarding, billing | todo | M2 |
+| SaaS | Multi-firm tenancy, onboarding, billing | partial: database-per-firm isolation, invitations, platform admin done; billing todo | M2 |
 | Interop | Trial-balance export to Drake, UltraTax, Lacerte/ProConnect, CCH; QBO/Xero import | partial | M10 |
 | Returns | 1040 + schedules TY2026 (OBBBA) | partial: core forms done; 1116, 8615, 8880, 8962, 8606, 8889, 4797, Sch F, 2210 todo | M1 |
 | Returns | 1120-S, 1065, 1120 with K-1s | todo | M6 |
@@ -64,6 +64,11 @@ Progress log:
   5 golden whole-return scenarios, 11 PolicyEngine cross-checks that all agree. The cross-check
   found two gaps that are now fixed: the Treasury tipped-occupation requirement and the SSTB tips
   exclusion.
+- 2026-10-08: M2 core done. Each firm gets its own database, vault and AES-256-GCM data key wrapped by a master
+  key. Offboarding a firm crypto-shreds its data. Sign-in is Argon2id plus TOTP, with enrolment at invitation,
+  lockout, idle and absolute session expiry and an append-only sign-in log. Downloads use signed links.
+  Regulation decisions belong to platform reviewers. Demo identities exist only with `--dev`.
+  Remaining for M2: WebAuthn passkeys, SQLCipher or an encrypted volume for the databases, billing.
 
 Each milestone ends with: full test suite green, golden scenarios green, a commit.
 

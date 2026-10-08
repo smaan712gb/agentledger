@@ -2,7 +2,7 @@
    output are untrusted. */
 "use strict";
 
-const S = { token: null, me: null, users: [], clients: [] };
+const S = { token: null, me: null, users: [], clients: [], dev: false };
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = (v) => { const n = Number(v); return isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency: "USD" }) : esc(v); };
@@ -10,6 +10,9 @@ const sevPill = (s) => `<span class="pill ${({ critical: "p-bad", high: "p-bad",
 const riskPill = (r) => `<span class="pill ${({ low: "p-good", medium: "p-warn", high: "p-bad", critical: "p-bad" })[r] || "p-mute"}">${esc(r)} risk</span>`;
 const statusPill = (s) => `<span class="pill ${({ adopted: "p-good", pending: "p-warn", rejected: "p-mute", rolled_back: "p-mute", failed: "p-bad", open: "p-warn", resolved: "p-good", filed: "p-good", needs_review: "p-warn" })[s] || "p-mute"}">${esc(String(s).replace("_", " "))}</span>`;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+// Real session tokens live only for the browser tab (sessionStorage); demo identities may persist.
+const session = { get() { try { return sessionStorage.getItem("veritas.session"); } catch { return null; } },
+  set(v) { try { v ? sessionStorage.setItem("veritas.session", v) : sessionStorage.removeItem("veritas.session"); } catch {} } };
 
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4200); }
 
@@ -17,32 +20,115 @@ async function api(path, opts = {}) {
   const headers = { Authorization: `Bearer ${S.token}`, ...(opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}) };
   const res = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) },
     body: opts.body && !(opts.body instanceof FormData) && typeof opts.body !== "string" ? JSON.stringify(opts.body) : opts.body });
-  if (!res.ok) { let d = await res.text(); try { d = JSON.parse(d).detail; } catch {} throw new Error(d || res.statusText); }
+  if (res.status === 401 && !S.dev && !path.startsWith("/api/auth/")) { session.set(null); S.token = null; renderLogin("Your session ended. Sign in again."); throw new Error("signed out"); }
+  if (!res.ok) { let d = await res.text(); try { d = JSON.parse(d).detail; } catch {} throw new Error(typeof d === "string" ? d : JSON.stringify(d) || res.statusText); }
   const ct = res.headers.get("content-type") || "";
   return ct.includes("json") ? res.json() : res.text();
 }
 
 // ---------------------------------------------------------------------------------------- shell
 async function boot() {
-  S.users = await (await fetch("/api/users")).json();
-  S.token = store.get("veritas.token") || S.users[0].token;
-  await loadMe();
+  const r = await fetch("/api/users");
+  S.dev = r.ok;
   window.addEventListener("hashchange", route);
+  const invite = location.hash.match(/^#\/accept\/([\w-]+)/);
+  if (invite) return renderAccept(invite[1]);
+  if (S.dev) {
+    S.users = await r.json();
+    S.token = store.get("veritas.token") || S.users[0].token;
+  } else {
+    S.token = session.get();
+    if (!S.token) return renderLogin();
+  }
+  await loadMe();
   route();
 }
 
 async function loadMe() {
-  try { S.me = await api("/api/me"); } catch { S.token = S.users[0].token; S.me = await api("/api/me"); }
-  S.clients = await api("/api/clients");
+  try { S.me = await api("/api/me"); } catch (e) { if (!S.dev) return; S.token = S.users[0].token; S.me = await api("/api/me"); }
+  S.clients = S.me.base_role === "platform_admin" ? [] : await api("/api/clients");
   renderNav();
 }
 
+// ---------------------------------------------------------------------------------------- sign-in
+function authShell(inner) {
+  $("#nav").innerHTML = `<div class="brand"><div class="mark">V</div><div>Veritas<small>Autonomous accounting & tax</small></div></div>`;
+  $("#main").innerHTML = `<div class="card" style="max-width:420px;margin:60px auto">${inner}</div>`;
+}
+
+function renderLogin(msg = "") {
+  authShell(`<h2>Sign in</h2>${msg ? `<p class="muted">${esc(msg)}</p>` : ""}
+    <form id="login"><label>Email<input name="email" type="email" autocomplete="username" required style="width:100%"></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required style="width:100%"></label>
+    <button class="btn primary" style="margin-top:10px">Continue</button></form><p class="small muted" id="err"></p>`);
+  $("#login").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try { mfaStep(await api("/api/auth/login", { method: "POST", body: { email: f.get("email"), password: f.get("password") } })); }
+    catch (err) { $("#err").textContent = err.message; }
+  };
+}
+
+function mfaStep(step) {
+  const enrol = step.next === "enroll";
+  authShell(`<h2>${enrol ? "Set up two-step verification" : "Two-step verification"}</h2>
+    ${enrol ? `<p>Add Veritas to your authenticator app, then enter the 6-digit code it shows.</p>
+      <p><a href="${esc(step.otpauth_uri)}">Open in authenticator app</a></p>
+      <p class="small muted">Or enter this key manually:</p><p><code style="font-size:15px;letter-spacing:1px">${esc(step.secret.replace(/(.{4})/g, "$1 ").trim())}</code></p>`
+      : `<p>Enter the 6-digit code from your authenticator app.</p>`}
+    <form id="mfa"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" required style="width:100%;font-size:20px;letter-spacing:6px">
+    <button class="btn primary" style="margin-top:10px">Verify</button></form><p class="small muted" id="err"></p>`);
+  $("#mfa").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("/api/auth/mfa", { method: "POST", body: { challenge: step.challenge, code: new FormData(e.target).get("code") } });
+      S.token = r.token; session.set(r.token); location.hash = "#/home"; await loadMe(); route();
+    } catch (err) { $("#err").textContent = err.message; }
+  };
+}
+
+function renderAccept(token) {
+  authShell(`<h2>Join Veritas</h2><p class="muted">Choose your name and a password of at least 12 characters.</p>
+    <form id="accept"><label>Full name<input name="name" required style="width:100%"></label>
+    <label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" required style="width:100%"></label>
+    <button class="btn primary" style="margin-top:10px">Continue</button></form><p class="small muted" id="err"></p>`);
+  $("#accept").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try { mfaStep(await api("/api/auth/accept", { method: "POST", body: { token, name: f.get("name"), password: f.get("password") } })); }
+    catch (err) { $("#err").textContent = err.message; }
+  };
+}
+
+async function signOut() {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch {}
+  session.set(null); S.token = null; location.hash = ""; renderLogin("Signed out.");
+}
+
+// Downloads use a short-lived signed link so the session token never appears in a URL.
+async function download(path) {
+  const r = await api("/api/links", { method: "POST", body: { path } });
+  window.open(r.url, "_blank", "noopener");
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-download]");
+  if (!a) return;
+  e.preventDefault();
+  download(a.dataset.download).catch((err) => toast(err.message));
+});
+
 function renderNav() {
+  if (!S.me) return;
   const cpa = S.me.role === "cpa";
-  const items = cpa ? [
+  const platform = S.me.base_role === "platform_admin";
+  const items = platform ? [
+    ["firms", "▦", "Firms"], ["group", "", "Shared platform"], ["foundry", "⚙", "Agent foundry"], ["rules", "§", "Regulations"],
+    ["security", "⛨", "Sign-in activity"],
+  ] : cpa ? [
     ["home", "◎", "Command center"], ["ask", "✦", "Ask Veritas"], ["clients", "▦", "Clients"], ["inbox", "⇩", "Intake inbox"],
     ["crm", "◇", "CRM & tasks"], ["group", "", "Autonomy"], ["foundry", "⚙", "Agent foundry"], ["rules", "§", "Regulations"],
     ["brain", "✧", "CPA second brain"], ["integrations", "⇄", "Integrations"], ["audit", "⛓", "Audit trail"],
+    ["group", "", "Firm"], ["team", "☺", "Team & access"], ["security", "⛨", "Sign-in activity"],
   ] : [
     ["home", "◎", "My business"], ["ask", "✦", "Ask Veritas"], ["client/" + S.me.client_id + "/documents", "⇩", "Upload documents"],
     ["client/" + S.me.client_id + "/business", "◇", "Customers & vendors"], ["audit", "⛓", "Activity"],
@@ -51,10 +137,13 @@ function renderNav() {
   $("#nav").innerHTML = `<div class="brand"><div class="mark">V</div><div>Veritas<small>Autonomous accounting & tax</small></div></div>` +
     items.map(([id, ic, label]) => id === "group" ? `<div class="group">${label}</div>` :
       `<a class="item ${h.startsWith(id) ? "active" : ""}" href="#/${id}"><span>${ic}</span>${label}</a>`).join("") +
-    `<div class="group">Signed in</div><div style="padding:0 8px"><select id="who" style="width:100%">${S.users.map((u) =>
+    (S.dev ? `<div class="group">Signed in</div><div style="padding:0 8px"><select id="who" style="width:100%">${S.users.map((u) =>
       `<option value="${esc(u.token)}" ${u.token === S.token ? "selected" : ""}>${esc(u.name)} · ${esc(u.role)}</option>`).join("")}</select>
-      <div class="small muted" style="margin-top:6px">Demo identities. Production uses SSO + passkeys.</div></div>`;
-  $("#who").onchange = async (e) => { S.token = e.target.value; store.set("veritas.token", S.token); await loadMe(); location.hash = "#/home"; route(); };
+      <div class="small muted" style="margin-top:6px">Dev mode: demo identities. Never use with real client data.</div></div>`
+      : `<div class="group">Signed in</div><div style="padding:0 8px"><div>${esc(S.me.name)}</div><div class="small muted">${esc(S.me.email)} · ${esc(S.me.base_role || S.me.role)}</div>
+      <button class="btn" id="signout" style="margin-top:8px">Sign out</button></div>`);
+  if (S.dev) $("#who").onchange = async (e) => { S.token = e.target.value; store.set("veritas.token", S.token); await loadMe(); location.hash = "#/home"; route(); };
+  else $("#signout").onclick = signOut;
 }
 
 function page(title, sub, right = "") {
@@ -63,12 +152,14 @@ function page(title, sub, right = "") {
 
 async function route() {
   renderNav();
-  const [view, ...rest] = (location.hash.slice(2) || "home").split("/");
+  if (!S.me) return;
+  const [view, ...rest] = (location.hash.slice(2) || (S.me.base_role === "platform_admin" ? "firms" : "home")).split("/");
   const main = $("#main");
   main.innerHTML = `<div class="empty">Loading…</div>`;
   try {
     const fn = { home: viewHome, ask: viewAsk, clients: viewClients, client: viewClient, inbox: viewInbox, foundry: viewFoundry,
-      rules: viewRules, brain: viewBrain, crm: viewCrm, integrations: viewIntegrations, audit: viewAudit }[view] || viewHome;
+      rules: viewRules, brain: viewBrain, crm: viewCrm, integrations: viewIntegrations, audit: viewAudit,
+      firms: viewFirms, team: viewTeam, security: viewSecurity }[view] || (S.me.base_role === "platform_admin" ? viewFirms : viewHome);
     await fn(main, ...rest);
   } catch (e) { main.innerHTML = page("Something went wrong", "") + `<div class="card">${esc(e.message)}</div>`; }
 }
@@ -276,7 +367,7 @@ function tabDocuments(el, d) {
   el.innerHTML = `<div class="drop" id="drop" style="margin-bottom:16px"><b>Drop anything here</b> — PDFs, photos of receipts, Word, Excel, CSV, emails (.eml), even ZIPs.<br>
     <span class="small">Veritas reads it, classifies it, files it in this client's vault and links it to the books.</span><br><input type="file" id="file" multiple style="margin-top:10px"></div>
     <div class="card"><table><tr><th>Document</th><th>Type</th><th>Year</th><th>Status</th><th>Filed under</th><th>Read by</th></tr>
-    ${d.documents.map((x) => `<tr><td><a href="/api/documents/${esc(x.id)}/file?token=${encodeURIComponent(S.token)}" target="_blank">${esc(x.original_name)}</a><div class="small muted">${esc(x.summary || "")}</div></td>
+    ${d.documents.map((x) => `<tr><td><a href="#" data-download="/api/documents/${esc(x.id)}/file">${esc(x.original_name)}</a><div class="small muted">${esc(x.summary || "")}</div></td>
       <td>${esc(x.doc_type)}</td><td>${esc(x.tax_year || "")}</td><td>${statusPill(x.status)} <span class="small muted">${Math.round((x.confidence || 0) * 100)}%</span></td>
       <td class="small mono">${esc(x.vault_path)}</td><td class="small">${esc(x.classified_by || "")}<br><span class="muted">${esc(x.channel)}</span></td></tr>`).join("") || `<tr><td colspan="6" class="empty">No documents yet.</td></tr>`}</table></div>`;
   const up = async (files) => {
@@ -358,7 +449,7 @@ async function viewInbox(main) {
   main.innerHTML = page("Intake inbox", "Everything that arrived by email, maildrop, upload or connector and could not be filed with confidence. Nothing is ever guessed into a client.") +
     `<div class="drop" id="drop" style="margin-bottom:16px"><b>Drop documents for any client</b> — Veritas will work out whose they are.<br><input type="file" id="file" multiple style="margin-top:10px"></div>
     <div class="card"><table><tr><th>Document</th><th>Looks like</th><th>Why it's here</th><th>File to</th></tr>
-    ${docs.map((x) => `<tr><td><a href="/api/documents/${esc(x.id)}/file?token=${encodeURIComponent(S.token)}" target="_blank">${esc(x.original_name)}</a><div class="small muted">${esc(x.sender || x.channel)} · ${esc(x.received_at.slice(0, 16))}</div></td>
+    ${docs.map((x) => `<tr><td><a href="#" data-download="/api/documents/${esc(x.id)}/file">${esc(x.original_name)}</a><div class="small muted">${esc(x.sender || x.channel)} · ${esc(x.received_at.slice(0, 16))}</div></td>
       <td>${esc(x.doc_type)} ${esc(x.tax_year || "")}<div class="small muted">${esc(x.summary || "")}</div></td><td class="small">${Math.round((x.confidence || 0) * 100)}% confidence · ${esc(x.classified_by)}</td>
       <td><select data-doc="${esc(x.id)}"><option value="">choose client…</option>${S.clients.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select></td></tr>`).join("") || `<tr><td colspan="4" class="empty">Inbox zero. Everything was filed automatically.</td></tr>`}</table></div>`;
   main.querySelectorAll("[data-doc]").forEach((s) => s.onchange = async () => { await api(`/api/documents/${s.dataset.doc}/assign`, { method: "POST", body: { client_id: s.value } }); toast("Filed."); route(); });
@@ -485,7 +576,7 @@ async function viewIntegrations(main) {
       Body: <span class="mono">{"transactions": [...], "documents": [...]}</span>. Works with Zapier, Make, n8n and any SaaS.<br><br>Outbound: automations with <span class="mono">type: webhook</span> post to Slack, Teams or any URL held in an environment variable.</div></div>
       <div class="card"><h3>MCP (Model Context Protocol)</h3><div class="small">Run <span class="mono">veritas mcp</span> to expose Veritas to Claude Desktop, Claude Code or any MCP agent. Scope is set by the operator:
       <span class="mono">VERITAS_MCP_ROLE=client VERITAS_MCP_CLIENT=&lt;id&gt;</span> limits it to one client.<br><br>The <b>Any MCP server</b> connector pulls from external MCP servers (QuickBooks, Gmail, Drive, banks) into the normal pipelines.</div></div></div>`;
-  main.querySelectorAll("[data-dl]").forEach((b) => b.onclick = () => { const cid = main.querySelector(`[data-exp="${b.dataset.dl}"]`).value; window.open(`/api/clients/${encodeURIComponent(cid)}/export/${b.dataset.dl}?token=${encodeURIComponent(S.token)}`); });
+  main.querySelectorAll("[data-dl]").forEach((b) => b.onclick = () => { const cid = main.querySelector(`[data-exp="${b.dataset.dl}"]`).value; download(`/api/clients/${encodeURIComponent(cid)}/export/${b.dataset.dl}`).catch((err) => toast(err.message)); });
   main.querySelectorAll("[data-build]").forEach((b) => b.onclick = async () => { await api("/api/plugins/request", { method: "POST", body: { connector_id: b.dataset.build, docs: b.dataset.docs } }); toast("Queued for the AI Engineer. You'll approve the result."); b.disabled = true; });
 }
 
@@ -500,3 +591,56 @@ async function viewAudit(main) {
 }
 
 boot();
+
+// ---------------------------------------------------------------------------------------- firm & platform administration
+async function viewTeam(main) {
+  const users = await api("/api/auth/users");
+  const admin = S.me.base_role === "firm_admin";
+  main.innerHTML = page("Team & access", "Everyone who can sign in to this firm. Every account uses two-step verification.") +
+    `<div class="card"><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Two-step</th><th>Last sign-in</th><th></th></tr>
+    ${users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}${u.client_id ? ` · ${esc(u.client_id)}` : ""}</td>
+      <td>${u.mfa_enrolled_at ? "on" : "pending"}</td><td>${esc((u.last_login_at || "").slice(0, 16))}</td>
+      <td>${admin && u.id !== S.me.id ? `<button class="btn" data-dis="${esc(u.id)}" data-v="${u.disabled ? 0 : 1}">${u.disabled ? "Enable" : "Disable"}</button>` : ""}</td></tr>`).join("")}</table></div>
+    <div class="card"><h3>Invite someone</h3><form id="inv">
+      <input name="email" type="email" placeholder="email" required>
+      <select name="role">${admin ? `<option value="cpa">CPA</option><option value="staff">Staff</option><option value="firm_admin">Firm administrator</option>` : ""}<option value="client">Client</option></select>
+      <select name="client_id"><option value="">(for client users) choose client</option>${S.clients.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>
+      <button class="btn primary">Create invitation</button></form><p id="invout" class="small"></p></div>`;
+  $("#inv").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    if (!f.client_id) delete f.client_id;
+    try {
+      const r = await api("/api/auth/invite", { method: "POST", body: f });
+      $("#invout").innerHTML = `Send this link to ${esc(f.email)} (valid 7 days, single use):<br><code>${esc(location.origin + "/#/accept/" + r.invite_token)}</code>`;
+    } catch (err) { $("#invout").textContent = err.message; }
+  };
+  main.querySelectorAll("[data-dis]").forEach((b) => b.onclick = async () => {
+    await api(`/api/auth/users/${b.dataset.dis}/disable`, { method: "POST", body: { disabled: b.dataset.v === "1" } }); route();
+  });
+}
+
+async function viewFirms(main) {
+  const firms = await api("/api/platform/firms");
+  main.innerHTML = page("Firms", "Each firm has its own database, document vault and encryption key.") +
+    `<div class="card"><table><tr><th>Firm</th><th>Id</th><th>Status</th><th>Since</th></tr>
+    ${firms.map((f) => `<tr><td>${esc(f.name)}</td><td><code>${esc(f.id)}</code></td><td>${esc(f.status)}</td><td>${esc(f.created_at.slice(0, 10))}</td></tr>`).join("")}</table></div>
+    <div class="card"><h3>Onboard a firm</h3><form id="nf"><input name="name" placeholder="Firm name" required>
+      <input name="id" placeholder="firm-id (lowercase)" pattern="[a-z0-9][a-z0-9-]{1,40}" required>
+      <input name="admin_email" type="email" placeholder="administrator email" required>
+      <button class="btn primary">Create firm</button></form><p id="nfout" class="small"></p></div>`;
+  $("#nf").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("/api/platform/firms", { method: "POST", body: Object.fromEntries(new FormData(e.target)) });
+      $("#nfout").innerHTML = `Firm created. Send the administrator this link:<br><code>${esc(location.origin + "/#/accept/" + r.admin_invite_token)}</code>`;
+    } catch (err) { $("#nfout").textContent = err.message; }
+  };
+}
+
+async function viewSecurity(main) {
+  const ev = await api("/api/auth/events");
+  main.innerHTML = page("Sign-in activity", "Append-only record of sign-ins, failures, invitations and access changes.") +
+    `<div class="card"><table><tr><th>When (UTC)</th><th>Event</th><th>User</th><th>From</th><th>Detail</th></tr>
+    ${ev.map((e) => `<tr><td>${esc(e.at)}</td><td>${esc(e.event)}</td><td>${esc(e.email || e.user_id || "")}</td><td>${esc(e.ip || "")}</td><td>${esc(e.detail || "")}</td></tr>`).join("")}</table></div>`;
+}

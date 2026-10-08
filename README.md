@@ -145,7 +145,8 @@ python -m pytest -q
 - multi-entity consolidation
 - bank reconciliation screens
 - payroll processing
-- SSO and passkeys (`config/users.yaml` holds local development identities only)
+- passkeys (WebAuthn) and SSO. Multi-firm sign-in with password and TOTP two-step verification is built.
+  Use `veritas serve --dev` for the demo identities in `config/users.yaml`
 - the "buildable" connectors in the catalog
 
 **Facts to know about the shipped content:**

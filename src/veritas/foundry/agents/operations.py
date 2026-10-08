@@ -21,7 +21,7 @@ def maildrop_agent(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
     drop.mkdir(parents=True, exist_ok=True)
     done.mkdir(exist_ok=True)
     for path in sorted(p for p in drop.iterdir() if p.is_file()):
-        out = ingest(f.conn, f.router, f.paths.vault, path.name, path.read_bytes(), channel="maildrop")
+        out = ingest(f.conn, f.router, f.vault, path.name, path.read_bytes(), channel="maildrop")
         for d in out:
             res.stats[d["status"]] = res.stats.get(d["status"], 0) + 1
             if d["status"] == "needs_review" and not d.get("duplicate"):
@@ -45,7 +45,7 @@ def imap_agent(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
         for num in ids[0].split()[: int(p.get("max_messages", 50))]:
             _, data = m.fetch(num, "(RFC822)")
             raw = data[0][1]
-            out = ingest(f.conn, f.router, f.paths.vault, f"mail-{num.decode()}.eml", raw, channel="email")
+            out = ingest(f.conn, f.router, f.vault, f"mail-{num.decode()}.eml", raw, channel="email")
             for d in out:
                 res.stats[d["status"]] = res.stats.get(d["status"], 0) + 1
             m.store(num, "+FLAGS", "\\Seen")

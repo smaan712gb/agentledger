@@ -125,7 +125,7 @@ def ingest_document(filename: str, content_base64: str, client_id: str | None = 
     from .intake.pipeline import ingest
 
     a = app()
-    return ingest(a.conn, a.router, a.foundry.paths.vault, filename, base64.b64decode(content_base64), channel="mcp",
+    return ingest(a.conn, a.router, a.foundry.vault, filename, base64.b64decode(content_base64), channel="mcp",
                   client_hint=_client(client_id), actor=ACTOR)
 
 

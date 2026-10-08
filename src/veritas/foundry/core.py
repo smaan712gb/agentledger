@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from .. import audit
 from ..ai.router import Registry, Router
 from ..kb.store import KnowledgeBase
+from ..security.vault import Vault
 
 Kind = Literal["rule_change", "model_upgrade", "dependency_upgrade", "repo_adoption", "code_change", "agent_spec", "playbook",
                "domain_pack", "golden_scenario", "automation"]
@@ -150,6 +151,7 @@ class Foundry:
         self.conn = conn
         self.scope = scope  # "all" (single-firm/dev), "platform" or "tenant"
         self.kb = kb or KnowledgeBase(self.paths.rules)
+        self.vault = Vault(self.paths.vault)  # replaced by an encrypted vault inside a firm
         self.policy = yaml.safe_load((self.paths.config / "foundry.yaml").read_text(encoding="utf-8"))
         self.router = router or Router(Registry(self.paths.config / "models.yaml"), conn)
         self.paths.proposals.mkdir(parents=True, exist_ok=True)

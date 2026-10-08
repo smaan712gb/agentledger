@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import audit
@@ -38,6 +38,7 @@ from ..intake.pipeline import assign as assign_document, ingest
 from ..ledger import bankfeed, m1, store
 from ..plugins.registry import discover, run_plugin
 from ..security.platform import PLATFORM_FIRM, AuthError, Platform
+from ..security.vault import Vault
 
 ROOT = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -104,6 +105,7 @@ def firm_context(firm_id: str) -> AppContext:
         ctx = _TENANTS.get(firm_id)
         if ctx is None:
             ctx = AppContext.open(ROOT, tenant=PLATFORM.tenant_dir(firm_id), kb=APP.kb, scope="tenant")
+            ctx.foundry.vault = Vault(ctx.foundry.paths.vault, PLATFORM.keys, firm_id)
             _TENANTS[firm_id] = ctx
         return ctx
 
@@ -527,7 +529,7 @@ async def upload(file: UploadFile = File(...), client_id: str | None = Form(defa
     elif client_id:
         scope(user, client_id)
     data = await file.read()
-    return jsonable(ingest(A(user).conn, A(user).router, A(user).foundry.paths.vault, file.filename or "upload.bin", data, channel="upload",
+    return jsonable(ingest(A(user).conn, A(user).router, A(user).foundry.vault, file.filename or "upload.bin", data, channel="upload",
                            client_hint=client_id, actor=user["id"]))
 
 
@@ -541,7 +543,7 @@ def review_queue(user=Depends(me)) -> list[dict[str, Any]]:
 @app.post("/api/documents/{doc_id}/assign")
 def assign_doc(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     cpa_only(user)
-    return jsonable(assign_document(A(user).conn, A(user).foundry.paths.vault, doc_id, body["client_id"], user["id"]))
+    return jsonable(assign_document(A(user).conn, A(user).foundry.vault, doc_id, body["client_id"], user["id"]))
 
 
 @app.get("/api/documents/{doc_id}/file")
@@ -554,7 +556,9 @@ def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default=""))
         scope(user, d["client_id"])
     else:
         cpa_only(user)
-    return FileResponse(A(user).foundry.paths.vault / d["vault_path"], filename=d["original_name"])
+    data = A(user).foundry.vault.read(d["vault_path"])
+    return Response(data, media_type="application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="{d["original_name"]}"'})
 
 
 # ------------------------------------------------------------------------------ rules & calculators

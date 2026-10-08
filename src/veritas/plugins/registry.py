@@ -85,7 +85,7 @@ class PluginContext:
         self._need("documents:ingest")
         from ..intake.pipeline import ingest
 
-        out = ingest(self.conn, self.foundry.router if self.foundry else None, self.foundry.paths.vault, name, data,
+        out = ingest(self.conn, self.foundry.router if self.foundry else None, self.foundry.vault, name, data,
                      channel=f"plugin:{self.manifest.id}", sender=sender, client_hint=self.client_id)
         self.output.setdefault("documents", []).extend(out)
         return out
