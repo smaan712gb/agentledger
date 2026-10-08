@@ -137,6 +137,20 @@ def model_scout(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
     evals = load_evals(f)
     report: dict[str, Any] = {"at": datetime.now(timezone.utc).isoformat(), "roles": {}, "discovered": [], "frontier": []}
 
+    # Full hosted open-model inventory (ADR-0009): Workers AI, NVIDIA, Hugging Face router and Hub, Ollama.
+    if pol.get("inventory", True):
+        from ...ai import inventory
+
+        inv = inventory.refresh(f.paths.root / "state" / "model_inventory.json")
+        report["inventory"] = inventory.summary(inv)
+        res.stats["inventory"] = report["inventory"]
+        for mid in inv["new"][: int(pol.get("max_new_alerts", 10))]:
+            m = inv["models"][mid]
+            cheapest = min((r for r in m["routes"] if r.get("price_in") is not None), default=None,
+                           key=lambda r: r["price_in"] + (r["price_out"] or 0))
+            res.alerts.append({"type": "model_listed", "model": mid, "hosts": sorted({r["host"] for r in m["routes"]}),
+                               "cheapest": f"{cheapest['host']} ${cheapest['price_in']}/{cheapest['price_out']} per M tokens" if cheapest else None})
+
     discovered = discover_open_models(trusted)
     installed = {m["name"]: m for m in (f.router.local.models() if f.router.local.available() else [])}
     report["discovered"] = [{**d, "installed": d["name"] in installed or f"{d['name']}:latest" in installed} for d in discovered]

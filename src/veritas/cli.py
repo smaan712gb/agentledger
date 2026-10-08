@@ -154,6 +154,36 @@ def platform_firms():
     con.print(t)
 
 
+models_app = typer.Typer(help="Open-model inventory and routing", no_args_is_help=True)
+app.add_typer(models_app, name="models")
+
+
+@models_app.command("inventory")
+def models_inventory(refresh: bool = typer.Option(True, help="fetch the sources now"),
+                     top: int = typer.Option(15, help="show the N cheapest text models with structured output")):
+    """Refresh and show the live inventory of open models across Workers AI, NVIDIA, Hugging Face and Ollama."""
+    from .ai import inventory
+
+    path = home() / "state" / "model_inventory.json"
+    inv = inventory.refresh(path) if refresh else json.loads(path.read_text(encoding="utf-8"))
+    s = inventory.summary(inv)
+    con.print(f"[bold]{s['models']} models[/], {s['deployable']} deployable; new {s['new']}, retired {s['retired']}")
+    for k, v in s["sources"].items():
+        con.print(f"  {k:11s} {v}")
+    t = Table(title=f"Cheapest {top} routes with structured output")
+    t.add_column("model", no_wrap=True)
+    for col in ("host", "$ in / out per M", "context", "first token ms"):
+        t.add_column(col)
+    rows = []
+    for m in inv["models"].values():
+        for r in m["routes"]:
+            if r.get("price_in") is not None and r.get("structured_output"):
+                rows.append((r["price_in"] + (r["price_out"] or 0), m["id"], r))
+    for _, mid, r in sorted(rows, key=lambda x: (x[0], x[1]))[:top]:
+        t.add_row(mid, r["host"], f"{r['price_in']:g} / {(r['price_out'] or 0):g}", str(r.get("context") or ""), str(int(r["first_token_ms"])) if r.get("first_token_ms") else "")
+    con.print(t)
+
+
 @app.command("return")
 def compute_return(path: Path, as_json: bool = typer.Option(False, "--json", help="print the full return as JSON")):
     """Compute an individual return (Form 1040) from a JSON or YAML file of facts and documents."""

@@ -825,7 +825,14 @@ def design(what: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dic
 def models(user=Depends(me)) -> dict[str, Any]:
     ctx = platform_ctx(user)
     rep = ROOT / "state" / "model_scout_report.json"
-    return {"router": ctx.router.status(), "scout": json.loads(rep.read_text()) if rep.exists() else None}
+    inv_path = ROOT / "state" / "model_inventory.json"
+    if inv_path.exists():
+        from ..ai import inventory
+
+        inv_summary = inventory.summary(json.loads(inv_path.read_text(encoding="utf-8")))
+    else:
+        inv_summary = None
+    return {"inventory": inv_summary, "router": ctx.router.status(), "scout": json.loads(rep.read_text()) if rep.exists() else None}
 
 
 @app.get("/api/oss")
