@@ -104,7 +104,11 @@ def _supported_by(tok: tuple[Decimal, str], have: list[tuple[Decimal, str]]) -> 
 TRIVIAL = {Decimal(n) for n in range(0, 11)}
 
 
-def _trivial(d: Decimal, ignore_years: bool = True) -> bool:
+def _trivial(tok: tuple[Decimal, str], ignore_years: bool = True) -> bool:
+    """Only a bare number can be a year or a small count. "$2,000", "20%" or "50 cents" is always a claim to check."""
+    d, kind = tok
+    if kind != "plain":
+        return False
     return d in TRIVIAL or (ignore_years and d == d.to_integral() and 1900 <= d <= 2100)
 
 
@@ -114,7 +118,7 @@ def unsupported_numbers(answer: str, evidence_text: str, ignore_years: bool = Tr
     bad = []
     for m in TOKEN.finditer(answer):
         tok = typed_numbers(m.group(0))
-        if not tok or _trivial(tok[0][0], ignore_years):
+        if not tok or _trivial(tok[0], ignore_years):
             continue
         if not _supported_by(tok[0], have):
             bad.append(m.group(0).strip())
@@ -132,7 +136,7 @@ def _significant(text: str) -> list[str]:
     out = []
     for m in TOKEN.finditer(text):
         tok = typed_numbers(m.group(0))
-        if tok and not _trivial(tok[0][0]):
+        if tok and not _trivial(tok[0]):
             out.append(m.group(0).strip())
     return out
 

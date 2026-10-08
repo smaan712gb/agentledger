@@ -337,3 +337,92 @@ def test_concurrent_retries_of_one_command_post_once(biz):
     assert len(set(ids)) == 1
     assert ar_balance(biz.conn, "acme") == 300
     assert len(business.rows(biz.conn, "SELECT * FROM invoices WHERE number = 'INV-C'")) == 1
+
+
+# =========================================================================== re-audit of 478fd51 (2026-10-08)
+def test_paper_filed_return_is_frozen(fam, monkeypatch):
+    from agentledger.workflow.engine import TransitionError
+
+    R, rid = _signed_return(fam, monkeypatch)
+    R.wf.send(rid, "mark_paper_filed", "maya", role="cpa", note="filed on paper with Form 8948")
+    before = R.latest(rid)
+    path = fam.kb._paths["us_fed.individual.standard_deduction"]
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for v in doc["values"]:
+        if v["effective_from"] == "2026-01-01":
+            v["value"]["mfj"] = 60000
+    path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+    fam.kb.reload()
+    with pytest.raises(TransitionError, match="frozen"):
+        R.compute(rid, "recalc-agent")
+    after = R.latest(rid)
+    assert after["version"] == before["version"] and after["result"] == before["result"]   # the filed package is untouched
+    preview = R.recalculation_preview(rid)                                                 # a what-if, never stored on the filed case
+    assert preview["summary"]["total_tax"] != before["result"]["summary"]["total_tax"]
+    assert R.latest(rid)["version"] == before["version"]
+    amended = R.start_amendment(rid, "maya")
+    assert amended != rid and R.get(amended)["form"] == "1040-X" and R.get(amended)["amends"] == rid
+
+
+def test_unsigned_return_never_reaches_the_transmitter(fam, monkeypatch):
+    from test_return_workflow import household
+
+    from agentledger import coverage
+    from agentledger.returns.store import Returns
+    from agentledger.workflow.engine import TransitionError
+
+    monkeypatch.setattr(coverage, "lookup", lambda cap, year, jurisdiction="US-FED", path=None: {"id": cap, "status": "filing-approved"})
+    R = Returns(fam.conn, fam.kb, segregation=False)
+    rid = R.create("rivera", 2026, "maya", household())
+    R.populate_from_documents(rid, "maya")
+    R.confirm(rid, None, "maya")
+    R.submit_for_review(rid, "maya")
+    R.approve(rid, "maya", "cpa")                                   # approved, but never signed
+    sent = []
+    with pytest.raises(TransitionError):
+        R.transmit(rid, "maya", "cpa", efile_ready=True, submit=lambda key: sent.append(key) or {"submission_id": "x"})
+    with pytest.raises(TransitionError):
+        R.transmit(rid, "lee", "staff", efile_ready=True, submit=lambda key: sent.append(key) or {"submission_id": "x"})
+    assert sent == []                                               # every check happens before anything is sent
+
+
+def test_year_exemption_never_applies_to_money():
+    from agentledger.ai.grounding import check_answer, unsupported_numbers
+
+    ev = "The credit is $5,000 [R:x]."
+    assert unsupported_numbers("The credit is $2,000.", ev) == ["$2,000"]
+    assert check_answer("The credit is $2,000 [R:x].", ev, {"R": {"x"}}, lines={"R:x": ev})["grounded"] is False
+    assert unsupported_numbers("For tax year 2026 the credit is $5,000.", ev) == []          # a bare year is still fine
+
+
+def test_structured_stream_content_is_redacted_and_blocks_rejected(foundry):
+    from agentledger.ai.router import Registry, Router, Unavailable
+
+    class F:
+        model = "x"
+
+        def __init__(self):
+            self.sent = None
+
+        def available(self):
+            return True
+
+        def stream_text(self, *, system, messages, effort="high", **kw):
+            self.sent = messages
+            return iter(["ok"])
+
+    fr = F()
+    local = type("L", (), {"available": lambda self: False, "models": lambda self: []})()
+    reg = Registry(foundry.paths.config / "models.yaml")
+    reg.data["roles"]["answer"] = {"tier": "frontier", "model": "claude-x"}
+    r = Router(reg, foundry.conn, local=local, frontier=fr)
+    store.add_client(foundry.conn, id="pat", name="Pat Doe", kind="individual", emails=[], tax_id_last4="6789", domain="general",
+                     consent_7216_at="2026-10-01")
+    nested = [{"role": "user", "content": [{"type": "text", "text": "Pat Doe SSN 123-45-6789"}]}]
+    gen, _ = r.stream("answer", system="s", messages=nested, client_id="pat")
+    list(gen)
+    assert "123-45-6789" not in json.dumps(fr.sent) and "Pat Doe" not in json.dumps(fr.sent)
+    with_image = [{"role": "user", "content": [{"type": "image", "source": {"type": "base64", "data": "AAAA"}},
+                                               {"type": "text", "text": "what is this"}]}]
+    with pytest.raises(Unavailable, match="image"):
+        r.stream("answer", system="s", messages=with_image, client_id="pat")

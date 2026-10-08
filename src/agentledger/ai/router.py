@@ -85,6 +85,24 @@ _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
 _PHONE = re.compile(r"\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b")
 
 
+BLOCKED_CONTENT = {"image", "image_url", "input_image", "document", "file", "input_file", "input_audio", "audio", "video"}
+
+
+def sanitize(value: Any, names: list[str] | None = None) -> Any:
+    """Redact every text field at any depth of a structured message, and refuse media blocks outright: images and
+    documents of taxpayers never leave our infrastructure."""
+    if isinstance(value, str):
+        return redact(value, names)
+    if isinstance(value, list):
+        return [sanitize(v, names) for v in value]
+    if isinstance(value, dict):
+        kind = value.get("type")
+        if isinstance(kind, str) and kind.lower() in BLOCKED_CONTENT:
+            raise Unavailable(f"external model refused: {kind} content is never sent for taxpayer data")
+        return {k: (v if k == "type" else sanitize(v, names)) for k, v in value.items()}
+    return value
+
+
 def redact(text: str, names: list[str] | None = None) -> str:
     """Defense in depth before an external model: direct identifiers removed. Not the legal basis (consent is)."""
     for n in names or []:
@@ -202,8 +220,7 @@ class Router:
             self.frontier.model = rm.model
             if data_class == "taxpayer":
                 system = redact(system, names)
-                messages = [{**m, "content": redact(m["content"], names) if isinstance(m.get("content"), str) else m["content"]}
-                            for m in messages]
+                messages = [sanitize(m, names) for m in messages]
             gen = self.frontier.stream_text(system=system, messages=messages)
         self._log(rm.tier, rm.model, role, True, None, client_id, "stream")
         return gen, f"{rm.tier}:{rm.model}"

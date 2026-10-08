@@ -761,7 +761,28 @@ def confirm_return_amounts(rid: str, body: dict[str, Any] = Body(default={}), us
 def compute_return(rid: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
     cpa_only(user)
     rs, _ = _return_for(user, rid)
-    return jsonable(rs.compute(rid, user["id"], oracle=bool(body.get("crosscheck"))))
+    try:
+        return jsonable(rs.compute(rid, user["id"], oracle=bool(body.get("crosscheck"))))
+    except TransitionError as e:
+        raise _wf_error(e)
+
+
+@app.get("/api/returns/{rid}/recalculation-preview")
+def return_recalc_preview(rid: str, user=Depends(me)) -> dict[str, Any]:
+    """What the return would be under today's rules; never stored on a filed return."""
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    return jsonable(rs.recalculation_preview(rid))
+
+
+@app.post("/api/returns/{rid}/amend")
+def return_amend(rid: str, user=Depends(me)) -> dict[str, Any]:
+    reviewer_only(user)
+    rs, _ = _return_for(user, rid)
+    try:
+        return {"id": rs.start_amendment(rid, user["id"])}
+    except (TransitionError, ValueError) as e:
+        raise _wf_error(e)
 
 
 @app.post("/api/returns/{rid}/{action}")

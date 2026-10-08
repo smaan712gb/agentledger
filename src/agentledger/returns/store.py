@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tax_returns (
     form TEXT NOT NULL,
     created_at TEXT NOT NULL,
     created_by TEXT NOT NULL,
+    amends TEXT REFERENCES tax_returns(id),
     UNIQUE (client_id, tax_year, form)
 );
 CREATE TABLE IF NOT EXISTS tax_return_versions (
@@ -98,6 +99,9 @@ def _g_transmit(st: State, c: dict[str, Any]) -> list[str]:
 
 
 REVIEWABLE = ("in_review", "approved", "awaiting_signature", "signed")
+# A filed (or possibly filed) return is evidence of what was sent. It is never recomputed or edited in place:
+# a what-if goes through recalculation_preview, and a change goes through an amendment case.
+FROZEN = ("transmitted", "accepted", "paper_filed", "unknown", "rejected")
 RETURN_1040 = Definition(
     kind="return_1040",
     initial="preparing",
@@ -168,18 +172,22 @@ class Returns:
         self.sealer = sealer or Sealer()
         self.segregation = segregation
         conn.executescript(SCHEMA)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(tax_returns)")}
+        if "amends" not in cols:  # databases created before amendments existed
+            conn.execute("ALTER TABLE tax_returns ADD COLUMN amends TEXT REFERENCES tax_returns(id)")
         self.wf = Engine(conn, {"return_1040": RETURN_1040})
 
     # ------------------------------------------------------------------ records
-    def create(self, client_id: str, tax_year: int, actor: str, inputs: dict[str, Any] | None = None) -> str:
-        row = self.conn.execute("SELECT id FROM tax_returns WHERE client_id = ? AND tax_year = ? AND form = '1040'",
-                                (client_id, tax_year)).fetchone()
+    def create(self, client_id: str, tax_year: int, actor: str, inputs: dict[str, Any] | None = None, *,
+               form: str = "1040", amends: str | None = None) -> str:
+        row = self.conn.execute("SELECT id FROM tax_returns WHERE client_id = ? AND tax_year = ? AND form = ?",
+                                (client_id, tax_year, form)).fetchone()
         if row:
-            raise ValueError(f"a {tax_year} Form 1040 already exists for {client_id}")
+            raise ValueError(f"a {tax_year} Form {form} already exists for {client_id}")
         rid = "ret_" + secrets.token_hex(6)
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        self.conn.execute("INSERT INTO tax_returns (id, client_id, tax_year, form, created_at, created_by) VALUES (?, ?, ?, '1040', ?, ?)",
-                          (rid, client_id, tax_year, now, actor))
+        self.conn.execute("INSERT INTO tax_returns (id, client_id, tax_year, form, created_at, created_by, amends) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          (rid, client_id, tax_year, form, now, actor, amends))
         self.wf.start(rid, "return_1040", actor, {"client_id": client_id, "tax_year": tax_year})
         base = {"tax_year": tax_year, "filing_status": "single", "taxpayer": {}}
         self._save(rid, {**base, **(inputs or {})}, {}, actor, "created")
@@ -268,13 +276,41 @@ class Returns:
                        crosscheck=json.loads(cur["crosscheck"]) if cur["crosscheck"] else None)
         return n
 
-    def compute(self, rid: str, actor: str, *, oracle: bool = False) -> dict[str, Any]:
-        cur = self.latest(rid)
+    def _calculate(self, rid: str, cur: dict[str, Any]) -> tuple[IndividualReturn, Any, dict[str, Any]]:
         ret = IndividualReturn.model_validate(cur["inputs"])
         res = compute_individual(Ctx(self.kb), ret)
         result = res.to_dict()
-        result["coverage"] = self._coverage(list(result["forms"]), ret.tax_year)
+        forms = list(result["forms"]) + (["f1040x"] if self.get(rid)["form"] == "1040-X" else [])
+        result["coverage"] = self._coverage(forms, ret.tax_year)
         result["pinned"] = {"kb_version": self.kb.version(), "engine": ENGINE_VERSION}
+        return ret, res, result
+
+    def recalculation_preview(self, rid: str) -> dict[str, Any]:
+        """What the return would be under today's rules and engine. Nothing is stored; a filed return stays as filed."""
+        cur = self.latest(rid)
+        _, _, result = self._calculate(rid, cur)
+        filed = (cur["result"] or {}).get("summary", {})
+        result["changes_vs_latest"] = {k: {"latest": filed.get(k), "now": v} for k, v in result["summary"].items() if filed.get(k) != v}
+        return result
+
+    def start_amendment(self, rid: str, actor: str) -> str:
+        """A change to a filed return starts a linked amendment case (Form 1040-X), copying the filed facts."""
+        st = self.wf.state(rid)
+        if st.status not in ("accepted", "paper_filed", "transmitted"):
+            raise TransitionError(f"only a filed return can be amended (this one is {st.status})")
+        r = self.get(rid)
+        cur = self.latest(rid)
+        new = self.create(r["client_id"], r["tax_year"], actor, dict(cur["inputs"]), form="1040-X", amends=rid)
+        audit.record(self.conn, actor, "cpa", "return.amendment_started", {"return_id": new, "amends": rid}, client_id=r["client_id"])
+        return new
+
+    def compute(self, rid: str, actor: str, *, oracle: bool = False) -> dict[str, Any]:
+        st0 = self.wf.state(rid)
+        if st0.status in FROZEN:
+            raise TransitionError(f"this return is {st0.status}: its package is frozen. Use recalculation_preview for a what-if, "
+                                  "or start_amendment to change it")
+        cur = self.latest(rid)
+        ret, res, result = self._calculate(rid, cur)
         cc = None
         if oracle:
             try:
@@ -362,7 +398,15 @@ class Returns:
         from ..workflow.engine import UncertainOutcome
 
         st = self.wf.state(rid)
-        reasons = _g_transmit(st, {"efile_ready": efile_ready})
+        # Every check runs before anything leaves the system.
+        reasons = []
+        if st.status != "signed":
+            reasons.append(f"only a signed return can be transmitted (this one is {st.status})")
+        if role != "cpa":
+            reasons.append("transmission needs a credentialed reviewer (CPA)")
+        if not st.facts.get("signed_hash") or st.facts.get("signed_hash") != st.facts.get("approved_hash"):
+            reasons.append("no valid signature is bound to the approved package")
+        reasons += _g_transmit(st, {"efile_ready": efile_ready})
         if self.current_package_hash(rid) != st.facts.get("approved_hash"):
             reasons.append("the current return is not the approved and signed package")
         result = self.latest(rid)["result"] or {}
