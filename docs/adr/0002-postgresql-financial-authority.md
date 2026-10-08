@@ -50,3 +50,9 @@ a firm: staff without an engagement grant, client users, investors and external 
 The current `agentledger.db` SQLite schema is the reference model. Ticket F-04 ports it to PostgreSQL, adds the
 posting functions, the command and receipt tables and the outbox, and keeps SQLite only as an explicit
 `--dev` demo profile until the port is complete. The test suite runs against PostgreSQL in CI.
+
+Status (2026-10-08): the core is in `src/agentledger/pg/migrations/0001_ledger_core.sql`. Writes go only through
+SECURITY DEFINER functions; `agentledger_app` holds SELECT and EXECUTE, never INSERT/UPDATE/DELETE. Error codes
+AL001–AL007 map to the application's exceptions in `agentledger.pg`. Migrations are plain SQL with recorded
+checksums (an edited, already-applied migration is refused) rather than Alembic: the invariants live in SQL, so
+the migration tool adds nothing but a dependency.

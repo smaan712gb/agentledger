@@ -16,6 +16,16 @@ jobs:
     timeout-minutes: 45
     outputs:
       deployable: ${{ steps.deployable.outputs.deployable }}
+    services:
+      postgres:                     # the ledger core's database tests (tests/test_pg_ledger.py) run against this
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: ci, POSTGRES_DB: agentledger}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:ci@localhost:5432/agentledger
+      AGENTLEDGER_REQUIRE_PG: "1"   # fail, never skip, the database tests in CI
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

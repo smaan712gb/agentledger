@@ -5,11 +5,11 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 
 | Q | Scenario (short) | Wave | State | Where |
 |---|---|---|---|---|
-| Q01 | Unbalanced journal rejected on every route | F | partial | App-level check inside one unit of work; DB posting function pending PostgreSQL (F-04) |
-| Q02 | Same command retried 100× concurrently → one effect | F | partial | `run_command` receipts + payload-hash conflicts (`tests/test_audit_findings.py`); concurrency stress todo |
+| Q01 | Unbalanced journal rejected on every route | F | pass (PostgreSQL core) | deferred balance trigger refuses even the table owner; the app role cannot write tables (`tests/test_pg_ledger.py`). The API still posts through the SQLite path until the module port |
+| Q02 | Same command retried 100× concurrently → one effect | F | partial | database receipts checked under the client lock; 4 concurrent connections post once (`tests/test_pg_ledger.py`); a 100× stress run todo |
 | Q03 | Worker crash after commit, before reply | F | pass (transmission) | two-phase activities: `test_crash_*` in `tests/test_audit_findings.py`; ledger outbox todo |
-| Q04 | Period closes while a draft awaits posting | F | pass | closed period enforced in the posting transaction (`test_closed_period_*`) |
-| Q05 | Reversal / correction reconciles | F | partial | reversals exist; report tie-out test todo |
+| Q04 | Period closes while a draft awaits posting | F | pass | closed period enforced by a database trigger, CPA-only audited reopen (`tests/test_pg_ledger.py`); app-level check in `test_closed_period_*` |
+| Q05 | Reversal / correction reconciles | F | partial | reversal-only corrections, immutable rows, hash chain detects tampering (`tests/test_pg_ledger.py`); report tie-out test todo |
 | Q06 | Foreign-currency settlement | A2 | todo | |
 | Q07 | Invoice plus bank payment recognized once | A1 | todo | |
 | Q08 | Duplicate, pending and corrected feed events | A1 | todo | |
