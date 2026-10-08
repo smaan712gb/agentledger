@@ -19,3 +19,10 @@ state/
 tenants/
 *.key
 *.key.dev
+.neon
+node_modules/
+
+# Node tooling (Neon config, future web app)
+node_modules/
+# local Claude Code settings
+.claude/settings.local.json
