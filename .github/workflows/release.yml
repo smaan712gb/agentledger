@@ -14,6 +14,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      deployable: ${{ steps.deployable.outputs.deployable }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,10 +25,13 @@ jobs:
         run: |
           python -m pytest -q
           VERITAS_HOME=$PWD veritas golden
+      - name: Is there a Cloudflare project to deploy?
+        id: deployable
+        run: echo "deployable=$([ -f wrangler.jsonc ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   staging:
     needs: verify
-    if: ${{ hashFiles('wrangler.jsonc') != '' }}
+    if: needs.verify.outputs.deployable == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:

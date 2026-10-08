@@ -95,8 +95,6 @@ jobs:
             gh pr merge "$pr" --auto --squash     # merges once required checks pass, then release.yml deploys
           else
             gh pr edit "$pr" --add-label needs-approval
-            gh pr comment "$pr" --body-file <(python -c "import json;d=json.load(open('decision.json'));print('**Needs approval by:** '+str(d['approver'])+'
-
-'+'
-'.join('- '+r for r in d['reasons']))")
+            python scripts/release_comment.py decision.json > comment.md
+            gh pr comment "$pr" --body-file comment.md
           fi

@@ -78,7 +78,8 @@ def draft_and_submit(f: Foundry, agent_id: str, doc: docs.Document, official: li
     last: Proposal | None = None
     for escalate in attempts:
         try:
-            draft, by = f.router.structured("draft", system=SYSTEM, user=prompt, schema=Draft, escalate=escalate, effort="high")
+            draft, by = f.router.structured("draft", system=SYSTEM, user=prompt, schema=Draft, escalate=escalate, effort="high",
+                                            data_class="public")
         except Unavailable as e:
             res.log.append(f"draft unavailable for {doc.key}: {e}")
             break

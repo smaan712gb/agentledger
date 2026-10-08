@@ -77,7 +77,7 @@ def _g_approve(st: State, c: dict[str, Any]) -> list[str]:
     out = []
     if c.get("segregation") and c.get("actor") == st.facts.get("submitted_by"):
         out.append("the reviewer must be a different person from the preparer")
-    if c.get("input_hash") != st.facts.get("review_hash"):
+    if c.get("package_hash") != st.facts.get("review_hash"):
         out.append("the return changed after it was submitted for review")
     return out
 
@@ -113,8 +113,13 @@ RETURN_1040 = Definition(
         Transition("correct", ("rejected",), "preparing", roles=CPA),
         Transition("mark_paper_filed", ("signed",), "paper_filed", roles=CPA),
         Transition("reopen", REVIEWABLE, "preparing"),
+        # A transmission whose outcome is unknown (timeout, crash after sending) is reconciled, never blindly resent.
+        Transition("outcome_unknown", ("signed",), "unknown"),
+        Transition("reconciled_submitted", ("unknown",), "transmitted"),
+        Transition("reconciled_not_submitted", ("unknown",), "signed"),
     ],
     waiting={"awaiting_signature": "taxpayer signature on Form 8879", "transmitted": "IRS acknowledgement",
+             "unknown": "reconciliation with the transmitter",
              "in_review": "reviewer", "approved": "signature request"},
 )
 
@@ -142,6 +147,18 @@ class Sealer:
 
 def input_hash(inputs: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(inputs, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def package_of(inputs: dict[str, Any], result: dict[str, Any] | None, provenance: dict[str, Any]) -> dict[str, Any]:
+    """The immutable package a reviewer approves and a taxpayer signs: inputs, every computed form line, the
+    summary, the pinned rule and engine versions, and the source documents relied on."""
+    r = result or {}
+    return {"inputs": inputs, "forms": r.get("forms"), "summary": r.get("summary"), "pinned": r.get("pinned"),
+            "documents": sorted({v.get("document_id") for v in (provenance or {}).values() if v.get("document_id")})}
+
+
+def package_hash(inputs: dict[str, Any], result: dict[str, Any] | None, provenance: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(package_of(inputs, result, provenance), sort_keys=True, default=str).encode()).hexdigest()
 
 
 class Returns:
@@ -270,6 +287,11 @@ class Returns:
             except ImportError:
                 cc = {"status": "unavailable"}
         self._save(rid, cur["inputs"], cur["provenance"], actor, "computed", result=result, crosscheck=cc)
+        st = self.wf.state(rid)
+        bound = st.facts.get("approved_hash") if st.status in ("approved", "awaiting_signature", "signed") else st.facts.get("review_hash")
+        if st.status in REVIEWABLE and bound and package_hash(cur["inputs"], result, cur["provenance"]) != bound:
+            self.wf.send(rid, "reopen", actor, note="recomputed return differs from the reviewed/approved package "
+                                                    "(rules, engine or results changed); review and signature are void")
         return result
 
     def _coverage(self, forms: list[str], year: int) -> dict[str, Any]:
@@ -298,17 +320,23 @@ class Returns:
         below = len((result.get("coverage") or {}).get("below_preparation", []))
         return {"computed": bool(result), "blocking": below + sum(1 for d in result.get("diagnostics", []) if d["severity"] == "error"),
                 "unconfirmed": sum(1 for p in v["provenance"].values() if not p.get("confirmed")),
-                "crosscheck": cc.get("status"), "explained": explained, "input_hash": v["input_hash"]}
+                "crosscheck": cc.get("status"), "explained": explained,
+                "package_hash": package_hash(v["inputs"], v["result"], v["provenance"])}
 
     def submit_for_review(self, rid: str, actor: str, *, explanation: str = "") -> State:
         ctx = self._review_context(rid, bool(explanation.strip()))
         return self.wf.send(rid, "submit_for_review", actor, role="cpa", context=ctx, note=explanation,
-                            facts={"submitted_by": actor, "review_hash": ctx["input_hash"]})
+                            facts={"submitted_by": actor, "review_hash": ctx["package_hash"]})
+
+    def current_package_hash(self, rid: str) -> str:
+        v = self.latest(rid)
+        return package_hash(v["inputs"], v["result"], v["provenance"])
 
     def approve(self, rid: str, actor: str, role: str) -> State:
-        h = self.latest(rid, decrypt=False)["input_hash"]
-        return self.wf.send(rid, "approve", actor, role=role, context={"segregation": self.segregation, "input_hash": h},
-                            facts={"approved_by": actor, "approved_hash": h})
+        h = self.current_package_hash(rid)
+        v = self.latest(rid, decrypt=False)["version"]
+        return self.wf.send(rid, "approve", actor, role=role, context={"segregation": self.segregation, "package_hash": h},
+                            facts={"approved_by": actor, "approved_hash": h, "approved_version": v})
 
     def request_changes(self, rid: str, actor: str, role: str, note: str) -> State:
         return self.wf.send(rid, "request_changes", actor, role=role, note=note)
@@ -324,10 +352,19 @@ class Returns:
                             facts={"signature_method": method, "kba_transaction_id": kba_transaction_id,
                                    "signers": signers or [], "signed_hash": return_hash})
 
-    def transmit(self, rid: str, actor: str, role: str, *, efile_ready: bool, submit) -> State:
-        """`submit` performs the transmission; it runs at most once per approved return version."""
+    def transmit(self, rid: str, actor: str, role: str, *, efile_ready: bool, submit, lookup=None) -> State:
+        """Transmit the approved package at most once.
+
+        `submit(idempotency_key)` sends it; `lookup(idempotency_key)` asks the transmitter whether that key was
+        already received (returns the result dict, or None if not). If a previous attempt started but its outcome
+        was never recorded, we reconcile through `lookup` instead of sending again; without `lookup` the return
+        moves to `unknown` for a person to reconcile."""
+        from ..workflow.engine import UncertainOutcome
+
         st = self.wf.state(rid)
         reasons = _g_transmit(st, {"efile_ready": efile_ready})
+        if self.current_package_hash(rid) != st.facts.get("approved_hash"):
+            reasons.append("the current return is not the approved and signed package")
         result = self.latest(rid)["result"] or {}
         blockers = (result.get("coverage") or {}).get("filing_blockers")
         if blockers is None:
@@ -336,6 +373,21 @@ class Returns:
             reasons.append("coverage does not allow filing: " + ", ".join(f"{b['form']} is {b['status']}" for b in blockers))
         if reasons:
             raise TransitionError("; ".join(reasons))
-        result = self.wf.activity(rid, "transmit", st.facts["approved_hash"], submit, actor=actor)
+        key = f"{rid}:{st.facts['approved_hash'][:16]}"
+        try:
+            result = self.wf.activity(rid, "transmit", st.facts["approved_hash"], lambda: submit(key), actor=actor,
+                                      reconcile=(lambda: lookup(key)) if lookup else None)
+        except UncertainOutcome as e:
+            self.wf.send(rid, "outcome_unknown", actor, note=str(e))
+            raise
         return self.wf.send(rid, "transmit", actor, role=role, context={"efile_ready": efile_ready},
-                            facts={"submission_id": result.get("submission_id")})
+                            facts={"submission_id": result.get("submission_id"), "idempotency_key": key})
+
+    def reconcile_transmission(self, rid: str, actor: str, role: str, *, submitted: bool, submission_id: str = "",
+                               evidence: str = "") -> State:
+        """A person confirms with the transmitter what happened to an attempt whose outcome was unknown."""
+        if role != "cpa":
+            raise TransitionError("reconciling a transmission needs a CPA")
+        if submitted:
+            return self.wf.send(rid, "reconciled_submitted", actor, note=evidence, facts={"submission_id": submission_id})
+        return self.wf.send(rid, "reconciled_not_submitted", actor, note=evidence)

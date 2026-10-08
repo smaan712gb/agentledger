@@ -9,9 +9,11 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import secrets
 import threading
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -104,6 +106,16 @@ CREATE TABLE IF NOT EXISTS entry_documents (
     linked_by TEXT NOT NULL,
     at TEXT NOT NULL,
     PRIMARY KEY (entry_id, document_id)
+);
+
+CREATE TABLE IF NOT EXISTS commands (
+    scope TEXT NOT NULL,
+    command_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    result TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (scope, command_id)
 );
 
 CREATE TABLE IF NOT EXISTS info_returns (
@@ -277,7 +289,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 );
 """
 
-APPEND_ONLY = ("entries", "postings", "audit", "finding_resolutions", "info_returns", "ai_usage", "entry_documents",
+APPEND_ONLY = ("commands", "entries", "postings", "audit", "finding_resolutions", "info_returns", "ai_usage", "entry_documents",
                "precedents")
 
 
@@ -340,3 +352,63 @@ def rows(conn: sqlite3.Connection, sql: str, *args: Any) -> list[dict[str, Any]]
 def one(conn: sqlite3.Connection, sql: str, *args: Any) -> dict[str, Any] | None:
     r = conn.execute(sql, args).fetchone()
     return dict(r) if r else None
+
+
+# ------------------------------------------------------------------ units of work and durable commands
+
+class CommandConflict(Exception):
+    """A command id was reused with a different payload."""
+
+
+def _raw(conn: Any) -> sqlite3.Connection:
+    return conn._get() if isinstance(conn, ThreadLocalConnection) else conn
+
+
+@contextmanager
+def unit_of_work(conn: Any) -> Iterator[sqlite3.Connection]:
+    """One atomic transaction for a whole business operation. Nested calls become savepoints, so a ledger posting
+    inside an invoice, together with its audit record and command receipt, commits or rolls back as one."""
+    raw = _raw(conn)
+    if raw.in_transaction:
+        sp = "sp_" + secrets.token_hex(6)
+        raw.execute(f"SAVEPOINT {sp}")
+        try:
+            yield raw
+        except BaseException:
+            raw.execute(f"ROLLBACK TO {sp}")
+            raw.execute(f"RELEASE {sp}")
+            raise
+        raw.execute(f"RELEASE {sp}")
+    else:
+        raw.execute("BEGIN IMMEDIATE")
+        try:
+            yield raw
+        except BaseException:
+            raw.execute("ROLLBACK")
+            raise
+        raw.execute("COMMIT")
+
+
+def payload_hash(payload: Any) -> str:
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+
+
+def run_command(conn: Any, scope: str, command_id: str | None, kind: str, payload: Any, fn) -> Any:
+    """Execute `fn` at most once per (scope, command_id), atomically with its receipt.
+
+    Same id and payload: the original result is returned and nothing runs again. Same id, different payload:
+    CommandConflict. No id: the operation still runs as one unit of work."""
+    if not command_id:
+        with unit_of_work(conn):
+            return fn()
+    h = payload_hash({"kind": kind, "payload": payload})
+    with unit_of_work(conn) as c:
+        row = c.execute("SELECT kind, payload_hash, result FROM commands WHERE scope = ? AND command_id = ?", (scope, command_id)).fetchone()
+        if row:
+            if row["payload_hash"] != h:
+                raise CommandConflict(f"command {command_id} was already used for a different {row['kind']}")
+            return json.loads(row["result"])
+        result = fn()
+        c.execute("INSERT INTO commands (scope, command_id, kind, payload_hash, result) VALUES (?, ?, ?, ?, ?)",
+                  (scope, command_id, kind, h, json.dumps(result, default=str)))
+        return result

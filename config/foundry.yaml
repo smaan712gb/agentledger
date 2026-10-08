@@ -9,7 +9,7 @@ auto_adopt:
   model_upgrade: medium     # a challenger model that beat the champion on our evals (reversible)
   dependency_upgrade: none  # supply chain: always human
   repo_adoption: none       # supply chain: always human
-  code_change: low          # AI-written code: only when every gate passes and nothing protected is touched
+  code_change: none         # AI-written code always needs a person (one policy with config/release_policy.yaml)
   agent_spec: none
   domain_pack: none
   playbook: none           # expert knowledge changes are reviewed by a CPA
@@ -41,6 +41,17 @@ protected_paths:
   - config/release_policy.yaml
   - coverage/coverage.yaml      # coverage status only rises with human-reviewed evidence
   - .github/
+  - src/veritas/security/       # identity, sessions, keys, vault
+  - src/veritas/api/            # authorization and tenant routing
+  - src/veritas/ledger/         # posting, periods, reversals
+  - src/veritas/workflow/       # durable state machines and exactly-once activities
+  - src/veritas/returns/        # return packages, approvals, signatures, transmission
+  - src/veritas/crm/            # business records that post to the ledger
+  - src/veritas/ai/router.py    # the external-model data gate
+  - src/veritas/coverage.py
+  - src/veritas/release.py
+  - src/veritas/foundry/agents/builders.py   # the Engineer itself
+  - config/models.yaml          # provider choice decides who sees data
 
 staleness:
   warn_days_before_due: 45

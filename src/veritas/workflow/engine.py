@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from ..db import unit_of_work
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS workflow_events (
     workflow_id TEXT NOT NULL,
@@ -45,6 +47,11 @@ CREATE TRIGGER IF NOT EXISTS workflow_events_no_delete BEFORE DELETE ON workflow
 
 class TransitionError(Exception):
     """The event is not allowed from the current state, or a guard refused it."""
+
+
+class UncertainOutcome(Exception):
+    """An external action started but its result was never recorded (a crash or timeout in between). It must be
+    reconciled with the provider; running it again could duplicate a transmission or a payment."""
 
 
 Guard = Callable[["State", dict[str, Any]], list[str]]  # returns reasons it is refused (empty = allowed)
@@ -109,7 +116,7 @@ class Engine:
             data = json.loads(e["data"])
             if e["event"] != "started":
                 t = d.find(e["event"], status)
-                if t is None and not e["event"].startswith("activity:"):
+                if t is None and not e["event"].startswith(("activity:", "activity_started:")):
                     raise TransitionError(f"corrupt history: {e['event']} from {status}")
                 if t is not None:
                     status = t.target
@@ -123,8 +130,7 @@ class Engine:
 
     def _append(self, workflow_id: str, kind: str, event: str, data: dict[str, Any], actor: str,
                 idempotency_key: str | None = None) -> int:
-        self.conn.execute("BEGIN IMMEDIATE")
-        try:
+        with unit_of_work(self.conn):  # joins the caller's transaction when there is one
             last = self.conn.execute("SELECT seq, hash FROM workflow_events WHERE workflow_id = ? ORDER BY seq DESC LIMIT 1",
                                      (workflow_id,)).fetchone()
             seq = (last["seq"] + 1) if last else 1
@@ -135,11 +141,7 @@ class Engine:
                 "INSERT INTO workflow_events (workflow_id, seq, kind, event, data, actor, at, idempotency_key, prev_hash, hash) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (workflow_id, seq, kind, event, json.dumps(data, default=str), actor, at, idempotency_key, prev, _hash(prev, row)))
-            self.conn.execute("COMMIT")
             return seq
-        except Exception:
-            self.conn.execute("ROLLBACK")
-            raise
 
     def start(self, workflow_id: str, kind: str, actor: str, facts: dict[str, Any] | None = None) -> State:
         if self.exists(workflow_id):
@@ -165,16 +167,37 @@ class Engine:
         self._append(workflow_id, st.kind, event, {"facts": facts or {}, "note": note}, actor)
         return self.state(workflow_id)
 
-    def activity(self, workflow_id: str, name: str, key: str, fn: Callable[[], dict[str, Any]], actor: str = "system") -> dict[str, Any]:
-        """Run a side effect at most once per idempotency key; a repeat returns the recorded result."""
+    def activity(self, workflow_id: str, name: str, key: str, fn: Callable[[], dict[str, Any]], actor: str = "system",
+                 reconcile: Callable[[], dict[str, Any] | None] | None = None) -> dict[str, Any]:
+        """Run an external side effect at most once per idempotency key, safe across crashes.
+
+        Phase 1 durably records that the action is starting; phase 2 records its result. On a retry:
+        - result recorded: return it (nothing runs);
+        - started but no result (the crash window): ask `reconcile()` (the provider, by idempotency key). A result
+          means it happened, so record and return it; None means the provider never received it, so it is safe to run.
+          Without `reconcile`, raise UncertainOutcome: a person must reconcile, never a blind re-send."""
+        done_key, start_key = f"{name}:{key}", f"{name}:{key}:started"
         row = self.conn.execute("SELECT data FROM workflow_events WHERE workflow_id = ? AND idempotency_key = ?",
-                                (workflow_id, f"{name}:{key}")).fetchone()
+                                (workflow_id, done_key)).fetchone()
         if row:
             return json.loads(row["data"])["result"]
+        started = self.conn.execute("SELECT 1 FROM workflow_events WHERE workflow_id = ? AND idempotency_key = ?",
+                                    (workflow_id, start_key)).fetchone()
+        kind = self.state(workflow_id).kind
+        if started:
+            if reconcile is None:
+                raise UncertainOutcome(f"{name} for {workflow_id} started earlier and its outcome was not recorded; "
+                                       "reconcile it with the provider before trying again")
+            found = reconcile()
+            if found is not None:
+                self._append(workflow_id, kind, f"activity:{name}", {"result": found, "facts": found.get("facts", {}),
+                                                                      "reconciled": True}, actor, idempotency_key=done_key)
+                return found
+        else:
+            self._append(workflow_id, kind, f"activity_started:{name}", {"facts": {}}, actor, idempotency_key=start_key)
         result = fn()
-        st = self.state(workflow_id)
-        self._append(workflow_id, st.kind, f"activity:{name}", {"result": result, "facts": result.get("facts", {})}, actor,
-                     idempotency_key=f"{name}:{key}")
+        self._append(workflow_id, kind, f"activity:{name}", {"result": result, "facts": result.get("facts", {})}, actor,
+                     idempotency_key=done_key)
         return result
 
     def verify(self, workflow_id: str) -> bool:

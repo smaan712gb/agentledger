@@ -7,6 +7,8 @@ wins on the evaluation suite. Callers only ever name a role.
 
 from __future__ import annotations
 
+import re
+
 import sqlite3
 from dataclasses import dataclass
 from datetime import date
@@ -74,6 +76,27 @@ class Registry:
         self.path.write_text(yaml.dump(self.data, Dumper=NoAliases, sort_keys=False, width=110), encoding="utf-8")
 
 
+# Data classes (ADR-0007). Every call states what it carries; the default is the most restrictive.
+DATA_CLASSES = ("public", "firm", "taxpayer")
+_SSN = re.compile(r"\b\d{3}-?\d{2}-?\d{4}\b")
+_EIN = re.compile(r"\b\d{2}-\d{7}\b")
+_ACCOUNT = re.compile(r"\b\d{9,17}\b")
+_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
+_PHONE = re.compile(r"\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b")
+
+
+def redact(text: str, names: list[str] | None = None) -> str:
+    """Defense in depth before an external model: direct identifiers removed. Not the legal basis (consent is)."""
+    for n in names or []:
+        if n and len(n) > 2:
+            text = re.sub(re.escape(n), "[TAXPAYER]", text, flags=re.I)
+    text = _SSN.sub("[SSN]", text)
+    text = _EIN.sub("[EIN]", text)
+    text = _EMAIL.sub("[EMAIL]", text)
+    text = _PHONE.sub("[PHONE]", text)
+    return _ACCOUNT.sub("[ACCOUNT]", text)
+
+
 class Router:
     def __init__(self, registry: Registry, conn: sqlite3.Connection | None = None,
                  local: OllamaClient | None = None, frontier: ClaudeClient | None = None):
@@ -94,6 +117,22 @@ class Router:
         budget = int(self.registry.data["frontier"].get("daily_call_budget", 0))
         return self.frontier.available() and self.frontier_calls_today() < budget
 
+    def external_policy(self, data_class: str, client_id: str | None) -> tuple[bool, str, list[str]]:
+        """The single gate for every external-model request: (allowed, reason, names to redact)."""
+        if data_class not in DATA_CLASSES:
+            return False, f"unknown data class {data_class!r}", []
+        if data_class in ("public", "firm"):
+            return True, data_class, []
+        if not client_id:
+            return False, "taxpayer data with no identified client: no consent can cover it", []
+        row = self.conn.execute("SELECT name, aliases, consent_7216_at FROM clients WHERE id = ?", (client_id,)).fetchone() \
+            if self.conn else None
+        if not row or not row["consent_7216_at"]:
+            return False, f"no IRC §7216 consent on file for {client_id}", []
+        import json as _json
+
+        return True, "consent on file", [row["name"], *(_json.loads(row["aliases"] or "[]"))]
+
     def _log(self, tier: str, model: str, task: str, ok: bool, usage: dict[str, Any] | None = None,
              client_id: str | None = None, note: str | None = None) -> None:
         if self.conn:
@@ -105,8 +144,12 @@ class Router:
 
     # -- calls -----------------------------------------------------------------------
     def structured(self, role: str, *, system: str, user: str, schema: type[BaseModel], images: list[bytes] | None = None,
-                   escalate: bool = False, client_id: str | None = None, effort: str = "medium") -> tuple[BaseModel, str]:
-        """Run a structured task on the role's champion. Returns (result, "tier:model")."""
+                   escalate: bool = False, client_id: str | None = None, effort: str = "medium",
+                   data_class: str = "taxpayer") -> tuple[BaseModel, str]:
+        """Run a structured task on the role's champion. Returns (result, "tier:model").
+
+        Local models run inside our infrastructure. Any external (frontier) call first passes `external_policy`:
+        taxpayer data needs a §7216 consent for that client, is redacted, and never carries images."""
         rm = self.registry.role(role)
         targets = [(rm.tier, rm.model)]
         if escalate and rm.tier == "local":
@@ -122,16 +165,22 @@ class Router:
                                                        schema=schema.model_json_schema(), images=images)
                     result = schema.model_validate(data)
                 else:
+                    allowed, why, names = self.external_policy(data_class, client_id)
+                    if not allowed:
+                        raise Unavailable(f"external model refused: {why}")
                     if not self.frontier_allowed():
                         raise Unavailable("frontier tier unavailable or daily budget exhausted")
                     self.frontier.model = model
-                    content: Any = user
+                    sys_text, content = system, user
+                    if data_class == "taxpayer":
+                        sys_text, content = redact(system, names), redact(user, names)
+                        images = None  # document images are never sent outside our infrastructure
                     if images:
                         import base64
                         content = [*({"type": "image", "source": {"type": "base64", "media_type": "image/png",
                                                                  "data": base64.b64encode(i).decode()}} for i in images),
-                                   {"type": "text", "text": user}]
-                    result, usage = self.frontier.structured(system=system, content=content, schema=schema, effort=effort)
+                                   {"type": "text", "text": content}]
+                    result, usage = self.frontier.structured(system=sys_text, content=content, schema=schema, effort=effort)
                 self._log(tier, model, role, True, usage, client_id)
                 return result, f"{tier}:{model}"
             except (LocalUnavailable, FrontierError, Unavailable, ValueError) as e:
@@ -139,14 +188,22 @@ class Router:
                 last_err = e
         raise Unavailable(f"role {role}: all tiers failed ({last_err})")
 
-    def stream(self, role: str, *, system: str, messages: list[dict[str, Any]], client_id: str | None = None) -> tuple[Iterator[str], str]:
+    def stream(self, role: str, *, system: str, messages: list[dict[str, Any]], client_id: str | None = None,
+               data_class: str = "taxpayer") -> tuple[Iterator[str], str]:
         rm = self.registry.role(role)
         if rm.tier == "local":
             gen = self.local.stream(rm.model, [{"role": "system", "content": system}, *messages])
         else:
+            allowed, why, names = self.external_policy(data_class, client_id)
+            if not allowed:
+                raise Unavailable(f"external model refused: {why}")
             if not self.frontier_allowed():
                 raise Unavailable("frontier tier unavailable or daily budget exhausted")
             self.frontier.model = rm.model
+            if data_class == "taxpayer":
+                system = redact(system, names)
+                messages = [{**m, "content": redact(m["content"], names) if isinstance(m.get("content"), str) else m["content"]}
+                            for m in messages]
             gen = self.frontier.stream_text(system=system, messages=messages)
         self._log(rm.tier, rm.model, role, True, None, client_id, "stream")
         return gen, f"{rm.tier}:{rm.model}"

@@ -38,6 +38,22 @@ def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=check)
 
 
+# The coding agent runs AI-written code. It gets a minimal environment: no platform secrets, no cloud credentials,
+# no model keys except those explicitly allowed in config/foundry.yaml (engineer.pass_env). A scrubbed environment is
+# not a sandbox: in CI the Engineer runs in a container without repository secrets (backlog F-03).
+_SAFE_ENV = ("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
+             "LANG", "LC_ALL", "PYTHONIOENCODING", "VIRTUAL_ENV")
+
+
+def sandbox_env(allow: list[str] | None = None) -> dict[str, str]:
+    import os
+
+    keep = set(_SAFE_ENV) | set(allow or [])
+    env = {k: v for k, v in os.environ.items() if k in keep}
+    env["VERITAS_AGENTS"] = "0"
+    return env
+
+
 def protected(path: str, patterns: list[str]) -> bool:
     return any(path.startswith(p.rstrip("*")) if p.endswith("/") else fnmatch.fnmatch(path, p) for p in patterns)
 
@@ -80,7 +96,8 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
             used = None
             for cmd in agents:
                 argv = [a.replace("{prompt}", prompt) for a in cmd]
-                r = subprocess.run(argv, cwd=wt, capture_output=True, text=True, timeout=int(cfg.get("timeout_s", 1800)))
+                r = subprocess.run(argv, cwd=wt, capture_output=True, text=True, timeout=int(cfg.get("timeout_s", 1800)),
+                                   env=sandbox_env(cfg.get("pass_env")))
                 used = cmd[0]
                 if r.returncode == 0 and _git(wt, "status", "--porcelain").stdout.strip():
                     break
@@ -93,7 +110,7 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
             touched = [x for x in files if protected(x, f.policy.get("protected_paths", []))]
             lines = sum(1 for l in diff.splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---")))
             tests = subprocess.run(cfg.get("test_command", ["python", "-m", "pytest", "-q"]), cwd=wt, capture_output=True, text=True,
-                                   timeout=1800)
+                                   timeout=1800, env=sandbox_env())
             from ...kb.store import KnowledgeBase
 
             golden = run_golden(KnowledgeBase(wt / "rules"), load_golden(wt / "golden" / "scenarios.yaml"))
@@ -184,7 +201,8 @@ def researcher(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
               "Propose golden test scenarios only for values explicitly present in the rule changes, using the listed calculators.")
     role = "reason" if f.router.frontier_allowed() else "answer"
     try:
-        brief, by = f.router.structured(role, system=system, user=json.dumps(context, default=str)[:150000], schema=Brief, effort="high")
+        brief, by = f.router.structured(role, system=system, user=json.dumps(context, default=str)[:150000], schema=Brief, effort="high",
+                                        data_class="public")
     except Unavailable as e:
         res.log.append(f"research unavailable: {e}")
         return
@@ -259,7 +277,7 @@ def design_agent(f: Foundry, description: str, actor: str = "cpa") -> Proposal:
               "- federal_register: {agencies[], lookback_days} — Federal Register agency slugs\n"
               "- connector: {plugin, client_id, config{}} — run an integration on a schedule\n"
               "Prefer official government URLs.")
-    d, by = f.router.structured("reason" if f.router.frontier_allowed() else "answer", system=system, user=description,
+    d, by = f.router.structured("reason" if f.router.frontier_allowed() else "answer", data_class="firm", system=system, user=description,
                                 schema=DesignedAgent)
     from ...regwatch.documents import is_official
 
@@ -303,7 +321,7 @@ def design_domain_pack(f: Foundry, description: str) -> Proposal:
     class PackOut(BaseModel):
         yaml_text: str
 
-    out, by = f.router.structured("reason" if f.router.frontier_allowed() else "answer", system=system,
+    out, by = f.router.structured("reason" if f.router.frontier_allowed() else "answer", data_class="firm", system=system,
                                   user=f"Design a pack for: {description}", schema=PackOut, effort="high")
     try:
         pack = DomainPack.model_validate(yaml.safe_load(out.yaml_text))
@@ -346,7 +364,7 @@ def design_playbook(f: Foundry, description: str) -> Proposal:
         citations: list[str]
 
     catalog = ", ".join(sorted(f.kb.rules))
-    out, by = f.router.structured("reason" if f.router.frontier_allowed() else "answer",
+    out, by = f.router.structured("reason" if f.router.frontier_allowed() else "answer", data_class="firm",
                                   system="You are a senior CPA writing a firm playbook. Be accurate and conservative; cite primary "
                                          f"authority. rule_refs must come from this list: {catalog}",
                                   user=description, schema=PlaybookOut, effort="high")
@@ -384,7 +402,7 @@ def design_automation(f: Foundry, description: str) -> Proposal:
         yaml_text: str
 
     example = (f.paths.config / "automations.yaml").read_text(encoding="utf-8")[:3000]
-    out, by = f.router.structured("answer", system=f"Write ONE automation as YAML (a single mapping, not a list). Triggers: "
+    out, by = f.router.structured("answer", data_class="firm", system=f"Write ONE automation as YAML (a single mapping, not a list). Triggers: "
                                                     f"{json.dumps(TRIGGERS)}. Actions: {sorted(ACTIONS)}. Examples:\n{example}",
                                   user=description, schema=AutoOut)
     try:

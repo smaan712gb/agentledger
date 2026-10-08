@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .. import audit
 from ..calc.engine import D
 from ..calc.federal import Asset
-from ..db import GENESIS, chain_hash, one, rows
+from ..db import unit_of_work, GENESIS, chain_hash, one, rows
 
 # Tax treatments a posting can carry. The M-1 engine maps each to KB rules.
 TREATMENTS = {
@@ -38,6 +38,10 @@ DEFAULT_TREATMENT = {
 
 class LedgerError(ValueError):
     pass
+
+
+class ClosedPeriod(LedgerError):
+    """A posting dated inside a closed period."""
 
 
 @dataclass(frozen=True)
@@ -107,8 +111,12 @@ def post(conn: sqlite3.Connection, client_id: str, on: date, memo: str, lines: l
     lines = [l if l.tax_treatment else Line(l.account, l.amount, DEFAULT_TREATMENT.get(known[l.account]["name"].lower()))
              for l in lines]
     created_at = created_at or audit.now()
-    with conn:
-        conn.execute("BEGIN IMMEDIATE")
+    with unit_of_work(conn):
+        # Closed periods are enforced inside the posting transaction, not detected afterwards.
+        closed = conn.execute("SELECT closed_through FROM clients WHERE id = ?", (client_id,)).fetchone()
+        if closed and closed["closed_through"] and on <= date.fromisoformat(closed["closed_through"]):
+            raise ClosedPeriod(f"{client_id}: books are closed through {closed['closed_through']}; "
+                               f"an entry dated {on.isoformat()} needs an authorized reopen first")
         last = conn.execute("SELECT hash FROM entries WHERE client_id = ? ORDER BY id DESC LIMIT 1", (client_id,)).fetchone()
         prev = last["hash"] if last else GENESIS
         body = _entry_body(client_id, on.isoformat(), memo, source, actor, created_at, reverses, document_id,
@@ -125,10 +133,37 @@ def post(conn: sqlite3.Connection, client_id: str, on: date, memo: str, lines: l
                 "INSERT INTO postings (entry_id, line, account_code, amount, tax_treatment) VALUES (?,?,?,?,?)",
                 (entry_id, i, l.account, str(D(l.amount)), l.tax_treatment),
             )
-    audit.record(conn, actor, role, "ledger.posted", {"entry_id": entry_id, "memo": memo, "source": source,
-                                                     "amount": str(sum(D(l.amount) for l in lines if D(l.amount) > 0))},
-                 client_id=client_id)
+        audit.record(conn, actor, role, "ledger.posted", {"entry_id": entry_id, "memo": memo, "source": source,
+                                                         "amount": str(sum(D(l.amount) for l in lines if D(l.amount) > 0))},
+                     client_id=client_id)
     return entry_id
+
+
+CLOSE_ROLES = ("cpa",)
+
+
+def close_period(conn: sqlite3.Connection, client_id: str, through: date, *, actor: str, role: str) -> None:
+    if role not in CLOSE_ROLES:
+        raise PermissionError("closing the books needs a CPA")
+    with unit_of_work(conn):
+        prev = get_client(conn, client_id)["closed_through"]
+        if prev and through < date.fromisoformat(prev):
+            raise LedgerError("closing to an earlier date is a reopen; use reopen_period")
+        conn.execute("UPDATE clients SET closed_through = ? WHERE id = ?", (through.isoformat(), client_id))
+        audit.record(conn, actor, role, "period.closed", {"through": through.isoformat(), "previous": prev}, client_id=client_id)
+
+
+def reopen_period(conn: sqlite3.Connection, client_id: str, back_to: date | None, *, actor: str, role: str, reason: str) -> None:
+    """Controlled reopen: a CPA moves the close date back, with a reason, in the audit trail."""
+    if role not in CLOSE_ROLES:
+        raise PermissionError("reopening closed books needs a CPA")
+    if not reason.strip():
+        raise LedgerError("a reopen needs a reason")
+    with unit_of_work(conn):
+        prev = get_client(conn, client_id)["closed_through"]
+        conn.execute("UPDATE clients SET closed_through = ? WHERE id = ?", (back_to.isoformat() if back_to else None, client_id))
+        audit.record(conn, actor, role, "period.reopened", {"from": prev, "to": back_to.isoformat() if back_to else None,
+                                                            "reason": reason}, client_id=client_id)
 
 
 def reverse(conn: sqlite3.Connection, client_id: str, entry_id: int, on: date, reason: str, actor: str, role: str = "cpa") -> int:

@@ -126,6 +126,22 @@ def scope(user: dict[str, Any], client_id: str) -> str:
     return client_id
 
 
+# Screen access and authority are different things. Firm staff share the firm workspace (role "cpa" in the API),
+# but authority-bearing actions (approving returns, accepting risks, closing or reopening periods, reconciling
+# filings) use the person's real role, and only credentialed reviewers hold it.
+REVIEWER_ROLES = ("cpa",)
+
+
+def authority(user: dict[str, Any]) -> str:
+    base = user.get("base_role", user["role"])
+    return "cpa" if base in REVIEWER_ROLES else base
+
+
+def reviewer_only(user: dict[str, Any]) -> None:
+    if authority(user) != "cpa":
+        raise HTTPException(403, "this action needs a credentialed reviewer (CPA), not firm staff or an administrator")
+
+
 def cpa_only(user: dict[str, Any]) -> None:
     if user["role"] != "cpa":
         raise HTTPException(403, "CPA access required")
@@ -409,7 +425,7 @@ def update_facts(client_id: str, facts: dict[str, Any] = Body(...), user=Depends
     c = store.get_client(A(user).conn, client_id)
     merged = {**c["facts"], **facts}
     A(user).conn.execute("UPDATE clients SET facts = ? WHERE id = ?", (json.dumps(merged), client_id))
-    audit.record(A(user).conn, user["id"], user["role"], "client.facts", {"changed": facts}, client_id=client_id)
+    audit.record(A(user).conn, user["id"], authority(user), "client.facts", {"changed": facts}, client_id=client_id)
     return merged
 
 
@@ -431,7 +447,7 @@ def post_template(client_id: str, template_id: str, body: dict[str, Any] = Body(
     scope(user, client_id)
     on = date.fromisoformat(body.pop("date", date.today().isoformat()))
     try:
-        entry = domains.post_template(A(user).conn, A(user).packs, A(user).kb, client_id, template_id, body, on, actor=user["id"], role=user["role"])
+        entry = domains.post_template(A(user).conn, A(user).packs, A(user).kb, client_id, template_id, body, on, actor=user["id"], role=authority(user))
     except Exception as e:
         raise HTTPException(400, str(e))
     return {"entry_id": entry}
@@ -458,7 +474,7 @@ def bank_preview(client_id: str, body: dict[str, Any] = Body(...), user=Depends(
 def bank_post(client_id: str, body: list[dict[str, Any]] = Body(...), user=Depends(me)) -> dict[str, Any]:
     scope(user, client_id)
     ok = [t for t in body if t.get("account") and not t.get("duplicate")]
-    return {"posted": bankfeed.post_confirmed(A(user).conn, client_id, ok, user["id"], user["role"])}
+    return {"posted": bankfeed.post_confirmed(A(user).conn, client_id, ok, user["id"], authority(user))}
 
 
 @app.post("/api/clients/{client_id}/integrity/run")
@@ -475,7 +491,7 @@ def resolve_finding(finding_id: str, body: dict[str, Any] = Body(...), user=Depe
         raise HTTPException(404)
     scope(user, f["client_id"])
     try:
-        resolve(A(user).conn, finding_id, user["id"], user["role"], body["action"], body.get("note", ""))
+        resolve(A(user).conn, finding_id, user["id"], authority(user), body["action"], body.get("note", ""))
     except (ValueError, PermissionError) as e:
         raise HTTPException(400, str(e))
     if body.get("save_as_precedent") and user["role"] == "cpa":
@@ -503,7 +519,7 @@ def ask(body: dict[str, Any] = Body(...), user=Depends(me)) -> StreamingResponse
     def gen():
         try:
             for ev in ask_stream(A(user).conn, A(user).kb, A(user).router, body["question"], client_id=client_id, actor=user["id"],
-                                 role=user["role"], deep=body.get("deep"), brain=A(user).brain):
+                                 role=authority(user), deep=body.get("deep"), brain=A(user).brain):
                 yield f"data: {json.dumps(ev, default=str)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': f'{type(e).__name__}: {e}'})}\n\n"
@@ -659,6 +675,24 @@ def _wf_error(e: Exception) -> HTTPException:
     return HTTPException(409, str(e))
 
 
+@app.post("/api/clients/{client_id}/periods/{action}")
+def period_action(client_id: str, action: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """Close the books through a date, or reopen them (reviewers only; every change is in the audit trail)."""
+    reviewer_only(user)
+    scope(user, client_id)
+    try:
+        if action == "close":
+            store.close_period(A(user).conn, client_id, date.fromisoformat(body["through"]), actor=user["id"], role=authority(user))
+        elif action == "reopen":
+            back = date.fromisoformat(body["back_to"]) if body.get("back_to") else None
+            store.reopen_period(A(user).conn, client_id, back, actor=user["id"], role=authority(user), reason=str(body.get("reason", "")))
+        else:
+            raise HTTPException(404)
+    except (store.LedgerError, PermissionError) as e:
+        raise HTTPException(409, str(e))
+    return {"closed_through": store.get_client(A(user).conn, client_id)["closed_through"]}
+
+
 @app.get("/api/clients/{client_id}/returns")
 def client_returns(client_id: str, user=Depends(me)) -> list[dict[str, Any]]:
     scope(user, client_id)
@@ -735,19 +769,24 @@ def return_action(rid: str, action: str, body: dict[str, Any] = Body(default={})
     cpa_only(user)
     rs, _ = _return_for(user, rid)
     try:
+        if action in ("approve", "request-changes", "request-signature", "reconcile"):
+            reviewer_only(user)
         if action == "submit":
             st = rs.submit_for_review(rid, user["id"], explanation=body.get("explanation", ""))
         elif action == "approve":
-            st = rs.approve(rid, user["id"], user["role"])
+            st = rs.approve(rid, user["id"], authority(user))
         elif action == "request-changes":
-            st = rs.request_changes(rid, user["id"], user["role"], body.get("note", ""))
+            st = rs.request_changes(rid, user["id"], authority(user), body.get("note", ""))
         elif action == "request-signature":
-            st = rs.request_signature(rid, user["id"], user["role"])
+            st = rs.request_signature(rid, user["id"], authority(user))
+        elif action == "reconcile":
+            st = rs.reconcile_transmission(rid, user["id"], authority(user), submitted=bool(body.get("submitted")),
+                                           submission_id=str(body.get("submission_id", "")), evidence=str(body.get("evidence", "")))
         else:
             raise HTTPException(404, "unknown action")
     except TransitionError as e:
         raise _wf_error(e)
-    audit.record(A(user).conn, user["id"], user["role"], f"return.{action}", {"return_id": rid, "status": st.status})
+    audit.record(A(user).conn, user["id"], authority(user), f"return.{action}", {"return_id": rid, "status": st.status})
     return {"status": st.status, "history": st.history}
 
 
@@ -953,7 +992,7 @@ def task_done(task_id: int, body: dict[str, Any] = Body(default={}), user=Depend
     if t["client_id"]:
         scope(user, t["client_id"])
     try:
-        crm.complete_task(A(user).conn, task_id, user["id"], user["role"], body.get("note", ""))
+        crm.complete_task(A(user).conn, task_id, user["id"], authority(user), body.get("note", ""))
     except PermissionError as e:
         raise HTTPException(403, str(e))
     return {"ok": True}
@@ -999,43 +1038,62 @@ def biz_add_party(client_id: str, body: dict[str, Any] = Body(...), user=Depends
     return {"id": business.add_party(A(user).conn, client_id, body["kind"], body["name"], email=body.get("email"),
                                      phone=body.get("phone"), entity_type=body.get("entity_type"), tin_last4=body.get("tin_last4"),
                                      w9_on_file=bool(body.get("w9_on_file")), terms_days=int(body.get("terms_days", 30)),
-                                     actor=user["id"], role=user["role"])}
+                                     actor=user["id"], role=authority(user))}
 
 
 @app.post("/api/clients/{client_id}/deals")
 def biz_add_deal(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     scope(user, client_id)
-    return {"id": business.add_deal(A(user).conn, client_id, body["title"], body.get("value", 0), body.get("party_id"),
-                                    body.get("stage", "lead"), body.get("expected_close"), actor=user["id"], role=user["role"])}
+    return {"id": _business_errors(lambda: business.add_deal(A(user).conn, client_id, body["title"], body.get("value", 0), body.get("party_id"),
+                                    body.get("stage", "lead"), body.get("expected_close"), actor=user["id"], role=authority(user)))}
 
 
 @app.post("/api/deals/{deal_id}/stage")
 def biz_deal_stage(deal_id: int, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     d = one(A(user).conn, "SELECT client_id FROM deals WHERE id = ?", deal_id)
     scope(user, d["client_id"])
-    business.move_deal(A(user).conn, deal_id, body["stage"], user["id"], user["role"])
+    business.move_deal(A(user).conn, deal_id, body["stage"], user["id"], authority(user))
     return {"ok": True}
 
 
+def _business_errors(fn):
+    """Domain refusals become clear HTTP errors; a duplicate retry with a used key is a conflict."""
+    from ..db import CommandConflict
+
+    try:
+        return fn()
+    except CommandConflict as e:
+        raise HTTPException(409, str(e))
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'\""))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(409, str(e))
+
+
 @app.post("/api/clients/{client_id}/invoices")
-def biz_invoice(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+def biz_invoice(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me),
+                idempotency_key: str = Header(default="")) -> dict[str, Any]:
+    """Send an Idempotency-Key header to make retries safe: the same key returns the original invoice."""
     scope(user, client_id)
-    return {"id": business.create_invoice(A(user).conn, client_id, int(body["party_id"]), body["number"], body["amount"],
-                                          body.get("description", ""), sales_tax=body.get("sales_tax", 0), actor=user["id"],
-                                          role=user["role"])}
+    return {"id": _business_errors(lambda: business.create_invoice(
+        A(user).conn, client_id, int(body["party_id"]), body["number"], body["amount"], body.get("description", ""),
+        sales_tax=body.get("sales_tax", 0), actor=user["id"], role=authority(user), command_id=idempotency_key or None))}
 
 
 @app.post("/api/clients/{client_id}/invoices/{invoice_id}/pay")
-def biz_pay(client_id: str, invoice_id: int, user=Depends(me)) -> dict[str, Any]:
+def biz_pay(client_id: str, invoice_id: int, user=Depends(me), idempotency_key: str = Header(default="")) -> dict[str, Any]:
     scope(user, client_id)
-    return {"entry_id": business.record_payment(A(user).conn, client_id, invoice_id, actor=user["id"], role=user["role"])}
+    return {"entry_id": _business_errors(lambda: business.record_payment(
+        A(user).conn, client_id, invoice_id, actor=user["id"], role=authority(user), command_id=idempotency_key or None))}
 
 
 @app.post("/api/clients/{client_id}/vendors/{party_id}/pay")
-def biz_pay_vendor(client_id: str, party_id: int, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+def biz_pay_vendor(client_id: str, party_id: int, body: dict[str, Any] = Body(...), user=Depends(me),
+                   idempotency_key: str = Header(default="")) -> dict[str, Any]:
     scope(user, client_id)
-    return {"entry_id": business.pay_vendor(A(user).conn, client_id, party_id, body["amount"], body["account"], body.get("memo", ""),
-                                            tax_treatment=body.get("tax_treatment"), actor=user["id"], role=user["role"])}
+    return {"entry_id": _business_errors(lambda: business.pay_vendor(
+        A(user).conn, client_id, party_id, body["amount"], body["account"], body.get("memo", ""),
+        tax_treatment=body.get("tax_treatment"), actor=user["id"], role=authority(user), command_id=idempotency_key or None))}
 
 
 # ------------------------------------------------------------------------------ audit

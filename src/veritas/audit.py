@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from .db import GENESIS, chain_hash, rows
+from .db import GENESIS, chain_hash, rows, unit_of_work
 
 
 _CLOCK: datetime | None = None
@@ -36,8 +36,7 @@ def clock(at: datetime) -> Iterator[None]:
 
 def record(conn: sqlite3.Connection, actor: str, role: str, action: str, payload: dict[str, Any],
            client_id: str | None = None) -> int:
-    with conn:
-        conn.execute("BEGIN IMMEDIATE")
+    with unit_of_work(conn):  # joins the caller's transaction, so the record commits with the change it describes
         last = conn.execute("SELECT hash FROM audit ORDER BY seq DESC LIMIT 1").fetchone()
         prev = last["hash"] if last else GENESIS
         at = now()

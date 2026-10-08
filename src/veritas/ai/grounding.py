@@ -14,6 +14,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
 NUM = re.compile(r"(?<![\w.])\$?\(?-?\d[\d,]*(?:\.\d+)?\)?%?")
+# A typed token: the number plus how the text qualifies it, so $5,000 can never vouch for $500,000.
+TOKEN = re.compile(r"(?<![\w.])(\$)?\(?(-?\d[\d,]*(?:\.\d+)?)\)?\s*(%|percent\b|per cent\b|cents?\b)?", re.I)
 WS = re.compile(r"\s+")
 
 
@@ -44,36 +46,78 @@ def numbers_in(text: str) -> set[Decimal]:
     return out
 
 
-def number_variants(value: float | int | Decimal) -> set[Decimal]:
-    """Representations a source might use: as-is, as cents (0.725 -> 72.5), as percent (0.2 -> 20)."""
-    d = Decimal(str(value))
-    return {d.normalize(), (d * 100).normalize(), (d / 100).normalize()}
+def typed_numbers(text: str) -> list[tuple[Decimal, str]]:
+    """(value, kind) for every number; kind is money ($), percent (% or 'percent'), cents, or plain."""
+    out = []
+    for dollar, raw, unit in TOKEN.findall(text):
+        try:
+            d = Decimal(raw.replace(",", "")).normalize()
+        except InvalidOperation:
+            continue
+        u = (unit or "").lower()
+        kind = "percent" if u.startswith(("%", "percent", "per cent")) else "cents" if u.startswith("cent") else \
+            "money" if dollar else "plain"
+        out.append((d, kind))
+    return out
 
 
-def number_supported(value: float | int | Decimal, evidence: Iterable[str]) -> bool:
-    found: set[Decimal] = set()
+def same_quantity(a: tuple[Decimal, str], b: tuple[Decimal, str]) -> bool:
+    """Equal values with compatible units. Percent and fraction convert (20% = 0.20); cents convert to dollars
+    (72.5 cents = $0.725). Nothing else is ever scaled: a money amount must match exactly."""
+    (va, ka), (vb, kb) = a, b
+    if ka == kb:
+        return va == vb
+    pair = {ka, kb}
+    if pair == {"money", "plain"}:
+        return va == vb
+    if pair == {"percent", "plain"}:
+        pct, other = (va, vb) if ka == "percent" else (vb, va)
+        return (pct / 100).normalize() == other or pct == other
+    if pair in ({"cents", "money"}, {"cents", "plain"}):
+        cents, other = (va, vb) if ka == "cents" else (vb, va)
+        return (cents / 100).normalize() == other
+    return False
+
+
+def number_supported(value: float | int | Decimal, evidence: Iterable[str], unit: str | None = None) -> bool:
+    """Is a rule value stated in the evidence? A rate (value <= 1) may be written as a percent, and a dollar
+    amount as cents; otherwise the number must appear as is."""
+    v = Decimal(str(value)).normalize()
+    kinds = ["plain", "money"]
+    if unit in ("fraction", "rate", "percent") or (unit is None and abs(v) <= 1):
+        kinds.append("fraction")
     for e in evidence:
-        found |= numbers_in(e)
-    return bool(number_variants(value) & found)
+        for tok in typed_numbers(e):
+            if tok[0] == v and tok[1] in ("plain", "money"):
+                return True
+            if "fraction" in kinds and tok[1] == "percent" and (tok[0] / 100).normalize() == v:
+                return True
+            if tok[1] == "cents" and (tok[0] / 100).normalize() == v:
+                return True
+    return False
+
+
+def _supported_by(tok: tuple[Decimal, str], have: list[tuple[Decimal, str]]) -> bool:
+    return any(same_quantity(tok, h) for h in have)
 
 
 TRIVIAL = {Decimal(n) for n in range(0, 11)}
 
 
+def _trivial(d: Decimal, ignore_years: bool = True) -> bool:
+    return d in TRIVIAL or (ignore_years and d == d.to_integral() and 1900 <= d <= 2100)
+
+
 def unsupported_numbers(answer: str, evidence_text: str, ignore_years: bool = True) -> list[str]:
-    """Numbers in an answer that do not appear anywhere in the evidence it was given."""
-    have = numbers_in(evidence_text)
-    have_variants = set()
-    for h in have:
-        have_variants |= number_variants(h)
+    """Numbers in an answer that the evidence does not state, compared as typed quantities."""
+    have = typed_numbers(evidence_text)
     bad = []
-    for m in NUM.findall(answer):
-        for d in numbers_in(m):
-            if d in TRIVIAL or (ignore_years and d == d.to_integral() and 1900 <= d <= 2100):
-                continue
-            if d not in have_variants:
-                bad.append(m)
-            break
+    for m in TOKEN.finditer(answer):
+        tok = typed_numbers(m.group(0))
+        if not tok or _trivial(tok[0][0], ignore_years):
+            continue
+        if not _supported_by(tok[0], have):
+            bad.append(m.group(0).strip())
     return sorted(set(bad))
 
 
@@ -86,12 +130,10 @@ def citations(answer: str) -> list[tuple[str, str]]:
 
 def _significant(text: str) -> list[str]:
     out = []
-    for m in NUM.findall(text):
-        for d in numbers_in(m):
-            if d in TRIVIAL or (d == d.to_integral() and 1900 <= d <= 2100):
-                continue
-            out.append(m)
-            break
+    for m in TOKEN.finditer(text):
+        tok = typed_numbers(m.group(0))
+        if tok and not _trivial(tok[0][0]):
+            out.append(m.group(0).strip())
     return out
 
 
@@ -109,7 +151,7 @@ def check_answer(answer: str, evidence_text: str, known_ids: dict[str, set[str]]
     uncited: list[str] = []
     misattributed: list[str] = []
     if lines is not None:
-        attributed: set[Decimal] = set()  # numbers already tied to a citation that contains them
+        attributed_tokens: list[tuple[Decimal, str]] = []  # quantities already tied to a citation that states them
         for para in [p for p in re.split(r"\n+", answer) if p.strip()]:
             para_cites = [f"{k}:{v}" for k, v in citations(para)]
             for sent in [x for x in re.split(r"(?<=[.!?])\s+(?=[A-Z*\[(\-])", para) if x.strip()]:
@@ -117,14 +159,14 @@ def check_answer(answer: str, evidence_text: str, known_ids: dict[str, set[str]]
                 if not nums:
                     continue
                 here = [f"{k}:{v}" for k, v in citations(sent)] or para_cites
-                cited: set[Decimal] = set()
-                for h in numbers_in(" ".join(lines.get(c, "") for c in here)):
-                    cited |= number_variants(h)
+                cited = typed_numbers(" ".join(lines.get(c, "") for c in here))
                 for n in nums:
-                    vals = numbers_in(n)
-                    if vals & cited:
-                        attributed |= vals
-                    elif vals & attributed:
+                    tok = typed_numbers(n)
+                    if not tok:
+                        continue
+                    if _supported_by(tok[0], cited):
+                        attributed_tokens.append(tok[0])
+                    elif _supported_by(tok[0], attributed_tokens):
                         continue  # restating a number that was properly cited earlier
                     elif not here:
                         uncited.append(n)

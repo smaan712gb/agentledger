@@ -126,6 +126,10 @@ python -m pytest -q
 
 ## Honest status
 
+An external audit on 2026-10-08 found nine gaps between these docs and the code; each is now fixed and covered by a
+regression test (see `docs/inception/audit-2026-10-08.md`). Capabilities earn their status through demonstrated behavior.
+
+
 **Working, tested, and exercised live against real sources and local models:**
 
 - RegWatch on the live Federal Register and IRS newsroom

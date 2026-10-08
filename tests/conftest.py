@@ -17,8 +17,10 @@ class FakeRouter:
         self.frontier = type("F", (), {"available": lambda self: False, "model": "none"})()
         self.local = type("L", (), {"available": lambda self: False, "models": lambda self: []})()
 
-    def structured(self, role, *, system, user, schema, images=None, escalate=False, client_id=None, effort="medium"):
+    def structured(self, role, *, system, user, schema, images=None, escalate=False, client_id=None, effort="medium",
+                   data_class="taxpayer"):
         self.calls.append((role, escalate))
+        self.data_classes = getattr(self, "data_classes", []) + [data_class]
         key = (role, escalate) if (role, escalate) in self.responses else role
         if key not in self.responses:
             from veritas.ai.router import Unavailable
@@ -30,7 +32,7 @@ class FakeRouter:
     def frontier_allowed(self):
         return False
 
-    def stream(self, role, *, system, messages, client_id=None):
+    def stream(self, role, *, system, messages, client_id=None, data_class="taxpayer"):
         r = self.responses.get(("stream", role)) or self.responses.get("stream")
         if r is None:
             from veritas.ai.router import Unavailable

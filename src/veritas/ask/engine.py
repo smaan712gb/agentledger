@@ -161,7 +161,8 @@ def ask_stream(conn: sqlite3.Connection, kb: KnowledgeBase, router: Router, ques
         evidence = pack.text if model_role != "reason" else redact_for_frontier(pack.text, client)
         messages = [{"role": "user", "content": f"<evidence>\n{evidence}\n</evidence>\n\nQuestion from {asked_as}: {question}"}]
         try:
-            gen, model = router.stream(model_role, system=SYSTEM, messages=messages, client_id=client_id)
+            gen, model = router.stream(model_role, system=SYSTEM, messages=messages, client_id=client_id,
+                                       data_class="taxpayer" if client_id else "public")
             yield {"type": "meta", "model": model, "tier": model.split(":")[0], "evidence_items": sum(len(v) for v in pack.ids.values())}
             parts = []
             for tok in gen:
