@@ -7,7 +7,7 @@ or template postings (-> domain packs), so every byte flows through the same
 integrity checks, client segregation and audit trail as everything else.
 
 Discovery: built-ins below, any `plugins/<id>/plugin.yaml` + module in the repo, and
-Python entry points in the `veritas.plugins` group (pip-installable plugins).
+Python entry points in the `agentledger.plugins` group (pip-installable plugins).
 """
 
 from __future__ import annotations
@@ -154,40 +154,40 @@ class ReadOnlyLedger:
 BUILTINS = [
     Manifest(id="bank_csv", name="Bank / card CSV", kind="connector", builtin=True,
              description="Any bank or card CSV export (Chase, BofA, Amex, Wells…): learns categories from your history.",
-             entry="veritas.plugins.builtin:bank_csv", permissions=["transactions:suggest"], config={"text": "CSV content"}),
+             entry="agentledger.plugins.builtin:bank_csv", permissions=["transactions:suggest"], config={"text": "CSV content"}),
     Manifest(id="ofx", name="OFX / QFX bank file", kind="connector", builtin=True,
              description="Open Financial Exchange downloads (Quicken/QuickBooks Web Connect format).",
-             entry="veritas.plugins.builtin:ofx", permissions=["transactions:suggest"], config={"text": "OFX content"}),
+             entry="agentledger.plugins.builtin:ofx", permissions=["transactions:suggest"], config={"text": "OFX content"}),
     Manifest(id="folder_watch", name="Synced folder", kind="connector", builtin=True,
              description="Watch a OneDrive / Dropbox / Google Drive desktop folder; every file is ingested and filed.",
-             entry="veritas.plugins.builtin:folder_watch", permissions=["documents:ingest"], config={"path": "Folder to watch"}),
+             entry="agentledger.plugins.builtin:folder_watch", permissions=["documents:ingest"], config={"path": "Folder to watch"}),
     Manifest(id="stripe", name="Stripe payouts", kind="connector", builtin=True,
              description="Pulls Stripe balance transactions (charges, fees, refunds, payouts) for categorization.",
-             entry="veritas.plugins.builtin:stripe", permissions=["network", "transactions:suggest"], network_domains=["api.stripe.com"],
+             entry="agentledger.plugins.builtin:stripe", permissions=["network", "transactions:suggest"], network_domains=["api.stripe.com"],
              config={"api_key_env": "Env var holding a restricted read-only key (default STRIPE_API_KEY)"}),
     Manifest(id="mcp_bridge", name="Any MCP server", kind="connector", builtin=True,
              description="Connect to any external MCP server (QuickBooks, Gmail, Google Drive, banks, POS...) and pull "
                          "transactions or documents through the normal pipelines.",
-             entry="veritas.plugins.builtin:mcp_bridge", permissions=["network", "transactions:suggest", "documents:ingest"],
+             entry="agentledger.plugins.builtin:mcp_bridge", permissions=["network", "transactions:suggest", "documents:ingest"],
              config={"command": "MCP server command", "args": "arguments", "tool": "tool to call", "arguments": "tool arguments",
                      "produces": "transactions | documents"}),
     Manifest(id="webhook_inbound", name="Universal webhook", kind="connector", builtin=True,
              description="HMAC-signed inbound webhook for Zapier, Make, n8n or any SaaS: send transactions or documents.",
-             entry="veritas.plugins.builtin:webhook_inbound", permissions=["transactions:suggest", "documents:ingest"],
-             config={"secret_env": "Env var with the shared HMAC secret (default VERITAS_WEBHOOK_SECRET)"}),
+             entry="agentledger.plugins.builtin:webhook_inbound", permissions=["transactions:suggest", "documents:ingest"],
+             config={"secret_env": "Env var with the shared HMAC secret (default AGENTLEDGER_WEBHOOK_SECRET)"}),
     Manifest(id="trial_balance_import", name="Migrate from QuickBooks / Xero (trial balance)", kind="importer", builtin=True,
              description="Import a trial balance CSV export as opening balances; maps accounts by name and type.",
-             entry="veritas.plugins.builtin:trial_balance_import", permissions=["ledger:read", "ledger:opening_balances"],
+             entry="agentledger.plugins.builtin:trial_balance_import", permissions=["ledger:read", "ledger:opening_balances"],
              config={"text": "CSV with Account, Debit, Credit", "as_of": "Opening balance date"}),
     Manifest(id="quickbooks_iif_export", name="QuickBooks Desktop IIF export", kind="exporter", builtin=True,
              description="Journal entries in IIF for firms that still need to hand data to QuickBooks Desktop.",
-             entry="veritas.plugins.builtin:iif_export", permissions=["ledger:read", "export"]),
+             entry="agentledger.plugins.builtin:iif_export", permissions=["ledger:read", "export"]),
     Manifest(id="tax_trial_balance_export", name="Tax software trial balance (CSV)", kind="exporter", builtin=True,
              description="Adjusted trial balance with M-1 adjustments, for import into UltraTax, Lacerte, Drake or ProConnect.",
-             entry="veritas.plugins.builtin:tax_tb_export", permissions=["ledger:read", "rules:read", "export"]),
+             entry="agentledger.plugins.builtin:tax_tb_export", permissions=["ledger:read", "rules:read", "export"]),
     Manifest(id="beancount_export", name="Beancount export", kind="exporter", builtin=True,
              description="Full ledger in Beancount plain-text format: your data is never locked in.",
-             entry="veritas.plugins.builtin:beancount_export", permissions=["ledger:read", "export"]),
+             entry="agentledger.plugins.builtin:beancount_export", permissions=["ledger:read", "export"]),
 ]
 
 
@@ -199,7 +199,7 @@ def discover(root: Path) -> dict[str, Manifest]:
     try:
         from importlib.metadata import entry_points
 
-        for ep in entry_points(group="veritas.plugins"):
+        for ep in entry_points(group="agentledger.plugins"):
             m = Manifest.model_validate(ep.load()())
             found.setdefault(m.id, m)
     except Exception:
@@ -211,7 +211,7 @@ def _resolve(m: Manifest, root: Path) -> Callable[[PluginContext], Any]:
     mod_name, fn = m.entry.split(":")
     local = root / "plugins" / m.id / f"{mod_name.split('.')[-1]}.py"
     if not m.builtin and local.exists():
-        spec = importlib.util.spec_from_file_location(f"veritas_plugin_{m.id}", local)
+        spec = importlib.util.spec_from_file_location(f"agentledger_plugin_{m.id}", local)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)  # type: ignore[union-attr]
     else:

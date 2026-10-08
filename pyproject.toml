@@ -1,5 +1,5 @@
 [project]
-name = "veritas"
+name = "agentledger"
 version = "0.1.0"
 description = "Open-source accounting, ledger and tax platform where AI agents do the work and deterministic code proves every number"
 requires-python = ">=3.11"
@@ -26,14 +26,14 @@ dev = ["pytest>=8"]
 oracle = ["policyengine-us>=1.400"]
 
 [project.scripts]
-veritas = "veritas.cli:app"
+agentledger = "agentledger.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/veritas"]
+packages = ["src/agentledger"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

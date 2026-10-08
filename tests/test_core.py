@@ -6,14 +6,14 @@ from decimal import Decimal
 
 import pytest
 
-from veritas.calc.engine import Ctx
-from veritas.calc.federal import Asset, bonus_rate, run_calc, section_179_allowed, tax_depreciation
-from veritas.expr import ExprError, evaluate
-from veritas.foundry.verify import load_golden, run_golden
-from veritas.kb.model import Rule
-from veritas.kb.store import KnowledgeBase, MissingValue
-from veritas.ledger import m1, store
-from veritas.ledger.store import LedgerError, Line
+from agentledger.calc.engine import Ctx
+from agentledger.calc.federal import Asset, bonus_rate, run_calc, section_179_allowed, tax_depreciation
+from agentledger.expr import ExprError, evaluate
+from agentledger.foundry.verify import load_golden, run_golden
+from agentledger.kb.model import Rule
+from agentledger.kb.store import KnowledgeBase, MissingValue
+from agentledger.ledger import m1, store
+from agentledger.ledger.store import LedgerError, Line
 
 
 def test_every_golden_scenario_passes(home):
@@ -94,7 +94,7 @@ def test_m1_flows_from_ledger_and_rules(biz):
 
 
 def test_integrity_findings_resolution_rules(biz):
-    from veritas.integrity.checks import list_findings, resolve, run_all
+    from agentledger.integrity.checks import list_findings, resolve, run_all
 
     conn = biz.conn
     store.post(conn, "acme", date(2026, 4, 2), "Golf outing with customers", [Line("6200", Decimal(900), "meals"), Line("1000", Decimal(-900))],
@@ -114,7 +114,7 @@ def test_integrity_findings_resolution_rules(biz):
 
 
 def test_every_domain_pack_verifies(home):
-    from veritas.domains.packs import Packs, verify_pack
+    from agentledger.domains.packs import Packs, verify_pack
 
     packs, kb = Packs(home / "domains"), KnowledgeBase(home / "rules")
     assert len(packs.packs) >= 7
@@ -124,9 +124,9 @@ def test_every_domain_pack_verifies(home):
 
 
 def test_domain_rules_fire(biz):
-    from veritas.domains.packs import Packs
-    from veritas.domains.service import domain_findings, onboard, post_template
-    from veritas.ledger import store
+    from agentledger.domains.packs import Packs
+    from agentledger.domains.service import domain_findings, onboard, post_template
+    from agentledger.ledger import store
 
     packs = Packs(biz.paths.domains)
     store.add_client(biz.conn, id="gas", name="Gas Co", kind="business", domain="gas_station")

@@ -23,7 +23,7 @@ Spec references: §4 (identity), §5 C01, §12 (approval binding), §14 (RBAC + 
   (spec §15).
 - **Approvals** bind tenant, entity, actor, action type, destination, amount, input version, payload hash,
   expiry and policy version, and are re-checked just before execution.
-- **The current Argon2id + TOTP implementation** (`src/veritas/security/platform.py`) remains as the
+- **The current Argon2id + TOTP implementation** (`src/agentledger/security/platform.py`) remains as the
   **self-hosted profile** and as the test double for the OIDC contract. Sessions, the auth event log and
   invitations keep their semantics. Sign-in itself moves to the IdP.
 - **Step-up authentication** (a fresh MFA within N minutes) is required for releasing returns, approving

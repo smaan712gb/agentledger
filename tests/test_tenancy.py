@@ -7,18 +7,18 @@ import time
 
 import pytest
 
-from veritas.security import totp
+from agentledger.security import totp
 
 PW = "correct horse battery staple"
 
 
 @pytest.fixture
 def api(home, monkeypatch):
-    monkeypatch.setenv("VERITAS_HOME", str(home))
-    monkeypatch.setenv("VERITAS_AGENTS", "0")
-    monkeypatch.delenv("VERITAS_DEV_AUTH", raising=False)
-    monkeypatch.setenv("VERITAS_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
-    import veritas.api.app as api_mod
+    monkeypatch.setenv("AGENTLEDGER_HOME", str(home))
+    monkeypatch.setenv("AGENTLEDGER_AGENTS", "0")
+    monkeypatch.delenv("AGENTLEDGER_DEV_AUTH", raising=False)
+    monkeypatch.setenv("AGENTLEDGER_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
+    import agentledger.api.app as api_mod
 
     importlib.reload(api_mod)
     from fastapi.testclient import TestClient
@@ -40,8 +40,8 @@ def accept(c, token, name):
 
 def test_two_firms_are_isolated(api):
     mod, c = api
-    admin_id = mod.PLATFORM.bootstrap_admin("ops@veritas.example", "Ops", PW)
-    step = c.post("/api/auth/login", json={"email": "ops@veritas.example", "password": PW}).json()
+    admin_id = mod.PLATFORM.bootstrap_admin("ops@agentledger.example", "Ops", PW)
+    step = c.post("/api/auth/login", json={"email": "ops@agentledger.example", "password": PW}).json()
     assert step["next"] == "enroll"
     ops = enrol(c, step["challenge"], step["secret"])
 
@@ -68,8 +68,8 @@ def test_two_firms_are_isolated(api):
 
     # Each firm has its own database file.
     home = mod.ROOT
-    assert (home / "tenants" / "rivera-cpa" / "state" / "veritas.db").exists()
-    assert (home / "tenants" / "lake-tax" / "state" / "veritas.db").exists()
+    assert (home / "tenants" / "rivera-cpa" / "state" / "agentledger.db").exists()
+    assert (home / "tenants" / "lake-tax" / "state" / "agentledger.db").exists()
 
     # A firm admin invites a client user, who sees only their business.
     tok = c.post("/api/auth/invite", json={"email": "sam@ortiz.example", "role": "client", "client_id": "ortiz-auto"},
@@ -98,8 +98,8 @@ def test_two_firms_are_isolated(api):
 
 def test_firm_deletion_locks_everyone_out(api):
     mod, c = api
-    mod.PLATFORM.bootstrap_admin("ops@veritas.example", "Ops", PW)
-    step = c.post("/api/auth/login", json={"email": "ops@veritas.example", "password": PW}).json()
+    mod.PLATFORM.bootstrap_admin("ops@agentledger.example", "Ops", PW)
+    step = c.post("/api/auth/login", json={"email": "ops@agentledger.example", "password": PW}).json()
     ops = enrol(c, step["challenge"], step["secret"])
     r = c.post("/api/platform/firms", json={"id": "gone-cpa", "name": "Gone", "admin_email": "a@gone.example"}, headers=ops)
     admin = accept(c, r.json()["admin_invite_token"], "A")
@@ -110,8 +110,8 @@ def test_firm_deletion_locks_everyone_out(api):
 
 def test_documents_are_encrypted_at_rest(api):
     mod, c = api
-    mod.PLATFORM.bootstrap_admin("ops@veritas.example", "Ops", PW)
-    step = c.post("/api/auth/login", json={"email": "ops@veritas.example", "password": PW}).json()
+    mod.PLATFORM.bootstrap_admin("ops@agentledger.example", "Ops", PW)
+    step = c.post("/api/auth/login", json={"email": "ops@agentledger.example", "password": PW}).json()
     ops = enrol(c, step["challenge"], step["secret"])
     heads = {}
     for fid, email in (("rivera-cpa", "maya@rivera.example"), ("lake-tax", "lee@lake.example")):

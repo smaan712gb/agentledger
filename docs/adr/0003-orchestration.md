@@ -17,7 +17,7 @@ confuse:
 
 ## Decision
 
-1. **Domain state machines are aggregates in PostgreSQL.** `src/veritas/workflow/engine.py` already
+1. **Domain state machines are aggregates in PostgreSQL.** `src/agentledger/workflow/engine.py` already
    implements this as append-only, hash-chained events with deterministic guards and replay. It is ported
    to PostgreSQL tables (ADR-0002). Transitions happen only through domain commands that re-check
    permissions, versions and the payload hash at commit.

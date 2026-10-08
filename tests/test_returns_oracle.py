@@ -8,10 +8,10 @@ pytest.importorskip("policyengine_us")
 
 from test_returns_1040 import ctx, kid, spouse, you  # noqa: E402
 
-from veritas.returns.individual import compute_individual  # noqa: E402
-from veritas.returns.model import (Business, CapitalTransaction, CarLoan, Dividends, IndividualReturn, Interest,  # noqa: E402
+from agentledger.returns.individual import compute_individual  # noqa: E402
+from agentledger.returns.model import (Business, CapitalTransaction, CarLoan, Dividends, IndividualReturn, Interest,  # noqa: E402
                                    Person, Retirement, SocialSecurity, W2)
-from veritas.returns.oracle import crosscheck  # noqa: E402
+from agentledger.returns.oracle import crosscheck  # noqa: E402
 
 CASES = {
     "single_wages": dict(filing_status="single", taxpayer=you(), w2s=[W2(wages=60000, federal_withholding=6000)]),
@@ -46,4 +46,4 @@ def test_agrees_with_policyengine(name):
     ret = IndividualReturn(tax_year=2026, **CASES[name])
     cc = crosscheck(ret, compute_individual(ctx(), ret))
     assert len(cc.compared) >= 10
-    assert cc.agrees, [(d.item, str(d.veritas), str(d.policyengine)) for d in cc.discrepancies]
+    assert cc.agrees, [(d.item, str(d.agentledger), str(d.policyengine)) for d in cc.discrepancies]

@@ -1,4 +1,4 @@
-"""Turn `veritas release classify` output (decision.json) into a pull-request comment."""
+"""Turn `agentledger release classify` output (decision.json) into a pull-request comment."""
 import json
 import sys
 

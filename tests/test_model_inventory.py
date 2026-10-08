@@ -1,7 +1,7 @@
 """Model inventory merge, new-model detection and safe retirement (no network)."""
 
-from veritas.ai import inventory as inv
-from veritas.ai.inventory import Model, Route
+from agentledger.ai import inventory as inv
+from agentledger.ai.inventory import Model, Route
 
 
 def src(rows):

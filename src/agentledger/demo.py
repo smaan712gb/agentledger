@@ -22,7 +22,7 @@ def seed(root: Path) -> AppContext:
     app = AppContext.open(root)
     conn, kb, packs = app.conn, app.kb, app.packs
     if store.list_clients(conn):
-        raise SystemExit("demo data already present (delete state/veritas.db to reseed)")
+        raise SystemExit("demo data already present (delete state/agentledger.db to reseed)")
     consent = "2026-01-15T10:00:00+00:00"
     y = date.today().year
 

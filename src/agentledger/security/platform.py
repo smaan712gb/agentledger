@@ -101,7 +101,7 @@ def password_problems(password: str, email: str = "") -> list[str]:
     local = email.split("@")[0].lower() if email else ""
     if len(local) >= 4 and local in password.lower():
         out.append("do not include your email name")
-    if password.lower() in {"password1234", "123456789012", "qwertyuiopas", "letmein12345", "veritas12345"}:
+    if password.lower() in {"password1234", "123456789012", "qwertyuiopas", "letmein12345", "veritas12345", "agentledger1234"}:
         out.append("choose a less common password")
     if len(set(password)) < 5:
         out.append("use more varied characters")

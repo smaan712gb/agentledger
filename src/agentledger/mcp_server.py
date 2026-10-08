@@ -2,10 +2,10 @@
 can use the platform's tools — with the same segregation and audit as the web app.
 
 Scope is fixed at launch, not chosen by the calling AI:
-    VERITAS_MCP_ROLE=cpa                      -> firm-wide (CPA) access
-    VERITAS_MCP_ROLE=client VERITAS_MCP_CLIENT=<client-id>  -> that client's data only
+    AGENTLEDGER_MCP_ROLE=cpa                      -> firm-wide (CPA) access
+    AGENTLEDGER_MCP_ROLE=client AGENTLEDGER_MCP_CLIENT=<client-id>  -> that client's data only
 
-Run:  veritas mcp            (stdio transport)
+Run:  agentledger mcp            (stdio transport)
 """
 
 from __future__ import annotations
@@ -21,11 +21,11 @@ from mcp.server.mcpserver import MCPServer
 
 from .app_context import AppContext
 
-ROLE = os.environ.get("VERITAS_MCP_ROLE", "cpa")
-SCOPE = os.environ.get("VERITAS_MCP_CLIENT")
-ACTOR = os.environ.get("VERITAS_MCP_ACTOR", f"mcp:{ROLE}")
+ROLE = os.environ.get("AGENTLEDGER_MCP_ROLE", "cpa")
+SCOPE = os.environ.get("AGENTLEDGER_MCP_CLIENT")
+ACTOR = os.environ.get("AGENTLEDGER_MCP_ACTOR", f"mcp:{ROLE}")
 
-server = MCPServer(name="veritas", title="AgentLedger accounting & tax",
+server = MCPServer(name="agentledger", title="AgentLedger accounting & tax",
                    instructions="Grounded accounting, tax and compliance tools. Numbers come from deterministic engines; "
                                 "every answer cites its evidence. Data access is scoped by the server's configured role.")
 _app: AppContext | None = None
@@ -34,7 +34,7 @@ _app: AppContext | None = None
 def app() -> AppContext:
     global _app
     if _app is None:
-        _app = AppContext.open(Path(os.environ.get("VERITAS_HOME", Path.cwd())))
+        _app = AppContext.open(Path(os.environ.get("AGENTLEDGER_HOME", Path.cwd())))
     return _app
 
 

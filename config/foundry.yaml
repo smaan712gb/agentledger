@@ -30,27 +30,27 @@ official_domains:
 
 # Code the AI Engineer may never change without human approval: the guardrails themselves.
 protected_paths:
-  - src/veritas/audit.py
-  - src/veritas/db.py
-  - src/veritas/foundry/core.py
-  - src/veritas/foundry/verify.py
-  - src/veritas/ai/grounding.py
-  - src/veritas/integrity/
+  - src/agentledger/audit.py
+  - src/agentledger/db.py
+  - src/agentledger/foundry/core.py
+  - src/agentledger/foundry/verify.py
+  - src/agentledger/ai/grounding.py
+  - src/agentledger/integrity/
   - config/foundry.yaml
   - config/jurisdictions.yaml   # its domains are trusted official sources
   - config/release_policy.yaml
   - coverage/coverage.yaml      # coverage status only rises with human-reviewed evidence
   - .github/
-  - src/veritas/security/       # identity, sessions, keys, vault
-  - src/veritas/api/            # authorization and tenant routing
-  - src/veritas/ledger/         # posting, periods, reversals
-  - src/veritas/workflow/       # durable state machines and exactly-once activities
-  - src/veritas/returns/        # return packages, approvals, signatures, transmission
-  - src/veritas/crm/            # business records that post to the ledger
-  - src/veritas/ai/router.py    # the external-model data gate
-  - src/veritas/coverage.py
-  - src/veritas/release.py
-  - src/veritas/foundry/agents/builders.py   # the Engineer itself
+  - src/agentledger/security/       # identity, sessions, keys, vault
+  - src/agentledger/api/            # authorization and tenant routing
+  - src/agentledger/ledger/         # posting, periods, reversals
+  - src/agentledger/workflow/       # durable state machines and exactly-once activities
+  - src/agentledger/returns/        # return packages, approvals, signatures, transmission
+  - src/agentledger/crm/            # business records that post to the ledger
+  - src/agentledger/ai/router.py    # the external-model data gate
+  - src/agentledger/coverage.py
+  - src/agentledger/release.py
+  - src/agentledger/foundry/agents/builders.py   # the Engineer itself
   - config/models.yaml          # provider choice decides who sees data
 
 staleness:

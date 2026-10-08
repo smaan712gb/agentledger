@@ -33,8 +33,8 @@ def maildrop_agent(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
 def imap_agent(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
     """Polls a mailbox (credentials from env, never from config files)."""
     p = spec.params
-    host, user, pw = os.environ.get(p.get("host_env", "VERITAS_IMAP_HOST")), os.environ.get(
-        p.get("user_env", "VERITAS_IMAP_USER")), os.environ.get(p.get("password_env", "VERITAS_IMAP_PASSWORD"))
+    host, user, pw = os.environ.get(p.get("host_env", "AGENTLEDGER_IMAP_HOST")), os.environ.get(
+        p.get("user_env", "AGENTLEDGER_IMAP_USER")), os.environ.get(p.get("password_env", "AGENTLEDGER_IMAP_PASSWORD"))
     if not (host and user and pw):
         res.log.append("IMAP credentials not set; skipping")
         return

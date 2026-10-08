@@ -39,7 +39,7 @@ def ofx(ctx: PluginContext) -> int:
 
 def folder_watch(ctx: PluginContext) -> int:
     folder = Path(ctx.config["path"]).expanduser()
-    done = folder / ".veritas-processed"
+    done = folder / ".agentledger-processed"
     done.mkdir(exist_ok=True)
     n = 0
     for p in sorted(x for x in folder.iterdir() if x.is_file() and not x.name.startswith(".")):

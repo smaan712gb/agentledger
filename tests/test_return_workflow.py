@@ -5,9 +5,9 @@ import sqlite3
 
 import pytest
 
-from veritas.ledger import store
-from veritas.returns.store import Returns, Sealer
-from veritas.workflow.engine import TransitionError
+from agentledger.ledger import store
+from agentledger.returns.store import Returns, Sealer
+from agentledger.workflow.engine import TransitionError
 
 
 def add_doc(conn, doc_id, client_id, doc_type, fields, year=2026):
@@ -81,7 +81,7 @@ def test_workflow_gates_and_durable_states(fam, monkeypatch):
     with pytest.raises(TransitionError, match="coverage does not allow filing: f1040 is manual-assisted"):
         R.transmit(rid, "lee", "cpa", efile_ready=True, submit=lambda: {"submission_id": "x"})
     # From here on, simulate a future registry in which these forms and the MeF channel are filing-approved.
-    from veritas import coverage
+    from agentledger import coverage
 
     monkeypatch.setattr(coverage, "lookup", lambda cap, year, jurisdiction="US-FED", path=None: {"id": cap, "status": "filing-approved"})
     R.compute(rid, "lee")
@@ -127,8 +127,8 @@ def test_history_is_append_only(fam):
 
 
 def test_returns_are_encrypted_with_firm_key(fam, tmp_path, monkeypatch):
-    monkeypatch.delenv("VERITAS_MASTER_KEY", raising=False)
-    from veritas.security.platform import Platform
+    monkeypatch.delenv("AGENTLEDGER_MASTER_KEY", raising=False)
+    from agentledger.security.platform import Platform
 
     plat = Platform(tmp_path, dev=True)
     plat.keys.create("rivera-cpa")
@@ -142,10 +142,10 @@ def test_returns_are_encrypted_with_firm_key(fam, tmp_path, monkeypatch):
 def test_return_api_dev_mode(home, monkeypatch):
     import importlib
 
-    monkeypatch.setenv("VERITAS_HOME", str(home))
-    monkeypatch.setenv("VERITAS_AGENTS", "0")
-    monkeypatch.setenv("VERITAS_DEV_AUTH", "1")
-    import veritas.api.app as api_mod
+    monkeypatch.setenv("AGENTLEDGER_HOME", str(home))
+    monkeypatch.setenv("AGENTLEDGER_AGENTS", "0")
+    monkeypatch.setenv("AGENTLEDGER_DEV_AUTH", "1")
+    import agentledger.api.app as api_mod
 
     importlib.reload(api_mod)
     from fastapi.testclient import TestClient

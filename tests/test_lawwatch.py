@@ -5,11 +5,11 @@ from datetime import date
 
 import pytest
 
-from veritas import coverage
-from veritas.foundry.agents import lawwatch
-from veritas.regwatch import states as st
-from veritas.regwatch.documents import Document
-from veritas.release import classify
+from agentledger import coverage
+from agentledger.foundry.agents import lawwatch
+from agentledger.regwatch import states as st
+from agentledger.regwatch.documents import Document
+from agentledger.release import classify
 
 
 def test_registry_covers_all_states_and_dc(home):
@@ -79,8 +79,8 @@ def test_irs_form_revision_detected_after_baseline(foundry, monkeypatch):
 def test_flags_block_filing_until_owner_clears_with_evidence(foundry):
     from test_return_workflow import add_doc, household
 
-    from veritas.ledger import store
-    from veritas.returns.store import Returns
+    from agentledger.ledger import store
+    from agentledger.returns.store import Returns
 
     store.add_client(foundry.conn, id="rivera", name="Rivera", kind="individual", emails=[], tax_id_last4="0001", domain="general",
                      facts={"taxpayer_ssn_last4": "0001"})
@@ -111,7 +111,7 @@ def test_release_classification(home):
     _adopted(home, "p1", "auto", "low")
     d = classify(home, ["rules/us-fed/individual/us_fed.individual.tax_brackets.yaml", "rules/CHANGELOG.md"], today=date(2026, 11, 20))
     assert d.verdict == "auto" and d.categories == ["routine_indexed_value"]
-    d = classify(home, ["rules/x.yaml", "src/veritas/db.py"], today=date(2026, 11, 20))
+    d = classify(home, ["rules/x.yaml", "src/agentledger/db.py"], today=date(2026, 11, 20))
     assert d.verdict == "review" and any("protected" in r for r in d.reasons)
     d = classify(home, ["coverage/coverage.yaml"], today=date(2026, 11, 20))
     assert d.verdict == "review"

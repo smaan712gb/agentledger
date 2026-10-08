@@ -282,7 +282,7 @@ class Returns:
 
                 x = crosscheck(ret, res)
                 cc = {"status": "agree" if x.agrees else "differ", "compared": len(x.compared), "unmodelled": x.unmodelled,
-                      "discrepancies": [{"item": d.item, "veritas": str(d.veritas), "policyengine": str(d.policyengine)}
+                      "discrepancies": [{"item": d.item, "agentledger": str(d.agentledger), "policyengine": str(d.policyengine)}
                                         for d in x.discrepancies]}
             except ImportError:
                 cc = {"status": "unavailable"}

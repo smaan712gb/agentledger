@@ -1,4 +1,4 @@
-"""Command line: `veritas --help`."""
+"""Command line: `agentledger --help`."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ con = Console()
 
 
 def home() -> Path:
-    root = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
+    root = Path(os.environ.get("AGENTLEDGER_HOME", Path.cwd())).resolve()
     from .envfile import load
 
     load(root)  # local .env for development; real environment variables always win
@@ -47,17 +47,17 @@ def serve(host: str = "127.0.0.1", port: int = 8740, agents: bool = typer.Option
     """Start the web app (and the agent workforce)."""
     import uvicorn
 
-    os.environ["VERITAS_HOME"] = str(home())
-    os.environ["VERITAS_AGENTS"] = "1" if agents else "0"
+    os.environ["AGENTLEDGER_HOME"] = str(home())
+    os.environ["AGENTLEDGER_AGENTS"] = "1" if agents else "0"
     if dev:
-        os.environ["VERITAS_DEV_AUTH"] = "1"
-    elif not os.environ.get("VERITAS_MASTER_KEY"):
-        con.print("[red]VERITAS_MASTER_KEY is not set.[/] Generate one with `veritas platform new-master-key`, keep it in "
-                  "your secrets manager, or run `veritas serve --dev` for a local demo.")
+        os.environ["AGENTLEDGER_DEV_AUTH"] = "1"
+    elif not os.environ.get("AGENTLEDGER_MASTER_KEY"):
+        con.print("[red]AGENTLEDGER_MASTER_KEY is not set.[/] Generate one with `agentledger platform new-master-key`, keep it in "
+                  "your secrets manager, or run `agentledger serve --dev` for a local demo.")
         raise typer.Exit(2)
     mode = "dev (demo identities)" if dev else "multi-firm"
     con.print(f"[bold]AgentLedger[/] on http://{host}:{port}  ({mode}; agents {'on' if agents else 'off'})")
-    uvicorn.run("veritas.api.app:app", host=host, port=port, log_level="warning")
+    uvicorn.run("agentledger.api.app:app", host=host, port=port, log_level="warning")
 
 
 @app.command()
@@ -71,7 +71,7 @@ def demo():
 
 @app.command()
 def mcp():
-    """Run AgentLedger as an MCP server over stdio (scope via VERITAS_MCP_ROLE / VERITAS_MCP_CLIENT)."""
+    """Run AgentLedger as an MCP server over stdio (scope via AGENTLEDGER_MCP_ROLE / AGENTLEDGER_MCP_CLIENT)."""
     from .mcp_server import main
 
     main()
@@ -138,7 +138,7 @@ def platform_bootstrap_admin(email: str = typer.Option(...), name: str = typer.O
 
     password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
     try:
-        Platform(home(), dev=os.environ.get("VERITAS_DEV_AUTH") == "1").bootstrap_admin(email, name, password)
+        Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1").bootstrap_admin(email, name, password)
     except AuthError as e:
         con.print(f"[red]{e}[/]")
         raise typer.Exit(1)
@@ -153,7 +153,7 @@ def platform_firms():
     t = Table(title="Firms")
     for col in ("id", "name", "status", "created_at"):
         t.add_column(col)
-    for f in Platform(home(), dev=os.environ.get("VERITAS_DEV_AUTH") == "1").firms():
+    for f in Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1").firms():
         t.add_row(f["id"], f["name"], f["status"], f["created_at"])
     con.print(t)
 

@@ -11,8 +11,8 @@ const riskPill = (r) => `<span class="pill ${({ low: "p-good", medium: "p-warn",
 const statusPill = (s) => `<span class="pill ${({ adopted: "p-good", pending: "p-warn", rejected: "p-mute", rolled_back: "p-mute", failed: "p-bad", open: "p-warn", resolved: "p-good", filed: "p-good", needs_review: "p-warn" })[s] || "p-mute"}">${esc(String(s).replace("_", " "))}</span>`;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 // Real session tokens live only for the browser tab (sessionStorage); demo identities may persist.
-const session = { get() { try { return sessionStorage.getItem("veritas.session"); } catch { return null; } },
-  set(v) { try { v ? sessionStorage.setItem("veritas.session", v) : sessionStorage.removeItem("veritas.session"); } catch {} } };
+const session = { get() { try { return sessionStorage.getItem("agentledger.session"); } catch { return null; } },
+  set(v) { try { v ? sessionStorage.setItem("agentledger.session", v) : sessionStorage.removeItem("agentledger.session"); } catch {} } };
 
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 4200); }
 
@@ -35,7 +35,7 @@ async function boot() {
   if (invite) return renderAccept(invite[1]);
   if (S.dev) {
     S.users = await r.json();
-    S.token = store.get("veritas.token") || S.users[0].token;
+    S.token = store.get("agentledger.token") || S.users[0].token;
   } else {
     S.token = session.get();
     if (!S.token) return renderLogin();
@@ -142,7 +142,7 @@ function renderNav() {
       <div class="small muted" style="margin-top:6px">Dev mode: demo identities. Never use with real client data.</div></div>`
       : `<div class="group">Signed in</div><div style="padding:0 8px"><div>${esc(S.me.name)}</div><div class="small muted">${esc(S.me.email)} · ${esc(S.me.base_role || S.me.role)}</div>
       <button class="btn" id="signout" style="margin-top:8px">Sign out</button></div>`);
-  if (S.dev) $("#who").onchange = async (e) => { S.token = e.target.value; store.set("veritas.token", S.token); await loadMe(); location.hash = "#/home"; route(); };
+  if (S.dev) $("#who").onchange = async (e) => { S.token = e.target.value; store.set("agentledger.token", S.token); await loadMe(); location.hash = "#/home"; route(); };
   else $("#signout").onclick = signOut;
 }
 
@@ -572,10 +572,10 @@ async function viewIntegrations(main) {
       ${p.catalog.map((c) => `<tr><td><b>${esc(c.name)}</b>${c.docs ? ` <a class="small" href="${esc(c.docs)}" target="_blank" rel="noopener">docs</a>` : ""}</td><td>${esc(c.category)}</td>
         <td><span class="pill ${c.status === "available" ? "p-good" : c.status === "buildable" ? "p-accent" : "p-info"}">${esc(c.status.replaceAll("_", " "))}</span></td>
         <td>${c.status === "buildable" ? `<button class="btn sm" data-build="${esc(c.id)}" data-docs="${esc(c.docs || "")}">Request build</button>` : ""}</td></tr>`).join("")}</table></div>
-    <div class="grid g2"><div class="card"><h3>Webhooks</h3><div class="small">Inbound: <span class="mono">POST /api/hooks/&lt;firm-id&gt;/&lt;client-id&gt;</span> with header <span class="mono">X-AgentLedger-Signature: hex(HMAC-SHA256(body, VERITAS_WEBHOOK_SECRET))</span>.
+    <div class="grid g2"><div class="card"><h3>Webhooks</h3><div class="small">Inbound: <span class="mono">POST /api/hooks/&lt;firm-id&gt;/&lt;client-id&gt;</span> with header <span class="mono">X-AgentLedger-Signature: hex(HMAC-SHA256(body, AGENTLEDGER_WEBHOOK_SECRET))</span>.
       Body: <span class="mono">{"transactions": [...], "documents": [...]}</span>. Works with Zapier, Make, n8n and any SaaS.<br><br>Outbound: automations with <span class="mono">type: webhook</span> post to Slack, Teams or any URL held in an environment variable.</div></div>
-      <div class="card"><h3>MCP (Model Context Protocol)</h3><div class="small">Run <span class="mono">veritas mcp</span> to expose AgentLedger to Claude Desktop, Claude Code or any MCP agent. Scope is set by the operator:
-      <span class="mono">VERITAS_MCP_ROLE=client VERITAS_MCP_CLIENT=&lt;id&gt;</span> limits it to one client.<br><br>The <b>Any MCP server</b> connector pulls from external MCP servers (QuickBooks, Gmail, Drive, banks) into the normal pipelines.</div></div></div>`;
+      <div class="card"><h3>MCP (Model Context Protocol)</h3><div class="small">Run <span class="mono">agentledger mcp</span> to expose AgentLedger to Claude Desktop, Claude Code or any MCP agent. Scope is set by the operator:
+      <span class="mono">AGENTLEDGER_MCP_ROLE=client AGENTLEDGER_MCP_CLIENT=&lt;id&gt;</span> limits it to one client.<br><br>The <b>Any MCP server</b> connector pulls from external MCP servers (QuickBooks, Gmail, Drive, banks) into the normal pipelines.</div></div></div>`;
   main.querySelectorAll("[data-dl]").forEach((b) => b.onclick = () => { const cid = main.querySelector(`[data-exp="${b.dataset.dl}"]`).value; download(`/api/clients/${encodeURIComponent(cid)}/export/${b.dataset.dl}`).catch((err) => toast(err.message)); });
   main.querySelectorAll("[data-build]").forEach((b) => b.onclick = async () => { await api("/api/plugins/request", { method: "POST", body: { connector_id: b.dataset.build, docs: b.dataset.docs } }); toast("Queued for the AI Engineer. You'll approve the result."); b.disabled = true; });
 }

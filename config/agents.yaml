@@ -1,5 +1,5 @@
 # The agent workforce. Each agent observes, proposes, and is verified before anything changes.
-# New agents can be designed in plain English by the Architect (`veritas agents design "..."`).
+# New agents can be designed in plain English by the Architect (`agentledger agents design "..."`).
 agents:
   - id: regwatch-federal-register
     kind: federal_register

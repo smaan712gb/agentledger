@@ -79,4 +79,4 @@ automations:
     when: "payload_severity in ['high', 'critical']"
     enabled: true
     actions:
-      - {type: webhook, url_env: VERITAS_TEAM_WEBHOOK_URL, title: "[{payload_severity}] {client_name}: {payload_title}"}
+      - {type: webhook, url_env: AGENTLEDGER_TEAM_WEBHOOK_URL, title: "[{payload_severity}] {client_name}: {payload_title}"}

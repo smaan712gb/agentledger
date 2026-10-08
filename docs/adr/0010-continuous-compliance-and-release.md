@@ -37,7 +37,7 @@ evidence.
 ## Autonomous release (`config/release_policy.yaml`, protected)
 
 - The scheduled workforce opens a pull request.
-- `veritas release classify` decides whether it ships without a person:
+- `agentledger release classify` decides whether it ships without a person:
   - **Auto-release:** routine indexed values (verbatim, bounded, official, all tests green), eval-won model
     promotions, and patch dependencies.
   - **One-click approval by the tax-content owner:** statutory changes, form revisions and coverage rises.

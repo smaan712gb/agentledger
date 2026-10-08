@@ -42,12 +42,12 @@ COMPARISONS: list[tuple[str, str, Any]] = [
 @dataclass
 class Discrepancy:
     item: str
-    veritas: Decimal
+    agentledger: Decimal
     policyengine: Decimal
 
     @property
     def difference(self) -> Decimal:
-        return self.veritas - self.policyengine
+        return self.agentledger - self.policyengine
 
 
 @dataclass

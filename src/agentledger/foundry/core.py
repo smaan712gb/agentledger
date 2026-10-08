@@ -97,7 +97,7 @@ class Paths:
     @property
     def research(self) -> Path: return self.root / "research"
     @property
-    def db(self) -> Path: return self.state / "veritas.db"
+    def db(self) -> Path: return self.state / "agentledger.db"
 
 
 @dataclass

@@ -283,7 +283,7 @@ def to_beancount(conn: sqlite3.Connection, client_id: str) -> str:
     out.append("")
     for e in entries(conn, client_id, limit=100000):
         out.append(f'{e["date"]} * "{e["memo"].replace(chr(34), chr(39))}"')
-        out.append(f'  veritas-id: "{e["id"]}"')
+        out.append(f'  agentledger-id: "{e["id"]}"')
         out.append(f'  hash: "{e["hash"]}"')
         for p in e["postings"]:
             meta = f'  ; tax: {p["tax_treatment"]}' if p["tax_treatment"] else ""

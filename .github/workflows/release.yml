@@ -24,7 +24,7 @@ jobs:
       - name: Full suite, golden regression and independent cross-checks
         run: |
           python -m pytest -q
-          VERITAS_HOME=$PWD veritas golden
+          AGENTLEDGER_HOME=$PWD agentledger golden
       - name: Is there a Cloudflare project to deploy?
         id: deployable
         run: echo "deployable=$([ -f wrangler.jsonc ] && echo true || echo false)" >> "$GITHUB_OUTPUT"

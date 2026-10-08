@@ -9,11 +9,11 @@ from decimal import Decimal
 import pytest
 
 from conftest import FakeRouter
-from veritas.ai.grounding import check_answer
-from veritas.intake.classify import Classification, KV
-from veritas.intake.pipeline import ingest
-from veritas.ledger import store
-from veritas.ledger.store import Line
+from agentledger.ai.grounding import check_answer
+from agentledger.intake.classify import Classification, KV
+from agentledger.intake.pipeline import ingest
+from agentledger.ledger import store
+from agentledger.ledger.store import Line
 
 NEC = b"""Form 1099-NEC Nonemployee Compensation 2026
 PAYER: Brightline Consulting LLC
@@ -22,7 +22,7 @@ RECIPIENT: Acme Fabrication LLC  TIN **-***1234
 
 
 def test_intake_files_by_sender_and_feeds_integrity(biz):
-    from veritas.integrity.checks import run_all
+    from agentledger.integrity.checks import run_all
 
     cls = Classification(doc_type="1099-NEC", tax_year=2026, party_names=["Acme Fabrication LLC"], tin_last4=["1234"],
                          fields=[KV(name="payer_name", value="Brightline Consulting LLC"), KV(name="box1_nonemployee_compensation", value="$18,400.00")],
@@ -68,7 +68,7 @@ def test_zip_and_email_are_exploded(biz):
 
 
 def test_bank_feed_learns_from_history(biz):
-    from veritas.ledger import bankfeed
+    from agentledger.ledger import bankfeed
 
     csv = "Date,Description,Amount\n2026-03-01,POS SHELL OIL 5521,-48.20\n2026-03-02,ACME WIDGETS SUPPLY #22,-310.00\n"
     s = bankfeed.suggest(biz.conn, None, "acme", bankfeed.parse_csv(csv))
@@ -80,7 +80,7 @@ def test_bank_feed_learns_from_history(biz):
 
 
 def test_vendor_1099_uses_live_threshold(biz):
-    from veritas.crm import business
+    from agentledger.crm import business
 
     v = business.add_party(biz.conn, "acme", "vendor", "Pat Welding", entity_type="individual")
     business.pay_vendor(biz.conn, "acme", v, 1500, "6900", "welding", on=date(2025, 5, 1))
@@ -90,8 +90,8 @@ def test_vendor_1099_uses_live_threshold(biz):
 
 
 def test_automations_consume_the_audit_trail(biz):
-    from veritas.crm import automations, core as crm
-    from veritas.integrity.checks import run_all
+    from agentledger.crm import automations, core as crm
+    from agentledger.integrity.checks import run_all
 
     store.post(biz.conn, "acme", date(2026, 4, 2), "Team dinner", [Line("6200", Decimal(400), "meals"), Line("1000", Decimal(-400))],
                source="t", actor="t")
@@ -103,7 +103,7 @@ def test_automations_consume_the_audit_trail(biz):
 
 
 def test_plugin_permissions_are_enforced(biz):
-    from veritas.plugins.registry import Manifest, PermissionDenied, PluginContext
+    from agentledger.plugins.registry import Manifest, PermissionDenied, PluginContext
 
     m = Manifest(id="t", name="t", kind="connector", description="", entry="x:y", permissions=["transactions:suggest"])
     ctx = PluginContext(m, biz.conn, "acme", {}, biz)
@@ -115,7 +115,7 @@ def test_plugin_permissions_are_enforced(biz):
 
 
 def test_exports(biz):
-    from veritas.plugins.registry import run_plugin
+    from agentledger.plugins.registry import run_plugin
 
     store.post(biz.conn, "acme", date(2026, 1, 3), "sale", [Line("1000", Decimal(50)), Line("4000", Decimal(-50))], source="t", actor="t")
     assert "!TRNS" in run_plugin(biz, "quickbooks_iif_export", "acme")["result"]
@@ -123,7 +123,7 @@ def test_exports(biz):
 
 
 def test_playbook_scan_and_missing_facts(biz):
-    from veritas.brain.playbooks import Brain
+    from agentledger.brain.playbooks import Brain
 
     brain = Brain(biz.paths.root / "playbooks", biz.kb)
     scan = {o["playbook_id"]: o for o in brain.scan(biz.conn, "acme")}
@@ -152,7 +152,7 @@ def test_answer_attribution():
 
 
 def test_client_never_sees_an_unverified_answer(biz):
-    from veritas.ask.engine import ask_stream
+    from agentledger.ask.engine import ask_stream
 
     biz.router = FakeRouter({"stream": "You don't need to report it; the threshold is $6,000 [R:made.up]."})
     store.add_client(biz.conn, id="pat", name="Pat Doe", kind="individual")
@@ -166,13 +166,13 @@ def test_client_never_sees_an_unverified_answer(biz):
 
 
 def test_api_segregation_and_webhook(home, monkeypatch):
-    monkeypatch.setenv("VERITAS_HOME", str(home))
-    monkeypatch.setenv("VERITAS_AGENTS", "0")
-    monkeypatch.setenv("VERITAS_WEBHOOK_SECRET", "s3cret")
-    monkeypatch.setenv("VERITAS_DEV_AUTH", "1")
+    monkeypatch.setenv("AGENTLEDGER_HOME", str(home))
+    monkeypatch.setenv("AGENTLEDGER_AGENTS", "0")
+    monkeypatch.setenv("AGENTLEDGER_WEBHOOK_SECRET", "s3cret")
+    monkeypatch.setenv("AGENTLEDGER_DEV_AUTH", "1")
     import importlib
 
-    import veritas.api.app as api_mod
+    import agentledger.api.app as api_mod
 
     importlib.reload(api_mod)
     from fastapi.testclient import TestClient
@@ -188,7 +188,7 @@ def test_api_segregation_and_webhook(home, monkeypatch):
     assert [x["id"] for x in c.get("/api/clients", headers=owner).json()] == ["ortiz-auto"]
     body = json.dumps({"transactions": [{"date": "2026-05-01", "description": "POS SHELL OIL", "amount": "-40"}]}).encode()
     sig = hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
-    assert c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-Veritas-Signature": "bad"}).status_code == 401
+    assert c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-AgentLedger-Signature": "bad"}).status_code == 401
     r = c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-AgentLedger-Signature": sig})
     assert r.status_code == 200 and r.json()["suggestions"][0]["account"] == "6400"
     assert c.get("/api/audit", headers=cpa).json()["verification"]["ok"]

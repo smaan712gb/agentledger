@@ -1,6 +1,6 @@
 """Envelope encryption: AES-256-GCM with a data key per firm, wrapped by a master key.
 
-The master key never touches the database. It comes from VERITAS_MASTER_KEY (base64 of 32
+The master key never touches the database. It comes from AGENTLEDGER_MASTER_KEY (base64 of 32
 bytes), normally injected from a secrets manager or KMS. Each firm's data key is generated
 randomly, wrapped with the master key and stored in the platform database. Destroying a
 firm's wrapped key renders all of its ciphertext unreadable (crypto-shredding), which is how
@@ -30,14 +30,14 @@ class CryptoError(Exception):
 
 
 def load_master_key(state_dir: Path, *, allow_dev_file: bool) -> bytes:
-    env = os.environ.get("VERITAS_MASTER_KEY")
+    env = os.environ.get("AGENTLEDGER_MASTER_KEY")
     if env:
         key = base64.b64decode(env)
         if len(key) != 32:
-            raise CryptoError("VERITAS_MASTER_KEY must be base64 of exactly 32 bytes")
+            raise CryptoError("AGENTLEDGER_MASTER_KEY must be base64 of exactly 32 bytes")
         return key
     if not allow_dev_file:
-        raise CryptoError("VERITAS_MASTER_KEY is not set; refusing to start without a master key")
+        raise CryptoError("AGENTLEDGER_MASTER_KEY is not set; refusing to start without a master key")
     path = Path(state_dir) / "master.key.dev"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)

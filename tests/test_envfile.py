@@ -1,6 +1,6 @@
 import os
 
-from veritas.envfile import load
+from agentledger.envfile import load
 
 
 def test_env_file_loads_without_overriding(tmp_path, monkeypatch):

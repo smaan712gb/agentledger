@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from veritas.calc.engine import Ctx
-from veritas.kb.store import KnowledgeBase
-from veritas.returns import tax as T
-from veritas.returns.individual import compute_individual
-from veritas.returns.model import (Business, CapitalTransaction, CarLoan, Dependent, Dividends, IndividualReturn,
+from agentledger.calc.engine import Ctx
+from agentledger.kb.store import KnowledgeBase
+from agentledger.returns import tax as T
+from agentledger.returns.individual import compute_individual
+from agentledger.returns.model import (Business, CapitalTransaction, CarLoan, Dependent, Dividends, IndividualReturn,
                                    Interest, Itemized, Person, Retirement, SocialSecurity, Student, W2)
 
 REPO = Path(__file__).resolve().parent.parent

@@ -4,12 +4,12 @@ import json
 from datetime import date
 
 from conftest import FakeRouter
-from veritas.foundry.agents.regwatch import ingest_document
-from veritas.foundry.agents.staleness import scan
-from veritas.foundry.verify import verify_rule_change
-from veritas.kb.store import KnowledgeBase
-from veritas.regwatch.draft import Draft, ProposedValue, prefilter
-from veritas.regwatch.documents import Document
+from agentledger.foundry.agents.regwatch import ingest_document
+from agentledger.foundry.agents.staleness import scan
+from agentledger.foundry.verify import verify_rule_change
+from agentledger.kb.store import KnowledgeBase
+from agentledger.regwatch.draft import Draft, ProposedValue, prefilter
+from agentledger.regwatch.documents import Document
 
 REV_PROC = """Rev. Proc. 2026-41
 SECTION 3. 2027 ADJUSTED ITEMS
@@ -107,7 +107,7 @@ def test_staleness_knows_what_is_due(home):
 
 
 def test_protected_paths_block_auto_merge(foundry):
-    from veritas.foundry.core import Check, Proposal
+    from agentledger.foundry.core import Check, Proposal
 
     p = Proposal(kind="code_change", agent="engineer", title="tweak guardrail", summary="", risk="low",
                  payload={"touches_protected": True}, checks=[Check(name="tests", ok=True)])

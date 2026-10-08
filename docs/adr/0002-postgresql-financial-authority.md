@@ -47,6 +47,6 @@ a firm: staff without an engagement grant, client users, investors and external 
 
 ## Migration from the current code
 
-The current `veritas.db` SQLite schema is the reference model. Ticket F-04 ports it to PostgreSQL, adds the
+The current `agentledger.db` SQLite schema is the reference model. Ticket F-04 ports it to PostgreSQL, adds the
 posting functions, the command and receipt tables and the outbox, and keeps SQLite only as an explicit
 `--dev` demo profile until the port is complete. The test suite runs against PostgreSQL in CI.

@@ -41,7 +41,7 @@ from ..security.platform import PLATFORM_FIRM, AuthError, Platform
 from ..security.vault import Vault
 from ..workflow.engine import TransitionError
 
-ROOT = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
+ROOT = Path(os.environ.get("AGENTLEDGER_HOME", Path.cwd())).resolve()
 from ..envfile import load as _load_env  # noqa: E402
 
 _load_env(ROOT)  # local .env for development; real environment variables always win
@@ -50,7 +50,7 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 app = FastAPI(title="AgentLedger", version="0.1.0")
 # Dev mode keeps the single-firm layout and the demo identities in config/users.yaml. It must never be
 # enabled on a deployment that holds real taxpayer data.
-DEV = os.environ.get("VERITAS_DEV_AUTH") == "1"
+DEV = os.environ.get("AGENTLEDGER_DEV_AUTH") == "1"
 DEV_FIRM = "dev"
 APP: AppContext = AppContext.open(ROOT, scope="all" if DEV else "platform")
 PLATFORM = Platform(ROOT, dev=DEV)
@@ -923,7 +923,7 @@ def request_connector(body: dict[str, Any] = Body(...), user=Depends(me)) -> dic
     work.mkdir(parents=True, exist_ok=True)
     cid = body["connector_id"]
     item = {"title": f"Build connector: {cid}", "status": "open", "source": f"requested by {user['id']}",
-            "items": [f"Create plugins/{cid}/plugin.yaml and plugins/{cid}/connector.py following veritas/plugins/builtin.py. "
+            "items": [f"Create plugins/{cid}/plugin.yaml and plugins/{cid}/connector.py following agentledger/plugins/builtin.py. "
                       f"Docs: {body.get('docs', '')}. Use only PluginContext capabilities; declare network_domains; "
                       "credentials only from env vars; add tests with recorded fixtures."]}
     (work / f"connector_{cid}.json").write_text(json.dumps(item, indent=2), encoding="utf-8")
@@ -932,14 +932,13 @@ def request_connector(body: dict[str, Any] = Body(...), user=Depends(me)) -> dic
 
 
 @app.post("/api/hooks/{firm_id}/{client_id}")
-async def inbound_hook(firm_id: str, client_id: str, request: Request, x_agentledger_signature: str = Header(default=""),
-                       x_veritas_signature: str = Header(default="")) -> dict[str, Any]:
-    secret = os.environ.get("VERITAS_WEBHOOK_SECRET")
+async def inbound_hook(firm_id: str, client_id: str, request: Request, x_agentledger_signature: str = Header(default="")) -> dict[str, Any]:
+    secret = os.environ.get("AGENTLEDGER_WEBHOOK_SECRET")
     if not secret:
-        raise HTTPException(503, "webhooks disabled (VERITAS_WEBHOOK_SECRET not set)")
+        raise HTTPException(503, "webhooks disabled (AGENTLEDGER_WEBHOOK_SECRET not set)")
     raw = await request.body()
     expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, x_agentledger_signature or x_veritas_signature):
+    if not hmac.compare_digest(expected, x_agentledger_signature):
         raise HTTPException(401, "bad signature")
     ctx = APP if (DEV and firm_id == DEV_FIRM) else firm_context(firm_id)
     store.get_client(ctx.conn, client_id)
@@ -1136,8 +1135,8 @@ def _scheduler() -> None:
                         ctx.foundry.run(spec.id)
         except Exception as e:  # keep the workforce alive; failures are recorded per run
             print("scheduler:", e)
-        time.sleep(int(os.environ.get("VERITAS_TICK_SECONDS", "30")))
+        time.sleep(int(os.environ.get("AGENTLEDGER_TICK_SECONDS", "30")))
 
 
-if os.environ.get("VERITAS_AGENTS", "1") == "1":
-    threading.Thread(target=_scheduler, daemon=True, name="veritas-agents").start()
+if os.environ.get("AGENTLEDGER_AGENTS", "1") == "1":
+    threading.Thread(target=_scheduler, daemon=True, name="agentledger-agents").start()

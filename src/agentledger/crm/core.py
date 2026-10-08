@@ -107,7 +107,7 @@ def draft_message(conn, *, client_id: str | None, subject: str, body: str, sourc
 
 
 def send_message(conn, message_id: int, actor: str, role: str = "cpa") -> dict[str, Any]:
-    """Sends through SMTP when configured (VERITAS_SMTP_*); otherwise stays a draft. Never silent."""
+    """Sends through SMTP when configured (AGENTLEDGER_SMTP_*); otherwise stays a draft. Never silent."""
     import os
     import smtplib
     from email.message import EmailMessage
@@ -115,17 +115,17 @@ def send_message(conn, message_id: int, actor: str, role: str = "cpa") -> dict[s
     m = one(conn, "SELECT * FROM messages WHERE id = ?", message_id)
     if not m or m["status"] != "draft":
         raise ValueError("only drafts can be sent")
-    host = os.environ.get("VERITAS_SMTP_HOST")
+    host = os.environ.get("AGENTLEDGER_SMTP_HOST")
     if not host or not m["to_addr"]:
         return {"sent": False, "reason": "SMTP not configured or no recipient; message remains a draft"}
     msg = EmailMessage()
-    msg["From"] = os.environ.get("VERITAS_SMTP_FROM", os.environ.get("VERITAS_SMTP_USER", ""))
+    msg["From"] = os.environ.get("AGENTLEDGER_SMTP_FROM", os.environ.get("AGENTLEDGER_SMTP_USER", ""))
     msg["To"], msg["Subject"] = m["to_addr"], m["subject"]
     msg.set_content(m["body"])
-    with smtplib.SMTP(host, int(os.environ.get("VERITAS_SMTP_PORT", "587"))) as s:
+    with smtplib.SMTP(host, int(os.environ.get("AGENTLEDGER_SMTP_PORT", "587"))) as s:
         s.starttls()
-        if os.environ.get("VERITAS_SMTP_USER"):
-            s.login(os.environ["VERITAS_SMTP_USER"], os.environ.get("VERITAS_SMTP_PASSWORD", ""))
+        if os.environ.get("AGENTLEDGER_SMTP_USER"):
+            s.login(os.environ["AGENTLEDGER_SMTP_USER"], os.environ.get("AGENTLEDGER_SMTP_PASSWORD", ""))
         s.send_message(msg)
     conn.execute("UPDATE messages SET status = 'sent', at = ? WHERE id = ?", (audit.now(), message_id))
     audit.record(conn, actor, role, "message.sent", {"message_id": message_id, "to": m["to_addr"]}, client_id=m["client_id"])

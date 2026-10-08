@@ -17,7 +17,7 @@ Status: Accepted. Spec references: §3 (workspaces, screen inventory, required s
   firm, entity, engagement, period and accounting basis are always visible.
 - **Required states.** Every screen implements loading, empty, stale (with freshness), permission-denied,
   partial-success and recovery states. Drafts autosave. Edits carry a version for conflict resolution.
-- **The current no-build UI** (`src/veritas/web`) is retired screen by screen. The backlog slices each
+- **The current no-build UI** (`src/agentledger/web`) is retired screen by screen. The backlog slices each
   ticket as one complete user workflow, never "API now, screen later".
 - **Testing.** Playwright end-to-end tests per workflow (W01–W10) and axe accessibility checks run in CI
   (Q38).

@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      VERITAS_HOME: ${{ github.workspace }}
+      AGENTLEDGER_HOME: ${{ github.workspace }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: frontier tier, budget-capped in config/models.yaml
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}             # repo scout rate limits
       OPENSTATES_API_KEY: ${{ secrets.OPENSTATES_API_KEY }} # enacted state tax laws (all states)
@@ -45,20 +45,20 @@ jobs:
               subprocess.run(["ollama", "pull", m], check=False)
           EOF
       - name: Run due agents
-        run: veritas agents due
+        run: agentledger agents due
       - name: Tests and golden regression must stay green
         run: |
           python -m pytest -q          # includes the PolicyEngine cross-checks
-          veritas golden
+          agentledger golden
       - name: Open a pull request with the workforce's changes
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: veritas/autonomy
-          commit-message: "Veritas agents: scheduled run"
-          title: "Veritas agents: regulation, model and knowledge updates"
+          branch: agentledger/autonomy
+          commit-message: "AgentLedger agents: scheduled run"
+          title: "AgentLedger agents: regulation, model and knowledge updates"
           body: |
-            Automated run of the Veritas agent workforce.
+            Automated run of the AgentLedger agent workforce.
 
             - `rules/CHANGELOG.md` lists every rule value adopted, with its source and evidence.
             - `state/proposals/` holds pending proposals awaiting a CPA decision in the app.
@@ -86,7 +86,7 @@ jobs:
         run: |
           git fetch origin main
           set +e
-          veritas release classify --base origin/main > decision.json
+          agentledger release classify --base origin/main > decision.json
           code=$?
           set -e
           pr=${{ steps.cpr.outputs.pull-request-number }}

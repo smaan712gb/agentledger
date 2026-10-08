@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from veritas.ledger import store
+from agentledger.ledger import store
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -22,7 +22,7 @@ def ar_balance(conn, client_id):
 
 
 def test_duplicate_invoice_leaves_books_unchanged(biz):
-    from veritas.crm import business
+    from agentledger.crm import business
 
     pid = business.add_party(biz.conn, "acme", "customer", "Bolt Co")
     business.create_invoice(biz.conn, "acme", pid, "INV-1", 100, "work")
@@ -33,8 +33,8 @@ def test_duplicate_invoice_leaves_books_unchanged(biz):
 
 
 def test_command_id_makes_retries_idempotent(biz):
-    from veritas.crm import business
-    from veritas.db import CommandConflict
+    from agentledger.crm import business
+    from agentledger.db import CommandConflict
 
     pid = business.add_party(biz.conn, "acme", "customer", "Bolt Co")
     a = business.create_invoice(biz.conn, "acme", pid, "INV-7", 250, "work", command_id="cmd-1")
@@ -60,14 +60,14 @@ def test_closed_period_rejects_postings_until_authorized_reopen(biz):
 
 
 def business_audit(conn):
-    from veritas import audit
+    from agentledger import audit
 
     return audit.events(conn, "acme")
 
 
 # --------------------------------------------------------------------------- 4. related-record ownership
 def test_deal_cannot_reference_another_clients_customer(biz):
-    from veritas.crm import business
+    from agentledger.crm import business
 
     store.add_client(biz.conn, id="other", name="Other LLC", kind="business", emails=[], tax_id_last4="9", domain="general")
     theirs = business.add_party(biz.conn, "other", "customer", "Secret Customer of Other")
@@ -77,7 +77,7 @@ def test_deal_cannot_reference_another_clients_customer(biz):
 
 # --------------------------------------------------------------------------- 5. grounding compares typed values
 def test_grounding_rejects_scaled_money():
-    from veritas.ai.grounding import check_answer, unsupported_numbers
+    from agentledger.ai.grounding import check_answer, unsupported_numbers
 
     ev = "The penalty is $5,000 per return [R:x]."
     assert unsupported_numbers("The penalty is $500,000.", ev) == ["$500,000"]
@@ -86,7 +86,7 @@ def test_grounding_rejects_scaled_money():
     assert unsupported_numbers("The rate is 20%.", "rate of 0.20 applies") == []        # fraction <-> percent is fine
     assert unsupported_numbers("It is $50.", "it is 5,000 cents") == []                   # cents convert only when stated
     assert unsupported_numbers("It is $5,000.", "it is 5,000 cents") == ["$5,000"]
-    from veritas.ai.grounding import number_supported
+    from agentledger.ai.grounding import number_supported
     assert number_supported(0.725, ["72.5 cents per mile"]) and number_supported(0.2, ["20 percent"])
     assert not number_supported(500000, ["a $5,000 penalty"])
 
@@ -108,7 +108,7 @@ class _Frontier:
 def test_frontier_requires_consent_and_redacts(foundry):
     from pydantic import BaseModel
 
-    from veritas.ai.router import Registry, Router, Unavailable
+    from agentledger.ai.router import Registry, Router, Unavailable
 
     class Out(BaseModel):
         answer: str
@@ -136,19 +136,19 @@ def test_code_changes_have_one_policy_and_core_code_is_protected():
     assert foundry["auto_adopt"]["code_change"] == "none"
     assert release["categories"]["code_change"]["auto_release"] is False
     prot = foundry["protected_paths"]
-    for p in ["src/veritas/security/", "src/veritas/ledger/", "src/veritas/workflow/", "src/veritas/returns/", "src/veritas/api/",
-              "src/veritas/crm/", "src/veritas/ai/router.py", "src/veritas/coverage.py", "src/veritas/release.py"]:
+    for p in ["src/agentledger/security/", "src/agentledger/ledger/", "src/agentledger/workflow/", "src/agentledger/returns/", "src/agentledger/api/",
+              "src/agentledger/crm/", "src/agentledger/ai/router.py", "src/agentledger/coverage.py", "src/agentledger/release.py"]:
         assert any(p == x or p.startswith(x) for x in prot), p
 
 
 def test_engineer_subprocess_env_has_no_secrets(monkeypatch):
-    from veritas.foundry.agents.builders import sandbox_env
+    from agentledger.foundry.agents.builders import sandbox_env
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
-    monkeypatch.setenv("VERITAS_MASTER_KEY", "k")
+    monkeypatch.setenv("AGENTLEDGER_MASTER_KEY", "k")
     monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "t")
     env = sandbox_env()
-    assert not {"ANTHROPIC_API_KEY", "VERITAS_MASTER_KEY", "CLOUDFLARE_API_TOKEN"} & set(env)
+    assert not {"ANTHROPIC_API_KEY", "AGENTLEDGER_MASTER_KEY", "CLOUDFLARE_API_TOKEN"} & set(env)
     assert "PATH" in env
 
 
@@ -175,7 +175,7 @@ def fam(foundry):
 def _signed_return(fam, monkeypatch):
     from test_return_workflow import household
 
-    from veritas.returns.store import Returns
+    from agentledger.returns.store import Returns
 
     R = Returns(fam.conn, fam.kb, segregation=False)
     rid = R.create("rivera", 2026, "maya", household())
@@ -205,8 +205,8 @@ def test_rule_change_after_signature_voids_it(fam, monkeypatch):
 
 
 def test_transmit_refuses_a_package_other_than_the_signed_one(fam, monkeypatch):
-    from veritas import coverage
-    from veritas.workflow.engine import TransitionError
+    from agentledger import coverage
+    from agentledger.workflow.engine import TransitionError
 
     R, rid = _signed_return(fam, monkeypatch)
     monkeypatch.setattr(coverage, "lookup", lambda cap, year, jurisdiction="US-FED", path=None: {"id": cap, "status": "filing-approved"})
@@ -221,8 +221,8 @@ def test_transmit_refuses_a_package_other_than_the_signed_one(fam, monkeypatch):
 
 # --------------------------------------------------------------------------- 3. crash between sending and recording
 def test_crash_after_send_is_reconciled_not_resent(fam, monkeypatch):
-    from veritas import coverage
-    from veritas.workflow.engine import Engine, UncertainOutcome
+    from agentledger import coverage
+    from agentledger.workflow.engine import Engine, UncertainOutcome
 
     R, rid = _signed_return(fam, monkeypatch)
     monkeypatch.setattr(coverage, "lookup", lambda cap, year, jurisdiction="US-FED", path=None: {"id": cap, "status": "filing-approved"})
@@ -249,8 +249,8 @@ def test_crash_after_send_is_reconciled_not_resent(fam, monkeypatch):
 
 
 def test_crash_window_with_provider_lookup_does_not_duplicate(fam, monkeypatch):
-    from veritas import coverage
-    from veritas.workflow.engine import Engine
+    from agentledger import coverage
+    from agentledger.workflow.engine import Engine
 
     R, rid = _signed_return(fam, monkeypatch)
     monkeypatch.setattr(coverage, "lookup", lambda cap, year, jurisdiction="US-FED", path=None: {"id": cap, "status": "filing-approved"})
@@ -284,14 +284,14 @@ def test_staff_cannot_approve_and_api_checks_related_ownership(home, monkeypatch
 
     from fastapi.testclient import TestClient
 
-    from veritas.security import totp
+    from agentledger.security import totp
 
     PW = "correct horse battery staple"
-    monkeypatch.setenv("VERITAS_HOME", str(home))
-    monkeypatch.setenv("VERITAS_AGENTS", "0")
-    monkeypatch.delenv("VERITAS_DEV_AUTH", raising=False)
-    monkeypatch.setenv("VERITAS_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
-    import veritas.api.app as mod
+    monkeypatch.setenv("AGENTLEDGER_HOME", str(home))
+    monkeypatch.setenv("AGENTLEDGER_AGENTS", "0")
+    monkeypatch.delenv("AGENTLEDGER_DEV_AUTH", raising=False)
+    monkeypatch.setenv("AGENTLEDGER_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
+    import agentledger.api.app as mod
 
     importlib.reload(mod)
     c = TestClient(mod.app)
@@ -323,8 +323,8 @@ def test_staff_cannot_approve_and_api_checks_related_ownership(home, monkeypatch
 def test_concurrent_retries_of_one_command_post_once(biz):
     from concurrent.futures import ThreadPoolExecutor
 
-    from veritas.crm import business
-    from veritas.db import ThreadLocalConnection
+    from agentledger.crm import business
+    from agentledger.db import ThreadLocalConnection
 
     pid = business.add_party(biz.conn, "acme", "customer", "Bolt Co")
     shared = ThreadLocalConnection(biz.paths.db)

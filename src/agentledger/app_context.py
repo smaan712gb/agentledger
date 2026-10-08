@@ -35,7 +35,7 @@ class AppContext:
         """`tenant` is a firm's data directory; omitted, the firm's data lives under root (single-firm/dev)."""
         root = Path(root).resolve()
         data = Path(tenant).resolve() if tenant else root
-        conn = ThreadLocalConnection(data / "state" / "veritas.db")
+        conn = ThreadLocalConnection(data / "state" / "agentledger.db")
         foundry = Foundry(root, conn, tenant=tenant, kb=kb, scope=scope)
         return cls(root, foundry, Packs(root / "domains"), Brain(root / "playbooks", foundry.kb))
 

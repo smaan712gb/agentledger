@@ -5,9 +5,9 @@ import time
 
 import pytest
 
-from veritas.security import totp
-from veritas.security.crypto import CryptoError, Keyring
-from veritas.security.platform import AuthError, Platform
+from agentledger.security import totp
+from agentledger.security.crypto import CryptoError, Keyring
+from agentledger.security.platform import AuthError, Platform
 
 PW = "correct horse battery staple"
 
@@ -20,7 +20,7 @@ def test_totp_rfc6238_vector():
 
 @pytest.fixture
 def plat(tmp_path, monkeypatch):
-    monkeypatch.delenv("VERITAS_MASTER_KEY", raising=False)
+    monkeypatch.delenv("AGENTLEDGER_MASTER_KEY", raising=False)
     return Platform(tmp_path, dev=True)
 
 
@@ -34,7 +34,7 @@ def sign_in(p, email, password=PW):
 
 
 def onboard(p, firm="rivera-cpa"):
-    admin_id = p.bootstrap_admin("ops@veritas.example", "Ops", PW)
+    admin_id = p.bootstrap_admin("ops@agentledger.example", "Ops", PW)
     admin = p.public_user(p.user(admin_id))
     p.create_firm(firm, "Rivera CPA", by=admin_id)
     token = p.invite(firm, "maya@rivera.example", "firm_admin", by=admin)
@@ -145,6 +145,6 @@ def test_deleting_firm_crypto_shreds_and_revokes(plat):
 
 
 def test_production_requires_master_key(tmp_path, monkeypatch):
-    monkeypatch.delenv("VERITAS_MASTER_KEY", raising=False)
+    monkeypatch.delenv("AGENTLEDGER_MASTER_KEY", raising=False)
     with pytest.raises(CryptoError):
         Platform(tmp_path, dev=False)

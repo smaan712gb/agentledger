@@ -50,7 +50,7 @@ def sandbox_env(allow: list[str] | None = None) -> dict[str, str]:
 
     keep = set(_SAFE_ENV) | set(allow or [])
     env = {k: v for k, v in os.environ.items() if k in keep}
-    env["VERITAS_AGENTS"] = "0"
+    env["AGENTLEDGER_AGENTS"] = "0"
     return env
 
 
@@ -84,8 +84,8 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
                                                                   "or Claude Code; see config/foundry.yaml"})
         return
     for path, item in items:
-        branch = f"veritas/auto-{path.stem}-{date.today().strftime('%Y%m%d')}"
-        wt = Path(tempfile.mkdtemp(prefix="veritas-wt-"))
+        branch = f"agentledger/auto-{path.stem}-{date.today().strftime('%Y%m%d')}"
+        wt = Path(tempfile.mkdtemp(prefix="agentledger-wt-"))
         _git(f.paths.root, "worktree", "add", "-b", branch, str(wt))
         try:
             prompt = (f"You are maintaining the AgentLedger accounting/tax platform. Work item: {item['title']}\n"
@@ -122,7 +122,7 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
                 Check(name="test_suite", ok=tests.returncode == 0, detail=tests.stdout.strip().splitlines()[-1] if tests.stdout.strip() else tests.stderr[-300:]),
                 Check(name="golden_regression", ok=not golden_fail, detail=", ".join(golden_fail) or f"{len(golden)} scenarios pass"),
             ]
-            _git(wt, "-c", "user.name=AgentLedger Engineer", "-c", "user.email=engineer@veritas.local", "commit", "-q", "-m",
+            _git(wt, "-c", "user.name=AgentLedger Engineer", "-c", "user.email=engineer@agentledger.local", "commit", "-q", "-m",
                  f"{item['title']}\n\nAutomated change by the AgentLedger AI Engineer ({used}).")
             p = Proposal(kind="code_change", agent=spec.id, title=item["title"],
                          summary=f"Code change written by {used} in branch {branch}: {len(files)} file(s), {lines} line(s).",
