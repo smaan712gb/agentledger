@@ -79,7 +79,10 @@ class S3Blobs:
                 "s3", endpoint_url=endpoint or os.environ.get("AGENTLEDGER_BLOB_ENDPOINT"), region_name="auto",
                 aws_access_key_id=access_key or os.environ.get("AGENTLEDGER_BLOB_ACCESS_KEY_ID"),
                 aws_secret_access_key=secret_key or os.environ.get("AGENTLEDGER_BLOB_SECRET_ACCESS_KEY"),
-                config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"}))
+                # Checksums only when an operation requires them: R2 does not document support for the CRC headers
+                # boto3 >= 1.36 adds by default. Integrity is ours anyway: objects are AES-GCM sealed and content addressed.
+                config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"},
+                              request_checksum_calculation="when_required", response_checksum_validation="when_required"))
         self.s3 = client
 
     def _k(self, key: str) -> str:
