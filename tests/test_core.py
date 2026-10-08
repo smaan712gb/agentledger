@@ -9,7 +9,7 @@ import pytest
 from agentledger import pg
 from agentledger.calc.engine import Ctx
 from agentledger.db import is_pg
-from agentledger.calc.federal import Asset, bonus_rate, run_calc, section_179_allowed, tax_depreciation
+from agentledger.calc.federal import Asset, bonus_rate, section_179_allowed, tax_depreciation
 from agentledger.expr import ExprError, evaluate
 from agentledger.foundry.verify import load_golden, run_golden
 from agentledger.kb.model import Rule

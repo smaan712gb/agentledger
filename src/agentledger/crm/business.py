@@ -6,7 +6,6 @@ always in the books the CPA sees — no sync, no re-keying.
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -42,6 +41,10 @@ def _own_party(conn, client_id: str, party_id: int | None, kinds: tuple[str, ...
     """A referenced party must belong to the same business (never trust a caller-supplied id)."""
     if party_id is None:
         return None
+    return _party(conn, client_id, party_id, kinds)
+
+
+def _party(conn, client_id: str, party_id: int, kinds: tuple[str, ...]) -> dict[str, Any]:
     party = one(conn, "SELECT * FROM parties WHERE id = ? AND client_id = ?", party_id, client_id)
     if not party or party["kind"] not in (*kinds, "both"):
         raise KeyError(f"{' or '.join(kinds)} {party_id} not found for this business")
@@ -63,12 +66,14 @@ def move_deal(conn, deal_id: int, stage: str, actor: str, role: str = "client") 
     if stage not in DEAL_STAGES:
         raise ValueError(f"stage must be one of {DEAL_STAGES}")
     d = one(conn, "SELECT * FROM deals WHERE id = ?", deal_id)
+    if d is None:
+        raise KeyError(f"deal {deal_id} not found")
     conn.execute("UPDATE deals SET stage = ? WHERE id = ?", (stage, deal_id))
     audit.record(conn, actor, role, "deal.stage", {"deal_id": deal_id, "from": d["stage"], "to": stage}, client_id=d["client_id"])
 
 
 def deal_board(conn, client_id: str) -> dict[str, Any]:
-    board = {s: [] for s in DEAL_STAGES}
+    board: dict[str, list[dict[str, Any]]] = {s: [] for s in DEAL_STAGES}
     for d in rows(conn, "SELECT d.*, p.name AS party_name FROM deals d LEFT JOIN parties p ON p.id = d.party_id "
                         "WHERE d.client_id = ? ORDER BY d.expected_close", client_id):
         board[d["stage"]].append(d)
@@ -88,7 +93,7 @@ def create_invoice(conn, client_id: str, party_id: int, number: str, amount: Any
                "issued": issued.isoformat()}
 
     def do() -> int:
-        party = _own_party(conn, client_id, party_id, ("customer",))
+        party = _party(conn, client_id, party_id, ("customer",))
         if one(conn, "SELECT id FROM invoices WHERE client_id = ? AND number = ?", client_id, number):
             raise ValueError(f"invoice number {number} already exists for this business")
         lines = [store.Line("1100", amt + tax), store.Line("4000", -amt)]
@@ -148,7 +153,7 @@ def pay_vendor(conn, client_id: str, party_id: int, amount: Any, expense_account
     on = on or date.today()
 
     def do() -> int:
-        party = _own_party(conn, client_id, party_id, ("vendor",))
+        party = _party(conn, client_id, party_id, ("vendor",))
         return store.post(conn, client_id, on, f"{party['name']}: {memo}",
                           [store.Line(expense_account, amt, tax_treatment), store.Line("1000", -amt)],
                           source=f"vendor:{party_id}", actor=actor, role=role)

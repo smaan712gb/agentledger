@@ -340,6 +340,9 @@ class ThreadLocalConnection:
             self._all.append(c)
         return c
 
+    def set_scope(self, clients: Any) -> None:
+        """Row-level client scope exists on PostgreSQL only; the SQLite demo profile is one trusted firm."""
+
     def close(self) -> None:
         """Close every thread's connection; the store cannot be used afterwards."""
         self._closed = True
@@ -439,6 +442,12 @@ def chain_hash(prev_hash: str, payload: dict[str, Any]) -> str:
 
 def rows(conn: sqlite3.Connection, sql: str, *args: Any) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def count(conn: Any, sql: str, *args: Any) -> int:
+    """The single number a COUNT/SUM query returns (0 when it returns no row or NULL)."""
+    r = conn.execute(sql, args).fetchone()
+    return int(r[0] or 0) if r else 0
 
 
 def one(conn: sqlite3.Connection, sql: str, *args: Any) -> dict[str, Any] | None:

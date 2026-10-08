@@ -14,7 +14,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, TypeVar
 
 import yaml
 from pydantic import BaseModel
@@ -22,6 +22,8 @@ from pydantic import BaseModel
 from .. import audit
 from .frontier import ClaudeClient, FrontierError
 from .local import LocalUnavailable, OllamaClient
+
+M = TypeVar("M", bound=BaseModel)  # the schema a structured call returns
 
 ROLES = {
     "triage": "Decide whether a public document affects any regulated parameter",
@@ -163,9 +165,9 @@ class Router:
             )
 
     # -- calls -----------------------------------------------------------------------
-    def structured(self, role: str, *, system: str, user: str, schema: type[BaseModel], images: list[bytes] | None = None,
+    def structured(self, role: str, *, system: str, user: str, schema: type[M], images: list[bytes] | None = None,
                    escalate: bool = False, client_id: str | None = None, effort: str = "medium",
-                   data_class: str = "taxpayer") -> tuple[BaseModel, str]:
+                   data_class: str = "taxpayer") -> tuple[M, str]:
         """Run a structured task on the role's champion. Returns (result, "tier:model").
 
         Local models run inside our infrastructure. Any external (frontier) call first passes `external_policy`:
@@ -191,7 +193,8 @@ class Router:
                     if not self.frontier_allowed():
                         raise Unavailable("frontier tier unavailable or daily budget exhausted")
                     self.frontier.model = model
-                    sys_text, content = system, user
+                    sys_text = system
+                    content: str | list[dict[str, Any]] = user
                     if data_class == "taxpayer":
                         sys_text, content = redact(system, names), redact(user, names)
                         images = None  # document images are never sent outside our infrastructure

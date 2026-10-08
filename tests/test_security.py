@@ -99,7 +99,7 @@ def test_invite_permissions(plat):
     with pytest.raises(AuthError):
         plat.invite("rivera-cpa", "x@y.example", "client", by=maya)   # client must be linked to a client
     tok = plat.invite("rivera-cpa", "cpa@rivera.example", "cpa", by=maya)
-    enrol = plat.accept_invite(tok, "Sam", PW)
+    plat.accept_invite(tok, "Sam", PW)
     cpa = plat.public_user(plat.user(plat.conn.execute("SELECT id FROM users WHERE email='cpa@rivera.example'").fetchone()[0]))
     with pytest.raises(AuthError):
         plat.invite("rivera-cpa", "s@rivera.example", "staff", by=cpa)  # only firm admins invite staff

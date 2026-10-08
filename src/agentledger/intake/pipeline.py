@@ -18,6 +18,7 @@ from typing import Any
 
 from .. import audit
 from ..ai.router import Router, Unavailable
+from ..calc.engine import D
 from ..db import one, rows
 from ..ledger import store
 from ..security.vault import Vault, as_vault
@@ -200,14 +201,17 @@ def link_receipt(conn, client_id: str, doc_id: str, total: Decimal, when: str | 
         center = date.fromisoformat(when) if when else None
     except ValueError:
         center = None
-    candidates = rows(
+    # Money is compared exactly, as Decimal, never as floating point: 19.99 stored as REAL is 19.989999771 on some
+    # backends and would silently miss the match.
+    candidates = [c for c in rows(
         conn,
-        "SELECT e.id, e.date FROM entries e JOIN postings p ON p.entry_id = e.id JOIN accounts a "
+        "SELECT e.id, e.date, p.amount FROM entries e JOIN postings p ON p.entry_id = e.id JOIN accounts a "
         "ON a.client_id = e.client_id AND a.code = p.account_code WHERE e.client_id = ? AND a.type = 'expense' "
-        "AND CAST(p.amount AS REAL) = ? AND e.document_id IS NULL "
+        "AND e.document_id IS NULL "
         "AND NOT EXISTS (SELECT 1 FROM entry_documents ed WHERE ed.entry_id = e.id)",
-        client_id, float(total),
-    )
+        client_id,
+    ) if D(c["amount"]) == D(total)]
+    candidates = list({c["id"]: c for c in candidates}.values())   # one candidate per entry
     if center:
         candidates = [c for c in candidates if abs(date.fromisoformat(c["date"]) - center) <= timedelta(days=7)]
     if len(candidates) != 1:

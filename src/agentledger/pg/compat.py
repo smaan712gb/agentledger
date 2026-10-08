@@ -4,13 +4,15 @@ The modules were written against `sqlite3.Connection`: `?` placeholders, `cursor
 and by position, ISO-text dates and text amounts. `PgStore` provides exactly that on psycopg, so each module runs
 unchanged on either backend while the financial rules move into the database:
 
-* every connection runs as `agentledger_app` (SELECT everywhere, INSERT/UPDATE on operational tables, EXECUTE on
-  the ledger functions, no writes to entries, postings, receipts or audit);
-* the session's client scope is set on connect (`*` = firm-wide until engagement grants arrive, backlog F-05);
+* every connection logs in as the store's own runtime role (SELECT everywhere, INSERT/UPDATE on operational
+  tables, EXECUTE on the ledger functions, no writes to entries, postings, receipts or audit, nothing in any other
+  store); owner credentials are used only to migrate;
+* the session's client scope is set on connect and per request (`set_scope`): firm-wide for agents and firm staff
+  until engagement grants arrive (backlog F-05), one client for a client user;
 * database errors surface as the exceptions the code already handles (`db.IntegrityError`, `ClosedPeriod`, ...).
 
-Connections use the direct (unpooled) endpoint: the role and scope are session settings, which a transaction-mode
-pooler would not keep.
+Connections use the direct (unpooled) endpoint: the scope is a session setting, which a transaction-mode pooler
+would not keep.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from decimal import Decimal
 from typing import Any, Iterator, Sequence
 
 from .. import db
-from . import APP_ROLE, connect, dsn, migrate, translate
+from . import connect, database_of, migrate, migration_url, runtime_base_url, runtime_role, runtime_url, translate, with_database
 
 # Tables whose integer key the database assigns: an INSERT returns it as `lastrowid`.
 IDENTITY = {"info_returns": "id", "finding_resolutions": "id", "precedents": "id", "contacts": "id", "engagements": "id",
@@ -136,8 +138,10 @@ class PgConnection:
         self.raw = raw
         self.schema = schema
         raw.execute(f'SET search_path TO "{schema}", public')
-        raw.execute(f"SET ROLE {APP_ROLE}")
-        raw.execute("SELECT set_config('agentledger.clients', %s, false)", (scope,))
+        self.set_scope(scope)
+
+    def set_scope(self, scope: str) -> None:
+        self.raw.execute("SELECT set_config('agentledger.clients', %s, false)", (scope,))
 
     @property
     def in_transaction(self) -> bool:
@@ -197,9 +201,7 @@ def _error(exc: Exception) -> Exception:
 
 def location(url: str, schema: str) -> str:
     """Identifies a store across processes: database name and schema (never the credentials)."""
-    from urllib.parse import urlparse
-
-    return f"{urlparse(url).path.lstrip('/')}/{schema}"
+    return f"{database_of(url)}/{schema}"
 
 
 def close_all(prefix: str = "") -> None:
@@ -214,19 +216,27 @@ class PgStore:
 
     dialect = "postgres"
 
-    def __init__(self, schema: str, *, url: str | None = None, scope: str = "*", migrate_on_open: bool = True):
+    def __init__(self, schema: str, *, url: str | None = None, scope: str = "*", migrate_on_open: bool = True,
+                 own_database: bool = False):
+        """`url` names the server and database (its credentials are ignored); the store connects as its runtime role.
+        With owner credentials in the environment, pending migrations are applied first (development); production
+        runs them as a release step and the API never holds owner credentials."""
         self.schema, self.scope = schema, scope
-        self.url = url or dsn(direct=True)
-        if not self.url:
+        base = url or runtime_base_url()
+        if not base:
             raise RuntimeError("AGENTLEDGER_DATABASE=postgres needs DATABASE_URL_UNPOOLED (or DATABASE_URL)")
-        self.location = location(self.url, schema)
+        self.database = database_of(base)
+        self.role = runtime_role(self.database, schema)
+        self.location = location(base, schema)
+        self._runtime = runtime_url(base, self.role)
         self._local = threading.local()
         self._all: list[PgConnection] = []
         self._closed = False
-        if migrate_on_open:
-            owner = connect(self.url)
+        owner_url = migration_url()
+        if migrate_on_open and owner_url:
+            owner = connect(with_database(owner_url, self.database))
             try:
-                migrate(owner, schema)
+                migrate(owner, schema, self.role, own_database=own_database)
             finally:
                 owner.close()
         db._OPEN.add(self)
@@ -236,13 +246,17 @@ class PgStore:
             raise db.DatabaseError("this firm store has been closed")
         c = getattr(self._local, "conn", None)
         if c is None or c.raw.closed:
-            c = PgConnection(connect(self.url), self.schema, self.scope)
+            c = PgConnection(connect(self._runtime), self.schema, self.scope)
             self._local.conn = c
             self._all.append(c)
         return c
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._get(), name)
+
+    def set_scope(self, clients: Sequence[str]) -> None:
+        """Scope this thread's connection (one request) to `clients`; ["*"] is firm-wide."""
+        self._get().set_scope(",".join(clients) or "-")
 
     def close(self) -> None:
         """Close every thread's connection; the store cannot be used afterwards."""

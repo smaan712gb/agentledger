@@ -9,19 +9,13 @@
 --   * per-client hash chains detect tampering below the application
 --   * row-level security scopes reads to the clients set for the session (defense in depth inside a firm database)
 -- The runner executes this file with search_path set to "<schema>, public", so functions pin it via FROM CURRENT.
+-- {{app_role}} is this store's own runtime login role (rt_<store>), created by the runner before the file runs and
+-- substituted here. It owns nothing, has no membership in the owner role, and is granted privileges in this store
+-- only: a runtime connection cannot RESET ROLE into the owner, and cannot read another firm's schema.
 -- Error codes: AL001 unbalanced, AL002 closed period, AL003 command conflict, AL004 out of scope,
 --              AL005 invalid request, AL006 append-only, AL007 not authorized.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'agentledger_app') THEN
-        CREATE ROLE agentledger_app NOLOGIN NOBYPASSRLS;
-    END IF;
-    -- The migrating (owner) role may switch to the app role for requests; it never inherits its privileges.
-    EXECUTE format('GRANT agentledger_app TO %I WITH INHERIT FALSE, SET TRUE', current_user);
-END $$;
 
 -- ------------------------------------------------------------------------------------------------- tables
 CREATE TABLE clients (
@@ -186,6 +180,16 @@ $$;
 
 CREATE FUNCTION in_scope(p_client text) RETURNS boolean LANGUAGE sql STABLE AS $$
     SELECT '*' = ANY (session_clients()) OR p_client = ANY (session_clients())
+$$;
+
+CREATE FUNCTION firm_wide() RETURNS boolean LANGUAGE sql STABLE AS $$
+    SELECT '*' = ANY (session_clients())
+$$;
+
+-- A row is visible when its client is in scope; rows without a client (the unassigned inbox, firm-wide tasks and
+-- precedents) are firm data, visible to firm-wide sessions only, never to a client-scoped one.
+CREATE FUNCTION visible(p_client text) RETURNS boolean LANGUAGE sql STABLE AS $$
+    SELECT CASE WHEN p_client IS NULL THEN firm_wide() ELSE in_scope(p_client) END
 $$;
 
 CREATE FUNCTION assert_scope(p_client text) RETURNS void LANGUAGE plpgsql STABLE AS $$
@@ -438,7 +442,7 @@ DECLARE
     v_n    bigint := 0;
     r      record;
 BEGIN
-    IF NOT ('*' = ANY (session_clients())) THEN
+    IF NOT firm_wide() THEN
         RAISE EXCEPTION 'verifying the whole audit chain is a firm-wide task' USING ERRCODE = 'AL004';
     END IF;
     FOR r IN SELECT * FROM audit ORDER BY seq LOOP
@@ -466,14 +470,15 @@ CREATE POLICY scope_entries  ON entries  FOR SELECT USING (in_scope(client_id));
 CREATE POLICY scope_postings ON postings FOR SELECT USING (in_scope(client_id));
 CREATE POLICY scope_commands ON commands FOR SELECT USING (in_scope(client_id));
 CREATE POLICY scope_outbox   ON outbox   FOR SELECT USING (in_scope(client_id));
-CREATE POLICY scope_audit    ON audit    FOR SELECT USING (client_id IS NOT NULL AND in_scope(client_id));
+CREATE POLICY scope_audit    ON audit    FOR SELECT USING (visible(client_id));
 
 -- ------------------------------------------------------------------------------------------------- privileges
 DO $$
 BEGIN
-    EXECUTE format('GRANT USAGE ON SCHEMA %I TO agentledger_app', current_schema());
+    EXECUTE format('GRANT USAGE ON SCHEMA %I TO {{app_role}}', current_schema());
     EXECUTE format('REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA %I FROM PUBLIC', current_schema());
 END $$;
-GRANT SELECT ON clients, accounts, entries, postings, commands, outbox, outbox_delivery, audit TO agentledger_app;
+GRANT SELECT ON clients, accounts, entries, postings, commands, outbox, audit TO {{app_role}};
 GRANT EXECUTE ON FUNCTION post_journal, reverse_journal, close_period, reopen_period, add_client, add_account,
-    mark_delivered, verify_chain, record_audit, verify_audit, session_clients, in_scope, sha256_hex TO agentledger_app;
+    mark_delivered, verify_chain, record_audit, verify_audit, session_clients, in_scope, firm_wide, visible, sha256_hex
+    TO {{app_role}};

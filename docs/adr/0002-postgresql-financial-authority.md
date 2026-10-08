@@ -61,3 +61,8 @@ Tenancy (2026-10-08): `AGENTLEDGER_PG_TENANCY=database` gives each firm its own 
 configured branch through the Neon API, sharing the endpoint and roles, so no per-firm credential is stored.
 `schema` tenancy (a schema per firm in one database) serves development, tests and self-hosting. Deleting a firm
 destroys its data key first, then its store and tenant directory, and records both steps in the platform log.
+
+Credentials (2026-10-08, after the re-audit of 9333fde): owner credentials migrate and provision only. Each store has
+its own runtime login role with privileges in that store alone; the API connects as that role and never holds owner
+credentials in production (migrations run as a release step). Provisioning is journaled in the platform store and
+resumes or cleans up only what it recorded creating.

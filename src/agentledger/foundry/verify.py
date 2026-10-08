@@ -168,8 +168,7 @@ def verify_rule_change(kb: KnowledgeBase, payload: dict[str, Any], document_text
 
 def _max_change(prev: Any, new: Any) -> float | None:
     if isinstance(prev, dict) and isinstance(new, dict):
-        jumps = [_max_change(prev.get(k), new.get(k)) for k in new]
-        jumps = [j for j in jumps if j is not None]
+        jumps = [j for j in (_max_change(prev.get(k), new.get(k)) for k in new) if j is not None]
         return max(jumps) if jumps else None
     if isinstance(prev, (int, float)) and isinstance(new, (int, float)) and not isinstance(prev, bool) and prev:
         return abs(new - prev) / abs(prev)

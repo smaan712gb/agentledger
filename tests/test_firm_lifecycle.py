@@ -62,6 +62,7 @@ class FakeNeon:
     def __init__(self):
         self.dbs = {"neondb"}
         self.ops: dict[str, int] = {}
+        self.stall = False          # operations never finish (a timeout after Neon accepted the request)
         self.calls: list[tuple[str, str]] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -82,6 +83,8 @@ class FakeNeon:
             return httpx.Response(200, json={"operations": [self._op("apply_config")]})
         if path.startswith("/projects/p/operations/"):
             op = path.rsplit("/", 1)[1]
+            if self.stall:
+                return httpx.Response(200, json={"operation": {"status": "running"}})
             self.ops[op] += 1
             return httpx.Response(200, json={"operation": {"status": "finished" if self.ops[op] > 1 else "running"}})
         return httpx.Response(404, json={"message": "not found"})
@@ -148,6 +151,14 @@ def test_neon_database_per_firm_live(tmp_path, monkeypatch):
         store.post(conn, "acme", date(2026, 3, 1), "sale", [Line("1000", Decimal(5)), Line("4000", Decimal(-5))],
                    source="t", actor="t")
         assert store.verify_chain(conn, "acme")["ok"]
+        # The runtime connection is the firm's own role, and no one else may connect to the firm's database.
+        assert conn.execute("SELECT current_user").fetchone()[0] == conn.role == f"rt_{name}_agentledger"
+        from agentledger import pg
+
+        owner = pg.connect(pg.migration_url())
+        assert owner.execute("SELECT has_database_privilege('public', %s, 'CONNECT')", (name,)).fetchone()[0] is False
+        owner.close()
+        assert plat.get("live-check")["state"] == "ready"
         plat.delete_firm("live-check", by="ops")
         assert name not in neon.databases()
     finally:

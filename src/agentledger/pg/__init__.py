@@ -4,16 +4,25 @@ The database enforces the ledger's invariants itself (see migrations/0001_ledger
 immutability, closed periods, one effect per command, outbox and audit in the same transaction, and per-client hash
 chains. This module applies migrations and gives the application a narrow client that:
 
-* runs every request as the `agentledger_app` role, which can read but never write tables directly;
+* connects as the store's own runtime login role (`rt_<database>_<schema>`), never as the owner: the role owns
+  nothing, cannot become the owner (there is no SET ROLE to reset), can write tables only where the migrations grant
+  it, and has privileges in its own store only, so it cannot read another firm's schema or database;
 * sets the session's client scope (from engagement grants) for row-level security and the write functions;
 * maps the database's error codes to the same exceptions the rest of the code already handles.
+
+Credentials: migrations and provisioning use the owner connection (AGENTLEDGER_MIGRATION_URL, else
+DATABASE_URL_UNPOOLED). Runtime connections take only the host and database from AGENTLEDGER_RUNTIME_DATABASE_URL
+(else the same URL) and log in as the runtime role, whose password is derived from AGENTLEDGER_DB_ROLE_KEY. In
+production the API's environment has the role key and no owner credentials; migrations run as a release step.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
+import re
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -21,12 +30,13 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, urlparse, urlunparse
 
 from ..db import CommandConflict
 from ..ledger.store import ClosedPeriod, LedgerError
 
 MIGRATIONS = Path(__file__).parent / "migrations"
-APP_ROLE = "agentledger_app"
+ROLE_TOKEN = "{{app_role}}"
 
 
 class Unbalanced(LedgerError):
@@ -64,6 +74,79 @@ def dsn(*, direct: bool = False) -> str | None:
     return os.environ.get("DATABASE_URL")
 
 
+def migration_url() -> str | None:
+    """Owner credentials, for migrations and provisioning only."""
+    return os.environ.get("AGENTLEDGER_MIGRATION_URL") or dsn(direct=True)
+
+
+def runtime_base_url() -> str | None:
+    """Where runtime connections go (host, database, options). Its credentials are replaced by the runtime role's."""
+    return os.environ.get("AGENTLEDGER_RUNTIME_DATABASE_URL") or dsn(direct=True)
+
+
+def database_of(url: str) -> str:
+    return urlparse(url).path.lstrip("/") or "postgres"
+
+
+def with_database(url: str, name: str) -> str:
+    return urlunparse(urlparse(url)._replace(path="/" + name))
+
+
+def runtime_role(database: str, schema: str) -> str:
+    """The login role of one store: rt_<database>_<schema>, shortened with a hash when it would exceed 63 bytes."""
+    name = re.sub(r"[^a-z0-9_]", "_", f"rt_{database}_{schema}".lower())
+    if len(name) > 63:
+        name = name[:50] + "_" + hashlib.sha256(name.encode()).hexdigest()[:12]
+    return name
+
+
+def runtime_password(role: str) -> str:
+    """Derived per role from AGENTLEDGER_DB_ROLE_KEY, so no per-firm database password is stored anywhere.
+    Development without the key derives it from the owner password in the local environment."""
+    key = os.environ.get("AGENTLEDGER_DB_ROLE_KEY", "")
+    if not key:
+        owner = migration_url()
+        key = (urlparse(owner).password or "") if owner else ""
+        if not key:
+            raise RuntimeError("set AGENTLEDGER_DB_ROLE_KEY (runtime database role passwords are derived from it)")
+        key = "dev-only:" + key
+    return hmac.new(key.encode(), role.encode(), hashlib.sha256).hexdigest()
+
+
+def runtime_url(base: str, role: str) -> str:
+    u = urlparse(base)
+    host = u.hostname or ""
+    netloc = f"{quote(role)}:{runtime_password(role)}@{host}" + (f":{u.port}" if u.port else "")
+    return urlunparse(u._replace(netloc=netloc))
+
+
+def ensure_role(owner, role: str, *, database: str | None = None) -> None:
+    """Create (or reset) a store's runtime role: login, no inheritance, no role or database creation, no RLS bypass.
+    With `database` (database tenancy), only this role may connect to that database."""
+    from psycopg import sql
+
+    exists = owner.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone()
+    stmt = "ALTER ROLE {} WITH" if exists else "CREATE ROLE {} WITH"
+    owner.execute(sql.SQL(stmt + " LOGIN NOINHERIT NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD {}")
+                  .format(sql.Identifier(role), sql.Literal(runtime_password(role))))
+    if database:
+        owner.execute(sql.SQL("REVOKE CONNECT, TEMPORARY ON DATABASE {} FROM PUBLIC").format(sql.Identifier(database)))
+        owner.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(sql.Identifier(database), sql.Identifier(role)))
+
+
+def drop_role(owner, role: str) -> None:
+    from psycopg import sql
+
+    # The role owns nothing; once its schema or database is gone, only grants outside the store remain. Revoking them
+    # (rather than DROP OWNED, which needs the role's own privileges and fails on Neon, where the owner is not a
+    # superuser) lets the drop succeed. Call after removing the store.
+    if owner.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone():
+        database = owner.execute("SELECT current_database()").fetchone()[0]
+        owner.execute(sql.SQL("REVOKE ALL ON SCHEMA public FROM {}").format(sql.Identifier(role)))
+        owner.execute(sql.SQL("REVOKE ALL ON DATABASE {} FROM {}").format(sql.Identifier(database), sql.Identifier(role)))
+        owner.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
+
+
 def connect(url: str | None = None, *, direct: bool = False):
     url = url or dsn(direct=direct)
     if not url:
@@ -81,11 +164,16 @@ def translate(exc: Exception) -> Exception:
 
 
 # ------------------------------------------------------------------------------------------------- migrations
-def migrate(conn, schema: str) -> list[str]:
-    """Apply pending migrations to `schema`, each in its own transaction, recording name and checksum.
-    An applied migration whose file has changed is an error: migrations are append-only like the ledger."""
+def migrate(conn, schema: str, role: str | None = None, *, own_database: bool = False) -> list[str]:
+    """Apply pending migrations to `schema` as the owner, each in its own transaction, recording name and checksum,
+    and (re)create the store's runtime role first. An applied migration whose file has changed is an error:
+    migrations are append-only like the ledger. The checksum covers the file as written, before the role name is
+    substituted."""
     if not schema.replace("_", "").isalnum():
         raise ValueError(f"bad schema name {schema!r}")
+    database = conn.execute("SELECT current_database()").fetchone()[0]
+    role = role or runtime_role(database, schema)
+    ensure_role(conn, role, database=database if own_database else None)
     applied = []
     with conn.transaction():
         conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
@@ -102,7 +190,7 @@ def migrate(conn, schema: str) -> list[str]:
             continue
         with conn.transaction():
             conn.execute(f'SET LOCAL search_path TO "{schema}", public')
-            conn.execute(sql)
+            conn.execute(sql.replace(ROLE_TOKEN, f'"{role}"'))
             conn.execute(f'INSERT INTO "{schema}".schema_migrations (name, sha256) VALUES (%s, %s)', (path.name, digest))
         applied.append(path.name)
     return applied
@@ -125,8 +213,8 @@ def _lines(lines: Sequence[Line | dict[str, Any]]) -> str:
 
 
 class Ledger:
-    """One firm database (one schema in tests). Every call runs in a transaction as the app role, scoped to the
-    clients the caller is engaged on. `clients=["*"]` is for firm-wide jobs only."""
+    """One firm database (one schema in tests). `conn` is a runtime-role connection (see `runtime_url`); every call
+    runs in a transaction scoped to the clients the caller is engaged on. `clients=["*"]` is for firm-wide jobs."""
 
     def __init__(self, conn, schema: str, *, clients: Sequence[str], actor: str, role: str):
         self.conn, self.schema = conn, schema
@@ -137,7 +225,6 @@ class Ledger:
         try:
             with self.conn.transaction():
                 self.conn.execute(f'SET LOCAL search_path TO "{self.schema}", public')
-                self.conn.execute(f"SET LOCAL ROLE {APP_ROLE}")
                 self.conn.execute("SELECT set_config('agentledger.clients', %s, true)", (",".join(self.clients),))
                 yield self.conn
         except _psycopg().Error as exc:

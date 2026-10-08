@@ -17,6 +17,11 @@ class Vault:
         if keyring is not None and not firm_id:
             raise ValueError("an encrypted vault needs the firm id")
 
+    def _firm(self) -> str:
+        if not self.firm_id:  # guaranteed by __init__ whenever a keyring is set
+            raise ValueError("an encrypted vault needs the firm id")
+        return self.firm_id
+
     @property
     def encrypted(self) -> bool:
         return self.keyring is not None
@@ -30,7 +35,7 @@ class Vault:
     def write(self, rel: str | Path, data: bytes) -> Path:
         dest = self.path(rel)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(self.keyring.encrypt(self.firm_id, data, "vault") if self.keyring else data)
+        dest.write_bytes(self.keyring.encrypt(self._firm(), data, "vault") if self.keyring else data)
         return dest
 
     def read(self, rel: str | Path) -> bytes:
@@ -38,7 +43,7 @@ class Vault:
         if raw[:3] == MAGIC:
             if not self.keyring:
                 raise PermissionError("this document is encrypted and no firm key is available")
-            return self.keyring.decrypt(self.firm_id, raw, "vault")
+            return self.keyring.decrypt(self._firm(), raw, "vault")
         return raw
 
     def move(self, src: str | Path, dst: str | Path) -> None:

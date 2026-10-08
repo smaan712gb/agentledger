@@ -335,7 +335,8 @@ class Returns:
         root = Path(self.kb.root).parent if getattr(self.kb, "root", None) else None
         from .. import coverage
 
-        statuses = {coverage.form_id(f): coverage.lookup(coverage.form_id(f), year)["status"] for f in forms if coverage.form_id(f)}
+        ids = [i for i in (coverage.form_id(f) for f in forms) if i]
+        statuses = {i: coverage.lookup(i, year)["status"] for i in ids}
         lowest = min(statuses.values(), key=lambda x: coverage.RANK[x]) if statuses else "unsupported"
         blockers = coverage.check_forms(forms + ["mef_1040"], year, need="filing-approved")
         flags = coverage.active_flags(root, jurisdiction="US-FED", year=year) if root else []

@@ -81,6 +81,8 @@ def _firm_store_backend(monkeypatch):
     try:
         for (name,) in owner.execute("SELECT nspname FROM pg_namespace WHERE nspname LIKE %s", (prefix + "%",)).fetchall():
             owner.execute(f'DROP SCHEMA "{name}" CASCADE')
+        for (role,) in owner.execute("SELECT rolname FROM pg_roles WHERE rolname LIKE %s", ("rt\\_%" + prefix + "%",)).fetchall():
+            pg.drop_role(owner, role)
     finally:
         owner.close()
 

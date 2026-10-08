@@ -97,6 +97,8 @@ def compute_individual(ctx: Ctx, r: IndividualReturn) -> Result:
 
 
 class _Individual:
+    _ftc: Decimal
+
     def __init__(self, ctx: Ctx, r: IndividualReturn):
         self.ctx, self.r = ctx, r
         self.y = r.tax_year
@@ -667,7 +669,7 @@ class _Individual:
         return base + per * boxes
 
     def _schedule_a(self) -> Decimal:
-        r, it, agi = self.r, self.r.itemized, self.agi
+        it, agi = self.r.itemized, self.agi
         f = "sch_a"
         self.set(f, "1", it.medical)
         self.set(f, "2", agi)
@@ -816,7 +818,7 @@ class _Individual:
         loans = [c for c in r.car_loans if c.qualifies]
         for c in r.car_loans:
             if not c.vin or len(c.vin) != 17:
-                self.s.diag("error", "car_loan_vin", f"Vehicle loan interest requires the 17-character VIN (IRC §163(h)(4)(B)(iii)).", f, "28")
+                self.s.diag("error", "car_loan_vin", "Vehicle loan interest requires the 17-character VIN (IRC §163(h)(4)(B)(iii)).", f, "28")
         if car_rule and loans:
             self.s.fact(f, "28", [{"vin": c.vin, "interest": str(whole(c.interest_paid))} for c in loans])
             l29 = self.set(f, "29", sum((c.interest_paid for c in loans if c.vin and len(c.vin) == 17), Z))

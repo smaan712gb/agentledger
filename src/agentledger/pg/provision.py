@@ -4,10 +4,15 @@ Two tenancy modes (AGENTLEDGER_PG_TENANCY):
 
 * ``schema`` (default; development, tests, self-hosting): one database, a schema per firm (``firm_<id>``).
 * ``database`` (production on Neon): a database per firm (``al_<id>``) on the configured branch, created and
-  deleted through the Neon API. Firms share the endpoint and its roles, so the connection string is the
-  configured one with the firm's database name; no per-firm credential is stored anywhere.
+  deleted through the Neon API.
 
-Either way the firm's tables live in a schema the migrations manage, and deleting a firm removes its store.
+Either way each store has its own runtime login role (agentledger.pg.runtime_role) with privileges in that store
+only, and deleting a firm removes the store and the role.
+
+Provisioning is a durable operation recorded in a journal (the platform store): the intent is written before
+anything is created, each step afterwards, and a retry resumes from the recorded step. A database is treated as ours
+only when the journal says we were creating it; anything else with the same name is refused, never adopted or
+deleted. A lease keeps concurrent retries apart, and `abandon` removes only what the journal says we created.
 """
 
 from __future__ import annotations
@@ -15,18 +20,23 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Any
-from urllib.parse import urlparse, urlunparse
+from typing import Any, Callable, Protocol
+from urllib.parse import urlparse
 
 from .. import db
-from . import connect, dsn
+from . import connect, drop_role, migration_url, runtime_base_url, runtime_role, with_database
 
 NEON_API = "https://console.neon.tech/api/v2"
 FIRM_SCHEMA = "agentledger"           # the schema inside a firm's own database
+STEPS = ("creating", "created", "migrated", "ready")
 
 
 class ProvisioningError(RuntimeError):
     pass
+
+
+class ProvisioningBusy(ProvisioningError):
+    """Another attempt holds the lease for this firm."""
 
 
 def tenancy() -> str:
@@ -40,20 +50,24 @@ def firm_database(firm_id: str) -> str:
     return db.pg_name(f"al_{firm_id}")
 
 
-def with_database(url: str, name: str) -> str:
-    u = urlparse(url)
-    return urlunparse(u._replace(path="/" + name))
-
-
 def store_location(path: Path | str) -> tuple[str, str]:
-    """(connection string, schema) for the store at `path`."""
-    base = dsn(direct=True)
+    """(server and database URL, schema) for the store at `path`. Credentials in the URL are not used."""
+    base = runtime_base_url()
     if not base:
         raise ProvisioningError("AGENTLEDGER_DATABASE=postgres needs DATABASE_URL_UNPOOLED (or DATABASE_URL)")
     firm = db.firm_of(path)
     if firm and tenancy() == "database":
         return with_database(base, firm_database(firm)), FIRM_SCHEMA
     return base, db.schema_for(path)
+
+
+class Journal(Protocol):
+    """Durable provisioning records, one per firm (implemented by the platform store)."""
+
+    def get(self, firm_id: str) -> dict[str, Any] | None: ...
+    def put(self, firm_id: str, **fields: Any) -> None: ...
+    def claim(self, firm_id: str, holder: str, seconds: int) -> bool: ...
+    def release(self, firm_id: str, holder: str) -> None: ...
 
 
 # ------------------------------------------------------------------------------------------------- Neon API
@@ -115,40 +129,118 @@ class Neon:
 
 
 # ------------------------------------------------------------------------------------------------- lifecycle
-def provision(firm_id: str, *, neon: Neon | None = None) -> str:
-    """Create the firm's store before the firm exists (a failure leaves nothing half-created)."""
-    if tenancy() == "schema":
-        return "schema tenancy: the firm schema is created and migrated on first use"
-    neon = neon or Neon()
-    name = firm_database(firm_id)
-    if name in neon.databases():
-        raise ProvisioningError(f"database {name} already exists; refusing to reuse another firm's data")
-    neon.create_database(name, urlparse(dsn(direct=True) or "").username or "")
+def _migrate_store(url: str, schema: str, own_database: bool) -> None:
     from .compat import PgStore
 
-    PgStore(FIRM_SCHEMA, url=with_database(dsn(direct=True), name)).close()     # apply the migrations now
-    return f"Neon database {name} created and migrated"
+    PgStore(schema, url=url, own_database=own_database).close()
+
+
+def provision(firm_id: str, journal: Journal, *, neon: Neon | None = None,
+              migrate_store: Callable[[str, str, bool], None] | None = None, lease_s: int = 600) -> str:
+    """Create the firm's store, resuming from the journal after a failure. Returns what was done."""
+    holder = f"{os.getpid()}:{time.monotonic_ns()}"
+    if not journal.claim(firm_id, holder, lease_s):
+        raise ProvisioningBusy(f"provisioning of {firm_id} is already running")
+    try:
+        return _provision(firm_id, journal, neon, migrate_store or _migrate_store)
+    except Exception as exc:
+        journal.put(firm_id, error=f"{type(exc).__name__}: {exc}"[:300])
+        raise
+    finally:
+        journal.release(firm_id, holder)
+
+
+def _provision(firm_id: str, journal: Journal, neon: Neon | None, migrate_store: Callable[[str, str, bool], None]) -> str:
+    base = runtime_base_url()
+    if not base or not migration_url():
+        raise ProvisioningError("provisioning needs the owner connection (AGENTLEDGER_MIGRATION_URL or DATABASE_URL_UNPOOLED)")
+    database_mode = tenancy() == "database"
+    if database_mode:
+        resource, name = "database", firm_database(firm_id)
+        url, schema = with_database(base, name), FIRM_SCHEMA
+    else:
+        resource, name = "schema", db.schema_for(Path("tenants") / firm_id / "state" / "agentledger.db")
+        url, schema = base, name
+    rec = journal.get(firm_id)
+    if rec and (rec.get("resource"), rec.get("name")) != (resource, name):
+        raise ProvisioningError(f"journal for {firm_id} records {rec.get('resource')} {rec.get('name')}, not {resource} {name}")
+    state = rec["state"] if rec else None
+    if state == "ready":
+        return f"{resource} {name} already provisioned"
+    if state == "removed":
+        raise ProvisioningError(f"{resource} {name} was removed; a removed firm is not provisioned again")
+    if database_mode:
+        neon = neon or Neon()
+        exists = name in neon.databases()
+        if state is None:
+            if exists:   # not ours: no record that we ever started creating it
+                raise ProvisioningError(f"database {name} exists without a provisioning record; refusing to adopt it")
+            journal.put(firm_id, resource=resource, name=name, state="creating", error=None)
+            state = "creating"
+        if state == "creating":
+            if not exists:   # a timeout after Neon accepted the request leaves it existing; then it is ours
+                neon.create_database(name, urlparse(migration_url() or "").username or "")
+            journal.put(firm_id, state="created")
+            state = "created"
+    elif state is None:
+        journal.put(firm_id, resource=resource, name=name, state="created", error=None)
+        state = "created"
+    if state == "created":
+        migrate_store(url, schema, database_mode)        # idempotent: resumes from schema_migrations
+        journal.put(firm_id, state="migrated")
+        state = "migrated"
+    journal.put(firm_id, state="ready", error=None)
+    return f"{resource} {name} created and migrated"
+
+
+def abandon(firm_id: str, journal: Journal, *, neon: Neon | None = None) -> str:
+    """Remove what an unfinished provisioning created, and nothing else."""
+    rec = journal.get(firm_id)
+    if not rec or rec["state"] in ("removed",):
+        return "nothing recorded"
+    if rec["state"] == "ready":
+        raise ProvisioningError("a provisioned firm is removed by deleting the firm, not by abandoning provisioning")
+    detail = _remove(rec["resource"], rec["name"], neon=neon)
+    journal.put(firm_id, state="removed")
+    return detail
+
+
+def _remove(resource: str, name: str, *, neon: Neon | None = None) -> str:
+    owner_url = migration_url()
+    base = runtime_base_url()
+    if not owner_url or not base:
+        raise ProvisioningError("removing a store needs the owner connection")
+    if resource == "database":
+        role = runtime_role(name, FIRM_SCHEMA)
+        neon = neon or Neon()
+        done = f"Neon database {name} deleted" if name in neon.databases() else f"no Neon database {name}"
+        if name in neon.databases():
+            neon.delete_database(name)
+    else:
+        role = runtime_role(urlparse(base).path.lstrip("/") or "postgres", name)
+        owner = connect(owner_url)
+        try:
+            existed = owner.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (name,)).fetchone()
+            owner.execute(f'DROP SCHEMA IF EXISTS "{name}" CASCADE')
+        finally:
+            owner.close()
+        done = f"schema {name} dropped" if existed else f"no schema {name}"
+    owner = connect(owner_url)
+    try:
+        drop_role(owner, role)
+    finally:
+        owner.close()
+    return done + f"; runtime role {role} dropped"
 
 
 def destroy(path: Path | str, *, neon: Neon | None = None) -> str:
     """Remove a firm's store permanently: close this process's connections, then drop the schema or delete the
-    firm's database."""
+    firm's database, and drop its runtime role."""
     from .compat import location
 
     url, schema = store_location(path)
     db.close_stores(location(url, schema))
     firm = db.firm_of(path)
     if firm and tenancy() == "database":
-        neon = neon or Neon()
-        name = firm_database(firm)
-        if name in neon.databases():
-            neon.delete_database(name)
-            return f"Neon database {name} deleted"
-        return f"no Neon database {name}"
-    owner = connect(url)
-    try:
-        existed = owner.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (schema,)).fetchone()
-        owner.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
-    finally:
-        owner.close()
-    return f"schema {schema} dropped" if existed else f"no schema {schema}"
+        return _remove("database", firm_database(firm), neon=neon)
+    return _remove("schema", schema)

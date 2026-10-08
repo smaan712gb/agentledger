@@ -75,9 +75,22 @@ CREATE TABLE IF NOT EXISTS auth_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL DEFAULT (datetime('now')), firm_id TEXT, user_id TEXT,
     email TEXT, event TEXT NOT NULL, ip TEXT, detail TEXT
 );
+CREATE TABLE IF NOT EXISTS provisioning (
+    firm_id TEXT PRIMARY KEY, resource TEXT, name TEXT,
+    state TEXT CHECK (state IN ('creating','created','migrated','ready','removed')),
+    holder TEXT, lease_until TEXT, error TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TRIGGER IF NOT EXISTS auth_events_no_update BEFORE UPDATE ON auth_events BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS auth_events_no_delete BEFORE DELETE ON auth_events BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 """
+
+
+def client_scope(user: dict[str, Any]) -> list[str]:
+    """The clients a signed-in user's database session may see (row-level security on PostgreSQL). A client user
+    sees one business; firm staff are firm-wide until engagement grants arrive (backlog F-05)."""
+    if user["role"] == "client":
+        return [user["client_id"]] if user.get("client_id") else []
+    return ["*"]
 
 
 class AuthError(Exception):
@@ -146,20 +159,70 @@ class Platform:
         return self.root / "tenants" / firm_id
 
     def create_firm(self, firm_id: str, name: str, *, by: str) -> dict[str, Any]:
+        """Create a firm, or resume one whose store provisioning did not finish. The firm stays in status
+        'provisioning' (nobody can use it) until its store is ready; a failure is recorded and the same call retries."""
         if not FIRM_ID.match(firm_id) or firm_id == PLATFORM_FIRM:
             raise AuthError("firm id must be 2-41 lowercase letters, digits or hyphens")
         with self.lock:
-            if self.conn.execute("SELECT 1 FROM firms WHERE id = ?", (firm_id,)).fetchone():
+            row = self.conn.execute("SELECT status FROM firms WHERE id = ?", (firm_id,)).fetchone()
+            if row and row["status"] != "provisioning":
                 raise AuthError("that firm id is taken")
-            if db.backend() == "postgres":  # the firm's own database first: a failure leaves no half-created firm
-                from ..pg import provision
+            if not row:
+                status = "provisioning" if db.backend() == "postgres" else "active"
+                self.conn.execute("INSERT INTO firms (id, name, status) VALUES (?, ?, ?)", (firm_id, name, status))
+                self.keys.create(firm_id)
+                self.tenant_dir(firm_id).mkdir(parents=True, exist_ok=True)
+                self.event("firm_created", firm_id=firm_id, user_id=by, detail=name)
+        if db.backend() == "postgres":   # outside the lock: provisioning talks to the database service
+            from ..pg import provision
 
-                self.event("firm_store_provisioned", firm_id=firm_id, user_id=by, detail=provision.provision(firm_id))
-            self.conn.execute("INSERT INTO firms (id, name) VALUES (?, ?)", (firm_id, name))
-            self.keys.create(firm_id)
-            self.tenant_dir(firm_id).mkdir(parents=True, exist_ok=True)
-            self.event("firm_created", firm_id=firm_id, user_id=by, detail=name)
+            try:
+                detail = provision.provision(firm_id, self)
+            except Exception as exc:
+                self.event("firm_store_provisioning_failed", firm_id=firm_id, user_id=by, detail=f"{type(exc).__name__}: {exc}"[:300])
+                raise
+            self.conn.execute("UPDATE firms SET status = 'active' WHERE id = ? AND status = 'provisioning'", (firm_id,))
+            self.event("firm_store_provisioned", firm_id=firm_id, user_id=by, detail=detail)
         return self.firm(firm_id)
+
+    def abandon_firm(self, firm_id: str, *, by: str) -> str:
+        """Give up on a firm whose provisioning never finished: remove what provisioning recorded creating, shred its
+        key and retire the id."""
+        if self.firm(firm_id)["status"] != "provisioning":
+            raise AuthError("only a firm that is still provisioning can be abandoned")
+        from ..pg import provision
+
+        detail = provision.abandon(firm_id, self)
+        with self.lock:
+            self.conn.execute("UPDATE firms SET status = 'deleted', deleted_at = datetime('now') WHERE id = ?", (firm_id,))
+            self.keys.destroy(firm_id)
+        self.event("firm_abandoned", firm_id=firm_id, user_id=by, detail=detail)
+        return detail
+
+    # ------------------------------------------------------------------ provisioning journal (pg.provision.Journal)
+    def get(self, firm_id: str) -> dict[str, Any] | None:
+        r = self.conn.execute("SELECT * FROM provisioning WHERE firm_id = ?", (firm_id,)).fetchone()
+        return dict(r) if r and r["state"] else None
+
+    def put(self, firm_id: str, **fields: Any) -> None:
+        allowed = {"resource", "name", "state", "error"}
+        if set(fields) - allowed:
+            raise ValueError(f"unknown provisioning fields {set(fields) - allowed}")
+        self.conn.execute("INSERT INTO provisioning (firm_id) VALUES (?) ON CONFLICT (firm_id) DO NOTHING", (firm_id,))
+        sets = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = datetime('now')"
+        self.conn.execute(f"UPDATE provisioning SET {sets} WHERE firm_id = ?", (*fields.values(), firm_id))
+
+    def claim(self, firm_id: str, holder: str, seconds: int) -> bool:
+        with self.lock:
+            self.conn.execute("INSERT INTO provisioning (firm_id) VALUES (?) ON CONFLICT (firm_id) DO NOTHING", (firm_id,))
+            cur = self.conn.execute("UPDATE provisioning SET holder = ?, lease_until = ? WHERE firm_id = ? "
+                                    "AND (lease_until IS NULL OR lease_until < ?)",
+                                    (holder, _iso(_now() + timedelta(seconds=seconds)), firm_id, _iso(_now())))
+            return cur.rowcount == 1
+
+    def release(self, firm_id: str, holder: str) -> None:
+        self.conn.execute("UPDATE provisioning SET holder = NULL, lease_until = NULL WHERE firm_id = ? AND holder = ?",
+                          (firm_id, holder))
 
     def firm(self, firm_id: str) -> dict[str, Any]:
         r = self.conn.execute("SELECT * FROM firms WHERE id = ?", (firm_id,)).fetchone()
@@ -190,6 +253,10 @@ class Platform:
         tenant directory (vault ciphertext, agent state). Safe to retry."""
         if self.firm(firm_id)["status"] != "deleted":
             raise AuthError("only a deleted firm's data can be destroyed")
+        if db.backend() == "postgres":
+            rec = self.get(firm_id)
+            if rec and rec["state"] == "removed":
+                return "store already removed"
         tenant = self.tenant_dir(firm_id)
         try:
             detail = db.destroy_store(tenant / "state" / "agentledger.db")
@@ -199,6 +266,8 @@ class Platform:
         except Exception as exc:
             self.event("firm_data_destroy_failed", firm_id=firm_id, user_id=by, detail=f"{type(exc).__name__}: {exc}"[:300])
             raise
+        if self.get(firm_id):
+            self.put(firm_id, state="removed")
         self.event("firm_data_destroyed", firm_id=firm_id, user_id=by, detail=detail)
         return detail
 

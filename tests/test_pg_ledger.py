@@ -47,15 +47,32 @@ def db():
         yield owner, schema
     finally:
         owner.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+        pg.drop_role(owner, rt_role(schema))
         owner.close()
 
 
+def rt_role(schema):
+    return pg.runtime_role(pg.database_of(URL), schema)
+
+
+def rt_url(schema):
+    """The store's runtime login: never the owner."""
+    return pg.runtime_url(URL, rt_role(schema))
+
+
+@pytest.fixture(scope="module")
+def runtime(db):
+    conn = pg.connect(rt_url(db[1]))
+    yield conn
+    conn.close()
+
+
 @pytest.fixture
-def books(db):
+def books(db, runtime):
     """A fresh client with a small chart of accounts, and a CPA-scoped ledger client for it."""
     owner, schema = db
     cid = "c" + secrets.token_hex(4)
-    led = pg.Ledger(owner, schema, clients=[cid], actor="maya", role="cpa")
+    led = pg.Ledger(runtime, schema, clients=[cid], actor="maya", role="cpa")
     led.add_client(cid, "Rivera Plumbing", "business")
     for code, name, kind in [("1000", "Cash", "asset"), ("1100", "Accounts receivable", "asset"),
                              ("4000", "Sales", "revenue"), ("6000", "Supplies", "expense")]:
@@ -87,14 +104,13 @@ def test_q01_unbalanced_journal_rejected_on_every_route(db, books):
                         INSERT INTO postings (entry_id, client_id, line, account_code, amount, currency)
                         SELECT id, %s, 0, '1100', 100, 'USD' FROM e""", (cid, cid))
     assert exc.value.sqlstate == "AL001"
-    # The application role cannot write tables at all.
-    owner, schema = db
+    # The runtime role cannot write ledger tables at all.
+    _, schema = db
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
-        with owner.transaction():
-            owner.execute(f'SET LOCAL search_path TO "{schema}", public')
-            owner.execute("SET LOCAL ROLE agentledger_app")
-            owner.execute("INSERT INTO outbox (client_id, event_type, aggregate, aggregate_id, payload) "
-                          "VALUES (%s, 'x', 'x', 'x', '{}')", (cid,))
+        with led.conn.transaction():
+            led.conn.execute(f'SET LOCAL search_path TO "{schema}", public')
+            led.conn.execute("INSERT INTO outbox (client_id, event_type, aggregate, aggregate_id, payload) "
+                             "VALUES (%s, 'x', 'x', 'x', '{}')", (cid,))
     assert led.balances(cid) == {}
 
 
@@ -120,7 +136,7 @@ def test_q03_concurrent_retries_post_once(db, books):
     barrier, results, errors = threading.Barrier(4), [], []
 
     def worker():
-        conn = pg.connect(URL)
+        conn = pg.connect(rt_url(schema))
         try:
             mine = pg.Ledger(conn, schema, clients=[cid], actor="maya", role="cpa")
             barrier.wait()

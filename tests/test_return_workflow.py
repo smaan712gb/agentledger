@@ -169,7 +169,8 @@ def test_return_api_dev_mode(home, monkeypatch):
     mine = c.get(f"/api/returns/{rid}", headers=jordan).json()
     assert "inputs" not in mine and mine["forms"]["f1040"]["35a"] == "977" and mine["status"] == "approved"
     assert c.post(f"/api/returns/{rid}/approve", headers=jordan).status_code == 403
-    assert c.get(f"/api/returns/{rid}", headers={"Authorization": "Bearer dev-ortiz"}).status_code == 403
+    # Another client's return: refused by the API (403), or not even visible to the session on PostgreSQL (404).
+    assert c.get(f"/api/returns/{rid}", headers={"Authorization": "Bearer dev-ortiz"}).status_code in (403, 404)
 
 
 def test_coverage_is_published_and_pinned(fam):

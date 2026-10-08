@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .. import audit
 from ..calc.engine import D
 from ..calc.federal import Asset
-from ..db import unit_of_work, GENESIS, chain_hash, is_pg, one, rows
+from ..db import unit_of_work, GENESIS, chain_hash, count, is_pg, one, rows
 
 # Tax treatments a posting can carry. The M-1 engine maps each to KB rules.
 TREATMENTS = {
@@ -112,11 +112,10 @@ def post(conn: sqlite3.Connection, client_id: str, on: date, memo: str, lines: l
              for l in lines]
     if is_pg(conn):
         # The database posts: balance at commit, open period, hash chain, outbox and audit in one transaction.
-        body = json.dumps([{"account": l.account, "amount": str(D(l.amount)), "tax_treatment": l.tax_treatment} for l in lines])
+        lines_json = json.dumps([{"account": l.account, "amount": str(D(l.amount)), "tax_treatment": l.tax_treatment} for l in lines])
         with unit_of_work(conn):
-            row = conn.execute("SELECT post_journal(?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?, ?) AS id",
-                               (client_id, on.isoformat(), memo, source, actor, role, body, reverses, document_id)).fetchone()
-        return int(row["id"])
+            return count(conn, "SELECT post_journal(?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?, ?) AS id",
+                         client_id, on.isoformat(), memo, source, actor, role, lines_json, reverses, document_id)
     created_at = created_at or audit.now()
     with unit_of_work(conn):
         # Closed periods are enforced inside the posting transaction, not detected afterwards.
@@ -134,7 +133,7 @@ def post(conn: sqlite3.Connection, client_id: str, on: date, memo: str, lines: l
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (client_id, on.isoformat(), memo, source, actor, created_at, reverses, document_id, prev, h),
         )
-        entry_id = int(cur.lastrowid)
+        entry_id = int(cur.lastrowid or 0)
         for i, l in enumerate(lines):
             conn.execute(
                 "INSERT INTO postings (entry_id, line, account_code, amount, tax_treatment) VALUES (?,?,?,?,?)",

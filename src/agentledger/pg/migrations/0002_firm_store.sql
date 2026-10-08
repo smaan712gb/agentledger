@@ -297,22 +297,52 @@ BEGIN
     FOREACH t IN ARRAY ARRAY['assets', 'documents', 'info_returns', 'findings', 'precedents', 'contacts', 'engagements',
                              'tasks', 'messages', 'parties', 'deals', 'invoices', 'ai_usage', 'tax_returns'] LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
-        EXECUTE format('CREATE POLICY %I ON %I USING (client_id IS NULL OR in_scope(client_id)) '
-                       'WITH CHECK (client_id IS NULL OR in_scope(client_id))', 'scope_' || t, t);
+        EXECUTE format('CREATE POLICY %I ON %I USING (visible(client_id)) WITH CHECK (visible(client_id))', 'scope_' || t, t);
     END LOOP;
 END $$;
-CREATE POLICY write_clients  ON clients  FOR INSERT WITH CHECK (in_scope(id));
+
+-- Child records follow their parent: visible and writable only when the parent row is (the parent's own policy
+-- applies inside the subquery), so a session scoped to one client cannot read or extend another client's return
+-- history, workflow, document links or finding resolutions.
+ALTER TABLE tax_return_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY scope_tax_return_versions ON tax_return_versions
+    USING (EXISTS (SELECT 1 FROM tax_returns t WHERE t.id = tax_return_versions.return_id))
+    WITH CHECK (EXISTS (SELECT 1 FROM tax_returns t WHERE t.id = tax_return_versions.return_id));
+-- Workflows today are return workflows keyed by the return id.
+ALTER TABLE workflow_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY scope_workflow_events ON workflow_events
+    USING (EXISTS (SELECT 1 FROM tax_returns t WHERE t.id = workflow_events.workflow_id))
+    WITH CHECK (EXISTS (SELECT 1 FROM tax_returns t WHERE t.id = workflow_events.workflow_id));
+ALTER TABLE entry_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY scope_entry_documents ON entry_documents
+    USING (EXISTS (SELECT 1 FROM entries e WHERE e.id = entry_documents.entry_id)
+           AND EXISTS (SELECT 1 FROM documents d WHERE d.id = entry_documents.document_id))
+    WITH CHECK (EXISTS (SELECT 1 FROM entries e WHERE e.id = entry_documents.entry_id)
+                AND EXISTS (SELECT 1 FROM documents d WHERE d.id = entry_documents.document_id));
+ALTER TABLE finding_resolutions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY scope_finding_resolutions ON finding_resolutions
+    USING (EXISTS (SELECT 1 FROM findings f WHERE f.id = finding_resolutions.finding_id))
+    WITH CHECK (EXISTS (SELECT 1 FROM findings f WHERE f.id = finding_resolutions.finding_id));
+-- Command receipts are scoped "client:<id>"; any other scope is firm-wide.
+ALTER TABLE app_commands ENABLE ROW LEVEL SECURITY;
+CREATE POLICY scope_app_commands ON app_commands
+    USING (CASE WHEN scope LIKE 'client:%' THEN in_scope(substr(scope, 8)) ELSE firm_wide() END)
+    WITH CHECK (CASE WHEN scope LIKE 'client:%' THEN in_scope(substr(scope, 8)) ELSE firm_wide() END);
+-- Firm settings and automation cursors.
+ALTER TABLE kv ENABLE ROW LEVEL SECURITY;
+CREATE POLICY scope_kv ON kv USING (firm_wide()) WITH CHECK (firm_wide());
+CREATE POLICY write_clients  ON clients  FOR INSERT WITH CHECK (in_scope(id));  -- (0001 covers SELECT)
 CREATE POLICY update_clients ON clients  FOR UPDATE USING (in_scope(id)) WITH CHECK (in_scope(id));
 CREATE POLICY write_accounts ON accounts FOR INSERT WITH CHECK (in_scope(client_id));
 
 -- ------------------------------------------------------------------------------------------------- privileges
 GRANT SELECT, INSERT ON app_commands, entry_documents, info_returns, finding_resolutions, precedents, ai_usage,
-    tax_return_versions, workflow_events TO agentledger_app;
+    tax_return_versions, workflow_events TO {{app_role}};
 GRANT SELECT, INSERT, UPDATE ON assets, documents, findings, contacts, engagements, tasks, messages, parties, deals,
-    invoices, kv, tax_returns TO agentledger_app;
+    invoices, kv, tax_returns TO {{app_role}};
 -- Clients: everything except the books' close date and currency, which move only through the ledger functions.
 GRANT INSERT (id, name, kind, entity_type, formed_under, tax_id_last4, emails, aliases, consent_7216_at, domain, facts)
-    ON clients TO agentledger_app;
+    ON clients TO {{app_role}};
 GRANT UPDATE (name, entity_type, formed_under, tax_id_last4, emails, aliases, consent_7216_at, domain, facts)
-    ON clients TO agentledger_app;
-GRANT INSERT ON accounts TO agentledger_app;
+    ON clients TO {{app_role}};
+GRANT INSERT ON accounts TO {{app_role}};

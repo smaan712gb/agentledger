@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import audit, db
@@ -29,7 +29,7 @@ from ..calc.engine import Ctx
 from ..calc.federal import CALCULATORS, run_calc
 from ..crm import automations as autos
 from ..crm import business, core as crm
-from ..db import one, rows
+from ..db import count, one, rows
 from ..domains import service as domains
 from ..foundry.agents import builders
 from ..foundry.agents.staleness import scan as staleness_scan
@@ -37,7 +37,7 @@ from ..integrity.checks import integrity_score, list_findings, resolve, run_all
 from ..intake.pipeline import assign as assign_document, ingest
 from ..ledger import bankfeed, m1, store
 from ..plugins.registry import discover, run_plugin
-from ..security.platform import PLATFORM_FIRM, AuthError, Platform
+from ..security.platform import PLATFORM_FIRM, AuthError, Platform, client_scope
 from ..security.vault import Vault
 from ..workflow.engine import TransitionError
 
@@ -96,10 +96,16 @@ def A(user: dict[str, Any]) -> AppContext:
     """The data context of the signed-in user's firm. Each firm has its own database, vault and key."""
     firm = user.get("firm_id")
     if firm == DEV_FIRM and DEV:
-        return APP
-    if not firm or firm == PLATFORM_FIRM:
+        ctx = APP
+    elif not firm or firm == PLATFORM_FIRM:
         raise HTTPException(403, "platform administrators manage firms; client data is only reachable from inside a firm")
-    return firm_context(firm)
+    else:
+        ctx = firm_context(firm)
+    # Every request scopes this thread's database session before touching data (row-level security on PostgreSQL):
+    # a client user sees one business; firm staff are firm-wide until engagement grants arrive (backlog F-05).
+    ctx.conn.set_scope(client_scope(user))
+    return ctx
+
 
 
 def firm_context(firm_id: str) -> AppContext:
@@ -224,8 +230,8 @@ def auth_login(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, 
         raise HTTPException(401, str(e))
     if "mfa" in step:
         return {"next": "mfa", "challenge": step["mfa"]}
-    e = step["enroll"]
-    return {"next": "enroll", "challenge": e.challenge, "secret": e.secret, "otpauth_uri": e.uri}
+    enroll = step["enroll"]
+    return {"next": "enroll", "challenge": enroll.challenge, "secret": enroll.secret, "otpauth_uri": enroll.uri}
 
 
 @app.post("/api/auth/mfa")
@@ -352,15 +358,15 @@ def dashboard(user=Depends(me)) -> dict[str, Any]:
         cards.append({"id": c["id"], "name": c["name"], "kind": c["kind"], "domain": c["domain"],
                       "integrity": integrity_score(f), "open_findings": sum(1 for x in f if x["status"] == "open"),
                       "open_tasks": len(crm.tasks(A(user).conn, c["id"])),
-                      "docs_this_month": one(A(user).conn, "SELECT COUNT(*) n FROM documents WHERE client_id = ? AND received_at >= ?",
-                                             c["id"], date.today().replace(day=1).isoformat())["n"]})
+                      "docs_this_month": count(A(user).conn, "SELECT COUNT(*) n FROM documents WHERE client_id = ? AND received_at >= ?",
+                                               c["id"], date.today().replace(day=1).isoformat())})
     out: dict[str, Any] = {"clients": cards, "today": date.today().isoformat()}
     if user["role"] == "cpa":
         out.update(
             pending=[p.model_dump(include={"id", "kind", "title", "risk", "agent", "created_at"}) for p in A(user).foundry.proposals("pending")][:20],
             adopted=[p.model_dump(include={"id", "kind", "title", "risk", "agent", "decision"}) for p in A(user).foundry.proposals("adopted")][:10],
             staleness=[a for a in staleness_scan(A(user).kb, date.today()) if a["severity"] != "info"],
-            review_queue=one(A(user).conn, "SELECT COUNT(*) n FROM documents WHERE status = 'needs_review'")["n"],
+            review_queue=count(A(user).conn, "SELECT COUNT(*) n FROM documents WHERE status = 'needs_review'"),
             tasks=crm.tasks(A(user).conn, assignee="cpa")[:15],
             runs=A(user).foundry.runs(limit=12),
             ai=A(user).router.status(),
@@ -571,7 +577,7 @@ def assign_doc(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) 
 
 
 @app.get("/api/documents/{doc_id}/file")
-def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default="")) -> FileResponse:
+def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default="")) -> Response:
     user = link_user(dl, f"/api/documents/{doc_id}/file") if dl else me(authorization)
     d = one(A(user).conn, "SELECT * FROM documents WHERE id = ?", doc_id)
     if not d:
@@ -656,7 +662,7 @@ def staleness(user=Depends(me)) -> list[dict[str, Any]]:
 
 # ------------------------------------------------------------------------------ tax returns
 
-def R(user: dict[str, Any]) -> "Returns":
+def R(user: dict[str, Any]) -> Any:
     from ..returns.store import Returns, Sealer
 
     ctx = A(user)
@@ -1075,6 +1081,8 @@ def biz_add_deal(client_id: str, body: dict[str, Any] = Body(...), user=Depends(
 @app.post("/api/deals/{deal_id}/stage")
 def biz_deal_stage(deal_id: int, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     d = one(A(user).conn, "SELECT client_id FROM deals WHERE id = ?", deal_id)
+    if d is None:
+        raise HTTPException(404, "deal not found")
     scope(user, d["client_id"])
     business.move_deal(A(user).conn, deal_id, body["stage"], user["id"], authority(user))
     return {"ok": True}

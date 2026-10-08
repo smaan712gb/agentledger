@@ -40,7 +40,7 @@ def accept(c, token, name):
 
 def test_two_firms_are_isolated(api):
     mod, c = api
-    admin_id = mod.PLATFORM.bootstrap_admin("ops@agentledger.example", "Ops", PW)
+    mod.PLATFORM.bootstrap_admin("ops@agentledger.example", "Ops", PW)
     step = c.post("/api/auth/login", json={"email": "ops@agentledger.example", "password": PW}).json()
     assert step["next"] == "enroll"
     ops = enrol(c, step["challenge"], step["secret"])

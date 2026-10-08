@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import ast
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
-FUNCS = {
+FUNCS: dict[str, Callable[..., Any]] = {
     "min": min, "max": max, "abs": abs,
     "round": lambda x, n=2: Decimal(x).quantize(Decimal(1).scaleb(-int(n))),
     "len": len,

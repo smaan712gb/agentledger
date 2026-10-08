@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from .db import GENESIS, chain_hash, is_pg, rows, unit_of_work
+from .db import GENESIS, chain_hash, count, is_pg, rows, unit_of_work
 
 
 _CLOCK: datetime | None = None
@@ -37,11 +37,10 @@ def clock(at: datetime) -> Iterator[None]:
 def record(conn: sqlite3.Connection, actor: str, role: str, action: str, payload: dict[str, Any],
            client_id: str | None = None) -> int:
     if is_pg(conn):  # the database stamps, chains and stores the record; the app role cannot write the table
-        r = conn.execute("SELECT record_audit(?, ?, ?, ?, ?::jsonb) AS seq",
-                         (actor, role, client_id, action, json.dumps(payload, default=str))).fetchone()
-        return int(r["seq"])
+        return count(conn, "SELECT record_audit(?, ?, ?, ?, ?::jsonb) AS seq",
+                     actor, role, client_id, action, json.dumps(payload, default=str))
     with unit_of_work(conn):  # joins the caller's transaction, so the record commits with the change it describes
-        last =conn.execute("SELECT hash FROM audit ORDER BY seq DESC LIMIT 1").fetchone()
+        last = conn.execute("SELECT hash FROM audit ORDER BY seq DESC LIMIT 1").fetchone()
         prev = last["hash"] if last else GENESIS
         at = now()
         body = {"at": at, "actor": actor, "role": role, "client_id": client_id, "action": action, "payload": payload}
@@ -50,7 +49,7 @@ def record(conn: sqlite3.Connection, actor: str, role: str, action: str, payload
             "INSERT INTO audit (at, actor, role, client_id, action, payload, prev_hash, hash) VALUES (?,?,?,?,?,?,?,?)",
             (at, actor, role, client_id, action, json.dumps(payload, default=str), prev, h),
         )
-        return int(cur.lastrowid)
+        return int(cur.lastrowid or 0)
 
 
 def events(conn: sqlite3.Connection, client_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:

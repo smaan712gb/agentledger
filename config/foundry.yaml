@@ -67,7 +67,19 @@ model_scout:
 engineer:
   # Coding agents tried in order. Placeholders: {prompt}. Open source first.
   commands:
-    - ["aider", "--yes-always", "--no-auto-commits", "--model", "ollama_chat/qwen2.5-coder:14b", "--message", "{prompt}"]
+    - ["aider", "--yes-always", "--no-git", "--model", "ollama_chat/qwen2.5-coder:14b", "--message", "{prompt}"]
     - ["claude", "-p", "{prompt}", "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash(python -m pytest:*)"]
+  # container (default): each step runs in docker/engineer.Dockerfile with only the worktree mounted, capabilities
+  # dropped, a read-only root filesystem, and no network for the AI-written tests. process: host subprocesses with a
+  # scrubbed environment, for local development only.
+  isolation: container
+  container:
+    image: agentledger-engineer:local
+    agent_network: bridge        # the coding agent needs its model; tests always run with --network none
+    memory: 4g
+    cpus: "2"
+    pids: 512
+    env:
+      OLLAMA_API_BASE: http://host.docker.internal:11434
   max_diff_lines: 600
   test_command: ["python", "-m", "pytest", "-q", "-x"]

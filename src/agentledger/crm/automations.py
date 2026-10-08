@@ -13,7 +13,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel

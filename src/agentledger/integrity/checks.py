@@ -207,9 +207,9 @@ def run_all(conn: sqlite3.Connection, kb: KnowledgeBase, client_id: str, year: i
                                                              "title": f.title}, client_id=client_id)
     # A condition that no longer reproduces (receipt attached, entry reclassified...) is closed by
     # the sweeper with an attributed note. History is kept; nothing is deleted.
-    for f in list_findings(conn, client_id):
-        if f["status"] == "open" and f["tax_year"] == year and f["id"] not in seen_ids:
-            resolve(conn, f["id"], actor, "agent", "corrected", "Condition no longer detected on re-check; cleared automatically.")
+    for old in list_findings(conn, client_id):
+        if old["status"] == "open" and old["tax_year"] == year and old["id"] not in seen_ids:
+            resolve(conn, old["id"], actor, "agent", "corrected", "Condition no longer detected on re-check; cleared automatically.")
     return list_findings(conn, client_id)
 
 

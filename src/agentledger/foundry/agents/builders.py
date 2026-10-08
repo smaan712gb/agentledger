@@ -39,9 +39,11 @@ def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
 
 
 # The coding agent runs AI-written code. It gets a minimal environment: no platform secrets, no cloud credentials,
-# no model keys except those explicitly allowed in config/foundry.yaml (engineer.pass_env). A scrubbed environment is
-# not a sandbox: in CI the Engineer runs in a container without repository secrets (backlog F-03).
-_SAFE_ENV = ("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
+# no model keys except those explicitly allowed in config/foundry.yaml (engineer.pass_env). By default it also runs in
+# a container (engineer.isolation: container): only the throwaway worktree is mounted, so the main repository, its git
+# history, .env and the host's files are out of reach; capabilities are dropped, the root filesystem is read-only, and
+# the AI-written tests run with no network at all. `isolation: process` exists for local development only.
+_SAFE_ENV =("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
              "LANG", "LC_ALL", "PYTHONIOENCODING", "VIRTUAL_ENV")
 
 
@@ -52,6 +54,31 @@ def sandbox_env(allow: list[str] | None = None) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k in keep}
     env["AGENTLEDGER_AGENTS"] = "0"
     return env
+
+
+def container_argv(argv: list[str], workdir: Path, cfg: dict[str, Any], *, network: str,
+                   pass_env: list[str] | None = None) -> list[str]:
+    """`docker run` for one step of the Engineer. Environment values are never put on the command line: `-e NAME`
+    makes docker copy them from its own (already scrubbed) environment."""
+    import os
+
+    c = cfg.get("container", {})
+    if hasattr(os, "getuid") and os.getuid() != 0:
+        user = f"{os.getuid()}:{os.getgid()}"
+    else:
+        user = str(c.get("user", "1000:1000"))
+    out = ["docker", "run", "--rm", "--network", network, "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+           "--read-only", "--tmpfs", "/tmp:rw,size=512m", "--user", user,
+           "--memory", str(c.get("memory", "4g")), "--cpus", str(c.get("cpus", "2")), "--pids-limit", str(c.get("pids", 512)),
+           "-e", "HOME=/tmp", "-e", "AGENTLEDGER_AGENTS=0", "-e", "PYTHONPATH=/work/src",
+           "-e", "PYTHONDONTWRITEBYTECODE=1", "-v", f"{workdir}:/work", "-w", "/work"]
+    if network != "none":
+        out += ["--add-host", "host.docker.internal:host-gateway"]
+        for k, v in (c.get("env") or {}).items():           # non-secret settings such as the local model URL
+            out += ["-e", f"{k}={v}"]
+    for k in pass_env or []:
+        out += ["-e", k]
+    return out + [str(c.get("image", "agentledger-engineer:local"))] + list(argv)
 
 
 def protected(path: str, patterns: list[str]) -> bool:
@@ -78,11 +105,24 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
     if _git(f.paths.root, "rev-parse", "HEAD", check=False).returncode != 0:
         res.log.append("repository has no commits yet; the engineer needs a base commit to branch from")
         return
-    agents = [c for c in cfg.get("commands", []) if shutil.which(c[0])]
+    isolated = cfg.get("isolation", "container") != "process"
+    if isolated and not shutil.which("docker"):
+        res.alerts.append({"type": "engineer_unavailable", "note": "the Engineer runs AI-written code only inside a container; "
+                                                                  "install Docker and build docker/engineer.Dockerfile "
+                                                                  "(engineer.container.image in config/foundry.yaml)"})
+        return
+    # In a container the coding agents come with the image; on the host they must be installed.
+    agents = list(cfg.get("commands", [])) if isolated else [c for c in cfg.get("commands", []) if shutil.which(c[0])]
     if not agents:
         res.alerts.append({"type": "engineer_unavailable", "note": "install a coding agent: `pip install aider-chat` (open source) "
                                                                   "or Claude Code; see config/foundry.yaml"})
         return
+    pass_env = list(cfg.get("pass_env") or [])
+
+    def step(argv: list[str], *, network: str, env_keys: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+        if isolated:
+            argv = container_argv(argv, wt, cfg, network=network, pass_env=env_keys)
+        return subprocess.run(argv, cwd=wt, capture_output=True, text=True, timeout=timeout, env=sandbox_env(env_keys))
     for path, item in items:
         branch = f"agentledger/auto-{path.stem}-{date.today().strftime('%Y%m%d')}"
         wt = Path(tempfile.mkdtemp(prefix="agentledger-wt-"))
@@ -96,8 +136,8 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
             used = None
             for cmd in agents:
                 argv = [a.replace("{prompt}", prompt) for a in cmd]
-                r = subprocess.run(argv, cwd=wt, capture_output=True, text=True, timeout=int(cfg.get("timeout_s", 1800)),
-                                   env=sandbox_env(cfg.get("pass_env")))
+                r = step(argv, network=str(cfg.get("container", {}).get("agent_network", "bridge")), env_keys=pass_env,
+                         timeout=int(cfg.get("timeout_s", 1800)))
                 used = cmd[0]
                 if r.returncode == 0 and _git(wt, "status", "--porcelain").stdout.strip():
                     break
@@ -109,8 +149,8 @@ def engineer(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
                 continue
             touched = [x for x in files if protected(x, f.policy.get("protected_paths", []))]
             lines = sum(1 for l in diff.splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---")))
-            tests = subprocess.run(cfg.get("test_command", ["python", "-m", "pytest", "-q"]), cwd=wt, capture_output=True, text=True,
-                                   timeout=1800, env=sandbox_env())
+            # The AI-written tests run with no network and no keys at all.
+            tests = step(list(cfg.get("test_command", ["python", "-m", "pytest", "-q"])), network="none", env_keys=[], timeout=1800)
             from ...kb.store import KnowledgeBase
 
             golden = run_golden(KnowledgeBase(wt / "rules"), load_golden(wt / "golden" / "scenarios.yaml"))

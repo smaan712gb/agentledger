@@ -31,6 +31,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: pip install -e ".[dev,oracle]"
+      - name: Lint (bugs, not style)
+        run: ruff check src tests scripts
+      - name: Types (the typed core in pyproject.toml)
+        run: mypy
       - name: Full suite, golden regression and independent cross-checks
         run: |
           python -m pytest -q
