@@ -312,6 +312,9 @@ class Platform:
         tenant = self.tenant_dir(firm_id)
         try:
             detail = db.destroy_store(tenant / "state" / "agentledger.db")
+            from ..evidence.blobs import destroy_firm
+
+            detail += "; " + destroy_firm(firm_id)
             if tenant.exists():
                 shutil.rmtree(tenant)
                 detail += "; tenant directory removed"

@@ -30,7 +30,11 @@ def test_intake_files_by_sender_and_feeds_integrity(biz):
     router = FakeRouter({"classify": cls})
     out = ingest(biz.conn, router, biz.paths.vault, "nec.txt", NEC, channel="email", sender="owner@acme.example")
     assert out[0]["status"] == "filed" and out[0]["client_id"] == "acme"
-    assert out[0]["vault_path"].replace("\\", "/").startswith("acme/2026/income/")
+    # Stored content addressed: the object name reveals neither the client nor the document type.
+    assert out[0]["vault_path"].startswith("blob:cas/") and "acme" not in out[0]["vault_path"]
+    from agentledger.security.vault import as_vault
+
+    assert as_vault(biz.paths.vault).read(out[0]["vault_path"]) == NEC
     again = ingest(biz.conn, router, biz.paths.vault, "copy.txt", NEC, channel="upload")
     assert again[0].get("duplicate")
     found = run_all(biz.conn, biz.kb, "acme", 2026)

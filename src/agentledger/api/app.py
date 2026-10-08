@@ -33,6 +33,7 @@ from ..crm import automations as autos
 from ..crm import business, core as crm
 from ..db import count, one, rows
 from ..domains import service as domains
+from ..evidence import records as evidence
 from ..foundry.agents import builders
 from ..foundry.agents.staleness import scan as staleness_scan
 from ..integrity.checks import integrity_score, list_findings, resolve, run_all
@@ -738,9 +739,87 @@ def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default=""))
         scope(user, d["client_id"])
     else:
         cpa_only(user)
+    if d.get("deleted_at"):
+        raise HTTPException(410, f"deleted under the retention policy on {d['deleted_at'][:10]}; the deletion receipt remains")
     data = A(user).foundry.vault.read(d["vault_path"])
     return Response(data, media_type="application/octet-stream",
                     headers={"Content-Disposition": f'attachment; filename="{d["original_name"]}"'})
+
+
+# ------------------------------------------------------------------------------ evidence lifecycle (F-06)
+
+@app.get("/api/documents/{doc_id}/versions")
+def doc_versions(doc_id: str, user=Depends(me)) -> list[dict[str, Any]]:
+    d = one(A(user).conn, "SELECT client_id FROM documents WHERE id = ?", doc_id)
+    if not d:
+        raise HTTPException(404)
+    if d["client_id"]:
+        scope(user, d["client_id"])
+    else:
+        cpa_only(user)
+    return [{k: v for k, v in x.items() if k != "locator"} for x in evidence.versions(A(user).conn, doc_id)]
+
+
+@app.get("/api/clients/{client_id}/holds")
+def client_holds(client_id: str, user=Depends(me)) -> list[dict[str, Any]]:
+    cpa_only(user)
+    scope(user, client_id)
+    return rows(A(user).conn, "SELECT * FROM legal_holds WHERE client_id = ? ORDER BY id DESC", client_id)
+
+
+@app.post("/api/clients/{client_id}/holds")
+def place_hold(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    reviewer_only(user)
+    fresh(user)
+    scope(user, client_id)
+    try:
+        hid = evidence.place_hold(A(user).conn, client_id=client_id, reason=str(body.get("reason", "")), actor=user["id"],
+                                  role=authority(user), document_id=body.get("document_id"))
+    except evidence.RetentionError as e:
+        raise HTTPException(400, str(e))
+    return {"id": hid}
+
+
+@app.post("/api/holds/{hold_id}/release")
+def release_hold(hold_id: int, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    reviewer_only(user)
+    fresh(user)
+    h = one(A(user).conn, "SELECT client_id FROM legal_holds WHERE id = ?", hold_id)
+    if not h:
+        raise HTTPException(404)
+    scope(user, h["client_id"])
+    try:
+        evidence.release_hold(A(user).conn, hold_id, reason=str(body.get("reason", "")), actor=user["id"], role=authority(user))
+    except evidence.RetentionError as e:
+        raise HTTPException(400, str(e))
+    except KeyError:
+        raise HTTPException(409, "this hold was already released")
+    return {"ok": True}
+
+
+@app.get("/api/evidence/due")
+def evidence_due(user=Depends(me)) -> list[dict[str, Any]]:
+    """What a retention run would delete today (held documents excluded)."""
+    reviewer_only(user)
+    if client_scope(user) != ["*"]:
+        raise HTTPException(403, "retention runs are firm-wide")
+    return [{k: d[k] for k in ("id", "client_id", "original_name", "doc_type", "tax_year", "retention_class", "retain_until")}
+            for d in evidence.due_for_deletion(A(user).conn, date.today())]
+
+
+@app.post("/api/evidence/purge")
+def evidence_purge(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """Delete evidence whose retention has ended. Never automatic; each deletion leaves a receipt."""
+    reviewer_only(user)
+    fresh(user)
+    if client_scope(user) != ["*"]:
+        raise HTTPException(403, "retention runs are firm-wide")
+    try:
+        receipts = evidence.purge_expired(A(user).conn, A(user).foundry.vault, date.today(), actor=user["id"],
+                                          role=authority(user), reason=str(body.get("reason", "")))
+    except evidence.RetentionError as e:
+        raise HTTPException(400, str(e))
+    return {"deleted": len(receipts), "receipts": receipts}
 
 
 # ------------------------------------------------------------------------------ rules & calculators

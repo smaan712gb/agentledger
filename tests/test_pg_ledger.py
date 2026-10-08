@@ -42,7 +42,7 @@ def db():
     owner = pg.connect(URL)
     schema = "al_test_" + secrets.token_hex(4)
     try:
-        assert pg.migrate(owner, schema) == ["0001_ledger_core.sql", "0002_firm_store.sql"]
+        assert pg.migrate(owner, schema) == ["0001_ledger_core.sql", "0002_firm_store.sql", "0003_evidence.sql"]
         assert pg.migrate(owner, schema) == []                     # idempotent
         yield owner, schema
     finally:

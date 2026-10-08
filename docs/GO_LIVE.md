@@ -98,3 +98,6 @@ Each milestone ends with: full test suite green, golden scenarios green, a commi
   evidence, and review it periodically; until then their SSO sign-ins are refused for lack of MFA.
 - The API environment holds no owner database credentials. Run `agentledger platform provision` with
   `AGENTLEDGER_MIGRATION_URL` as a release or scheduled operations job; firms stay in `provisioning` until it runs.
+- Evidence storage: enable R2 on the Cloudflare account (dashboard), create the bucket and an R2 API token scoped to
+  it, and set `AGENTLEDGER_BLOBS=s3` with the `AGENTLEDGER_BLOB_*` values. Objects are sealed and content addressed
+  before upload; bucket lock rules per prefix come with F-13.

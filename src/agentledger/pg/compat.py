@@ -30,7 +30,7 @@ from . import connect, database_of, migrate, migration_url, runtime_base_url, ru
 # Tables whose integer key the database assigns: an INSERT returns it as `lastrowid`.
 IDENTITY = {"info_returns": "id", "finding_resolutions": "id", "precedents": "id", "contacts": "id", "engagements": "id",
             "tasks": "id", "messages": "id", "parties": "id", "deals": "id", "invoices": "id", "ai_usage": "id",
-            "entries": "id", "outbox": "id", "audit": "seq"}
+            "entries": "id", "outbox": "id", "audit": "seq", "legal_holds": "id", "deletion_receipts": "id"}
 _INSERT = re.compile(r"^\s*INSERT\s+INTO\s+\"?(\w+)\"?", re.I)
 _DDL = re.compile(r"^\s*(INSERT|UPDATE|DELETE)\b", re.I | re.M)
 

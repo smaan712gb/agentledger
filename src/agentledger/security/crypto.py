@@ -14,6 +14,8 @@ firm or field to another fails authentication instead of decrypting.
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import os
 import secrets
 import sqlite3
@@ -111,6 +113,11 @@ class Keyring:
 
     def open_text(self, firm_id: str, token: str, purpose: str) -> str:
         return self.decrypt(firm_id, base64.b64decode(token), purpose).decode("utf-8")
+
+    def derive(self, firm_id: str, label: str) -> bytes:
+        """A stable per-firm secret for one purpose (e.g. content addressing), from the firm's first data key, so it
+        survives key rotation and dies with crypto-shredding."""
+        return hmac.new(self.key(firm_id, 1), f"agentledger:{label}".encode(), hashlib.sha256).digest()
 
     def rotate(self, firm_id: str) -> int:
         """New data key for new writes; older versions stay readable until re-encrypted."""

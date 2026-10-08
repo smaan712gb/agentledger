@@ -1,0 +1,48 @@
+# How long evidence is kept before it may be deleted (backlog F-06). Deletion is never automatic: a CPA runs it,
+# legal holds block it, and each deletion leaves a receipt in the audit chain.
+#
+# The IRS periods are minimums for the taxpayer's records (https://www.irs.gov/businesses/small-businesses-self-employed/how-long-should-i-keep-records):
+#   3 years from filing in general (IRC §6501(a)); 6 years if income is understated by more than 25% (§6501(e));
+#   7 years for a loss from worthless securities or a bad-debt deduction (§6511(d)); no limit if no return was filed
+#   or it was fraudulent (§6501(c)); employment tax records at least 4 years after the tax is due or paid.
+# A preparer keeps a copy or list of each return for 3 years after the close of the return period (IRC §6107(b)).
+#
+# AgentLedger keeps tax evidence for 7 years after the end of the tax year (covering the 3-, 6- and 7-year rules and
+# the filing year itself). A firm may lengthen any class; shortening below these values is refused.
+
+counted_from: end_of_tax_year      # or the received date when a document has no tax year
+classes:
+  tax_return_support:
+    years: 7
+    basis: "IRC §6501(a), (e) and §6511(d): 3, 6 or 7 years; kept 7 after the tax year"
+  employment_tax:
+    years: 7
+    basis: "IRS: at least 4 years after the tax is due or paid; kept 7 for consistency with the return"
+  preparer_copy:
+    years: 7
+    basis: "IRC §6107(b): 3 years after the close of the return period; kept 7"
+  engagement_and_correspondence:
+    years: 7
+    basis: "firm policy (professional standards and malpractice exposure)"
+  property_basis:
+    years: null                     # kept until released by a CPA after the property's disposition year plus 7
+    basis: "records for basis are kept until the limitations period for the disposition year expires"
+default: tax_return_support
+by_doc_type:
+  W-2: tax_return_support
+  W-4: employment_tax
+  "941": employment_tax
+  "940": employment_tax
+  1099-NEC: tax_return_support
+  1099-MISC: tax_return_support
+  1099-K: tax_return_support
+  1099-INT: tax_return_support
+  1099-DIV: tax_return_support
+  1099-B: tax_return_support
+  1098: tax_return_support
+  Receipt: tax_return_support
+  Invoice: tax_return_support
+  Bank statement: tax_return_support
+  Engagement letter: engagement_and_correspondence
+  Closing disclosure: property_basis
+  Settlement statement: property_basis

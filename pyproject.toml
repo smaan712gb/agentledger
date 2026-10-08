@@ -19,6 +19,7 @@ dependencies = [
     "cryptography>=43",
     "argon2-cffi>=23.1",
     "psycopg[binary]>=3.2",   # PostgreSQL (Neon) financial authority, ADR-0002
+    "boto3>=1.34",            # S3-compatible evidence storage (Cloudflare R2; MinIO locally), F-06
 ]
 
 [project.optional-dependencies]
@@ -62,5 +63,5 @@ files = [
     "src/agentledger/security", "src/agentledger/integrity", "src/agentledger/coverage.py", "src/agentledger/release.py",
     "src/agentledger/api", "src/agentledger/ai/router.py", "src/agentledger/ai/grounding.py", "src/agentledger/expr.py",
     "src/agentledger/calc", "src/agentledger/kb", "src/agentledger/foundry/verify.py", "src/agentledger/envfile.py",
-    "src/agentledger/app_context.py",
+    "src/agentledger/app_context.py", "src/agentledger/evidence",
 ]

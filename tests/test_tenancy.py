@@ -148,8 +148,8 @@ def test_documents_are_encrypted_at_rest(api):
                data={"client_id": "jordan-lee"}, headers=a)
     assert r.status_code == 200, r.text
     doc = r.json()[0]
-    stored = mod.firm_context("rivera-cpa").foundry.paths.vault / doc["vault_path"]
-    raw = stored.read_bytes()
+    vault = mod.firm_context("rivera-cpa").foundry.vault
+    raw = vault.blobs.get(doc["vault_path"].removeprefix("blob:"))      # the bytes as storage holds them
     assert raw[:3] == b"VX1" and b"123-45-6789" not in raw
     path = f"/api/documents/{doc['id']}/file"
     link = c.post("/api/links", json={"path": path}, headers=a).json()["url"]

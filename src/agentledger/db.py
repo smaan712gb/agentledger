@@ -106,6 +106,50 @@ CREATE TABLE IF NOT EXISTS documents (
     text_excerpt TEXT
 );
 
+CREATE TABLE IF NOT EXISTS document_versions (
+    document_id TEXT NOT NULL REFERENCES documents(id),
+    version INTEGER NOT NULL,
+    locator TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    PRIMARY KEY (document_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS legal_holds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL REFERENCES clients(id),
+    document_id TEXT REFERENCES documents(id),
+    reason TEXT NOT NULL,
+    placed_by TEXT NOT NULL,
+    placed_at TEXT NOT NULL,
+    released_by TEXT,
+    released_at TEXT,
+    release_reason TEXT
+);
+
+CREATE TABLE IF NOT EXISTS deletion_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id TEXT NOT NULL,
+    client_id TEXT,
+    sha256 TEXT NOT NULL,
+    locators TEXT NOT NULL,
+    retention_class TEXT,
+    retain_until TEXT,
+    deleted_by TEXT NOT NULL,
+    deleted_at TEXT NOT NULL,
+    reason TEXT NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS legal_holds_no_delete BEFORE DELETE ON legal_holds
+BEGIN SELECT RAISE(ABORT, 'legal holds are released, never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS legal_holds_release_only BEFORE UPDATE ON legal_holds
+WHEN OLD.released_at IS NOT NULL OR NEW.client_id IS NOT OLD.client_id OR NEW.document_id IS NOT OLD.document_id
+     OR NEW.reason IS NOT OLD.reason OR NEW.placed_by IS NOT OLD.placed_by OR NEW.placed_at IS NOT OLD.placed_at
+BEGIN SELECT RAISE(ABORT, 'a legal hold can only be released, once (append-only)'); END;
+
 CREATE TABLE IF NOT EXISTS entry_documents (
     entry_id INTEGER NOT NULL REFERENCES entries(id),
     document_id TEXT NOT NULL REFERENCES documents(id),
@@ -296,7 +340,10 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 """
 
 APPEND_ONLY = ("commands", "entries", "postings", "audit", "finding_resolutions", "info_returns", "ai_usage", "entry_documents",
-               "precedents")
+               "precedents", "document_versions", "deletion_receipts")
+
+# Columns added after a table first shipped: (table, column, type) for stores created before them.
+UPGRADES = (("documents", "retention_class", "TEXT"), ("documents", "retain_until", "TEXT"), ("documents", "deleted_at", "TEXT"))
 
 
 def connect(path: Path | str) -> sqlite3.Connection:
@@ -305,6 +352,9 @@ def connect(path: Path | str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for table, col, kind in UPGRADES:
+        if col not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {kind}")
     for table in APPEND_ONLY:
         for op in ("UPDATE", "DELETE"):
             conn.execute(

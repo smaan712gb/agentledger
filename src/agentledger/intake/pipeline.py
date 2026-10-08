@@ -20,6 +20,7 @@ from .. import audit
 from ..ai.router import Router, Unavailable
 from ..calc.engine import D
 from ..db import one, rows
+from ..evidence import records
 from ..ledger import store
 from ..security.vault import Vault, as_vault
 from .classify import FOLDERS, SYSTEM, Classification, detect, ground_fields
@@ -87,23 +88,27 @@ def _ingest_part(conn, router, vault: Vault, part: Part, channel: str, client_hi
 
     status = "filed" if client_id and confidence >= AUTO_FILE_CONFIDENCE else "needs_review"
     doc_id = "doc_" + secrets.token_hex(6)
-    rel = _vault_path(client_id if status == "filed" else None, tax_year, doc_type, part.name, sha)
-    vault.write(rel, part.data)
+    # The original bytes are always stored first, content addressed, whatever the classification says.
+    loc = vault.put(part.data)
+    received = audit.now()
+    retention_class, retain_until = records.retention_for(records.policy(), doc_type, tax_year, received)
     fields = {kv.name: kv.value for kv in cls.fields} if cls else {}
     conn.execute(
         "INSERT INTO documents (id, client_id, sha256, original_name, media_type, channel, received_at, sender, parent_id, doc_type, "
-        "tax_year, confidence, status, vault_path, fields, summary, classified_by, text_excerpt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (doc_id, client_id if status == "filed" else None, sha, part.name, part.media_type, channel, audit.now(), part.sender,
-         part.parent, doc_type, tax_year, confidence, status, str(rel).replace("\\", "/"), json.dumps(fields),
-         cls.summary if cls else part.note, by, (part.text or "")[:4000]),
+        "tax_year, confidence, status, vault_path, fields, summary, classified_by, text_excerpt, retention_class, retain_until) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (doc_id, client_id if status == "filed" else None, sha, part.name, part.media_type, channel, received, part.sender,
+         part.parent, doc_type, tax_year, confidence, status, loc, json.dumps(fields),
+         cls.summary if cls else part.note, by, (part.text or "")[:4000], retention_class, retain_until),
     )
+    records.add_version(conn, doc_id, loc, sha, len(part.data), actor)
     audit.record(conn, actor, "agent", "document.received",
                  {"document_id": doc_id, "name": part.name, "doc_type": doc_type, "status": status, "match": match_reason,
                   "classified_by": by, "channel": channel}, client_id=client_id if status == "filed" else None)
     if status == "filed":
         _effects(conn, client_id, doc_id, doc_type, tax_year, fields, part.text or "")
     return {"id": doc_id, "client_id": client_id if status == "filed" else None, "status": status, "doc_type": doc_type,
-            "tax_year": tax_year, "confidence": confidence, "vault_path": str(rel), "match": match_reason, "name": part.name,
+            "tax_year": tax_year, "confidence": confidence, "vault_path": loc, "retention_class": retention_class, "match": match_reason, "name": part.name,
             "suggested_client": client_id if status != "filed" else None}
 
 
@@ -229,10 +234,12 @@ def assign(conn, vault: "Vault | Path", doc_id: str, client_id: str, actor: str,
     if not d:
         raise KeyError(doc_id)
     store.get_client(conn, client_id)
-    new_rel = _vault_path(client_id, d["tax_year"], d["doc_type"], d["original_name"], d["sha256"])
-    as_vault(vault).move(d["vault_path"], new_rel)
-    conn.execute("UPDATE documents SET client_id = ?, status = 'filed', vault_path = ? WHERE id = ?",
-                 (client_id, str(new_rel).replace("\\", "/"), doc_id))
+    if str(d["vault_path"]).startswith("blob:"):
+        new_loc = d["vault_path"]          # content-addressed: the bytes stay where they are; only the record changes
+    else:                                  # filed before content addressing: moved into the client's folder
+        new_loc = str(_vault_path(client_id, d["tax_year"], d["doc_type"], d["original_name"], d["sha256"])).replace("\\", "/")
+        as_vault(vault).move(d["vault_path"], new_loc)
+    conn.execute("UPDATE documents SET client_id = ?, status = 'filed', vault_path = ? WHERE id = ?", (client_id, new_loc, doc_id))
     audit.record(conn, actor, role, "document.assigned", {"document_id": doc_id, "name": d["original_name"]}, client_id=client_id)
     _effects(conn, client_id, doc_id, d["doc_type"], d["tax_year"], json.loads(d["fields"]), d["text_excerpt"] or "")
     return one(conn, "SELECT * FROM documents WHERE id = ?", doc_id)

@@ -39,7 +39,7 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 | Q34 | Model unavailable or budget exhausted | F | partial | router falls back and pauses; visible pause UI todo |
 | Q35 | Connector schema, rate-limit or auth change | A1 | todo | |
 | Q36 | Skill or plugin update governance | F | todo | |
-| Q37 | Retention expiry with legal hold | F | todo | |
+| Q37 | Retention expiry with legal hold | F | pass | holds block deletion until a CPA releases them with a reason; deletion only after retention, CPA-run, with receipts; shared content-addressed bytes kept while another record retains them (`tests/test_evidence.py`) |
 | Q38 | Browser, mobile and keyboard end-to-end | A1 | todo | needs the React UI (ADR-0005) |
 | Q39 | Rule change after filing | T1 | partial | runs pin the knowledge-base version and rule trace; recalculation candidates todo |
 | Q40 | Deadline relief, holidays and time zones | A1 | partial | §7503 weekend rollover built; holidays, relief and time zones todo |
