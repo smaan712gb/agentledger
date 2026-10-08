@@ -40,3 +40,11 @@ Spec references: §4 (identity), §5 C01, §12 (approval binding), §14 (RBAC + 
 - **Self-host profile.** Better Auth: an open-source TypeScript library that runs in Workers on our own
   PostgreSQL, with organization, two-factor, passkey and SSO plugins. It replaces the hand-written TOTP
   stack there.
+
+Status (2026-10-08): implemented in `security/workos.py` and `Platform.idp_begin/idp_complete`. WorkOS proves the
+person; AgentLedger keeps membership, role and authority. A WorkOS identity creates an account only through an
+invitation whose verified email matches, or is linked from an already signed-in local session; never by matching
+email alone. Every sign-in must be multi-factor (SSO, passkey, or a TOTP factor enrolled at WorkOS, checked through the
+auth-factors API), and impersonated sessions are refused. Consequential actions require a sign-in or step-up within
+five minutes: WorkOS re-authentication with `max_age=0`, or the local TOTP code. With `AGENTLEDGER_IDENTITY=workos`
+the password stack remains only for platform administrators (break-glass).

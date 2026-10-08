@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from urllib.parse import quote
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import audit, db
@@ -222,8 +223,79 @@ def _as_actor(user: dict[str, Any]) -> dict[str, Any]:
 
 # ------------------------------------------------------------------------------ authentication
 
+# AGENTLEDGER_IDENTITY=workos: firm users sign in through WorkOS AuthKit (MFA and passkeys at the provider); the
+# password + TOTP stack stays for platform administrators (break-glass) and for self-hosting (identity "local").
+IDENTITY = os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower()
+
+
+def idp() -> Any:
+    from ..security.workos import WorkOS, WorkOSError
+
+    if IDENTITY != "workos":
+        raise HTTPException(404, "sign-in through an identity provider is not enabled")
+    try:
+        return IDP_CLIENT or WorkOS()
+    except WorkOSError as e:
+        raise HTTPException(503, str(e))
+
+
+IDP_CLIENT: Any = None          # tests install a fake provider here
+
+
+def fresh(user: dict[str, Any]) -> None:
+    """Consequential actions need a recent sign-in or step-up (POST /api/auth/step-up or the provider's step-up)."""
+    if DEV and user.get("firm_id") == DEV_FIRM:
+        return
+    try:
+        PLATFORM.require_fresh(user)
+    except AuthError:
+        raise HTTPException(403, "step_up_required")
+
+
+@app.get("/api/auth/config")
+def auth_config() -> dict[str, Any]:
+    return {"identity": IDENTITY, "password_sign_in": IDENTITY != "workos" or "platform administrators only"}
+
+
+@app.get("/api/auth/idp/start")
+def idp_start(purpose: str = "login", invite: str = "", authorization: str = Header(default="")) -> dict[str, Any]:
+    redirect = os.environ.get("WORKOS_REDIRECT_URI", "")
+    if not redirect:
+        raise HTTPException(503, "WORKOS_REDIRECT_URI is not configured")
+    try:
+        url = PLATFORM.idp_begin(idp(), purpose, redirect, invite_token=invite or None,
+                                 session_token=authorization.removeprefix("Bearer ").strip() or None)
+    except AuthError as e:
+        raise HTTPException(400, str(e))
+    return {"url": url}
+
+
+@app.get("/api/auth/idp/callback")
+def idp_callback(request: Request, code: str = "", state: str = "") -> Response:
+    """The provider redirects the browser here. The session token goes to the app in the URL fragment, which is
+    never sent to a server."""
+    try:
+        out = PLATFORM.idp_complete(idp(), code, state, ip=_ip(request), user_agent=request.headers.get("user-agent"))
+    except AuthError as e:
+        return RedirectResponse(f"/#signin_error={quote(str(e))}", status_code=303)
+    if out.get("token"):
+        return RedirectResponse(f"/#session={out['token']}", status_code=303)
+    return RedirectResponse(f"/#{out['purpose']}=ok", status_code=303)
+
+
+@app.post("/api/auth/step-up")
+def auth_step_up(request: Request, body: dict[str, Any] = Body(...), authorization: str = Header(default="")) -> dict[str, Any]:
+    try:
+        PLATFORM.step_up_totp(authorization.removeprefix("Bearer ").strip(), str(body.get("code", "")), ip=_ip(request))
+    except AuthError as e:
+        raise HTTPException(401, str(e))
+    return {"ok": True}
+
+
 @app.post("/api/auth/login")
 def auth_login(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    if IDENTITY == "workos" and not PLATFORM.is_platform_admin(str(body.get("email", ""))):
+        raise HTTPException(401, "sign in with your firm's sign-in page")
     try:
         step = PLATFORM.login(str(body.get("email", "")), str(body.get("password", "")), ip=_ip(request))
     except AuthError as e:
@@ -314,6 +386,7 @@ def platform_firms(user=Depends(me)) -> list[dict[str, Any]]:
 @app.post("/api/platform/firms")
 def platform_create_firm(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     platform_admin(user)
+    fresh(user)
     try:
         firm = PLATFORM.create_firm(str(body["id"]), str(body["name"]), by=user["id"])
         token = PLATFORM.invite(firm["id"], str(body["admin_email"]), "firm_admin", by=_as_actor(user))
@@ -689,6 +762,7 @@ def _wf_error(e: Exception) -> HTTPException:
 def period_action(client_id: str, action: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
     """Close the books through a date, or reopen them (reviewers only; every change is in the audit trail)."""
     reviewer_only(user)
+    fresh(user)
     scope(user, client_id)
     try:
         if action == "close":
@@ -788,6 +862,7 @@ def return_recalc_preview(rid: str, user=Depends(me)) -> dict[str, Any]:
 @app.post("/api/returns/{rid}/amend")
 def return_amend(rid: str, user=Depends(me)) -> dict[str, Any]:
     reviewer_only(user)
+    fresh(user)
     rs, _ = _return_for(user, rid)
     try:
         return {"id": rs.start_amendment(rid, user["id"])}
@@ -802,6 +877,8 @@ def return_action(rid: str, action: str, body: dict[str, Any] = Body(default={})
     try:
         if action in ("approve", "request-changes", "request-signature", "reconcile"):
             reviewer_only(user)
+        if action in ("approve", "request-signature", "reconcile"):
+            fresh(user)
         if action == "submit":
             st = rs.submit_for_review(rid, user["id"], explanation=body.get("explanation", ""))
         elif action == "approve":

@@ -21,7 +21,12 @@ async function api(path, opts = {}) {
   const res = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) },
     body: opts.body && !(opts.body instanceof FormData) && typeof opts.body !== "string" ? JSON.stringify(opts.body) : opts.body });
   if (res.status === 401 && !S.dev && !path.startsWith("/api/auth/")) { session.set(null); S.token = null; renderLogin("Your session ended. Sign in again."); throw new Error("signed out"); }
-  if (!res.ok) { let d = await res.text(); try { d = JSON.parse(d).detail; } catch {} throw new Error(typeof d === "string" ? d : JSON.stringify(d) || res.statusText); }
+  if (!res.ok) {
+    let d = await res.text(); try { d = JSON.parse(d).detail; } catch {}
+    // Approving, reconciling, closing books and creating firms need a recent sign-in: verify, then retry once.
+    if (res.status === 403 && d === "step_up_required" && !opts._steppedUp) { await stepUp(); return api(path, { ...opts, _steppedUp: true }); }
+    throw new Error(typeof d === "string" ? d : JSON.stringify(d) || res.statusText);
+  }
   const ct = res.headers.get("content-type") || "";
   return ct.includes("json") ? res.json() : res.text();
 }
@@ -30,6 +35,16 @@ async function api(path, opts = {}) {
 async function boot() {
   const r = await fetch("/api/users");
   S.dev = r.ok;
+  try { S.identity = (await (await fetch("/api/auth/config")).json()).identity; } catch { S.identity = "local"; }
+  // Back from the sign-in provider: the session arrives in the URL fragment (never sent to a server); clear it at once.
+  const back = location.hash.match(/^#(session|signin_error|step_up|link)=(.*)$/);
+  if (back) {
+    history.replaceState(null, "", location.pathname + "#/home");
+    if (back[1] === "session") session.set(back[2]);
+    if (back[1] === "signin_error") return renderLogin(decodeURIComponent(back[2]));
+    if (back[1] === "step_up") toast("Verified. Repeat the action to continue.");
+    if (back[1] === "link") toast("Your sign-in provider is now linked to this account.");
+  }
   window.addEventListener("hashchange", route);
   const invite = location.hash.match(/^#\/accept\/([\w-]+)/);
   if (invite) return renderAccept(invite[1]);
@@ -56,11 +71,23 @@ function authShell(inner) {
   $("#main").innerHTML = `<div class="card" style="max-width:420px;margin:60px auto">${inner}</div>`;
 }
 
+async function providerSignIn(purpose, extra = {}) {
+  const q = new URLSearchParams({ purpose, ...extra });
+  const r = await api(`/api/auth/idp/start?${q}`);
+  location.assign(r.url);
+}
+
 function renderLogin(msg = "") {
-  authShell(`<h2>Sign in</h2>${msg ? `<p class="muted">${esc(msg)}</p>` : ""}
-    <form id="login"><label>Email<input name="email" type="email" autocomplete="username" required style="width:100%"></label>
+  const idp = S.identity === "workos";
+  const form = `<form id="login"><label>Email<input name="email" type="email" autocomplete="username" required style="width:100%"></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" required style="width:100%"></label>
-    <button class="btn primary" style="margin-top:10px">Continue</button></form><p class="small muted" id="err"></p>`);
+    <button class="btn ${idp ? "" : "primary"}" style="margin-top:10px">Continue</button></form>`;
+  authShell(`<h2>Sign in</h2>${msg ? `<p class="muted">${esc(msg)}</p>` : ""}
+    ${idp ? `<button class="btn primary" id="idp" style="width:100%">Sign in</button>
+      <p class="small muted">Two-step verification or a passkey is required.</p>
+      <details style="margin-top:14px"><summary class="small muted">Platform administrator sign-in</summary>${form}</details>` : form}
+    <p class="small muted" id="err"></p>`);
+  if (idp) $("#idp").onclick = () => providerSignIn("login").catch((err) => { $("#err").textContent = err.message; });
   $("#login").onsubmit = async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -88,6 +115,13 @@ function mfaStep(step) {
 }
 
 function renderAccept(token) {
+  if (S.identity === "workos") {
+    authShell(`<h2>Join AgentLedger</h2><p class="muted">Continue with the email address this invitation was sent to.
+      Two-step verification or a passkey is required.</p>
+      <button class="btn primary" id="idp" style="width:100%">Continue</button><p class="small muted" id="err"></p>`);
+    $("#idp").onclick = () => providerSignIn("invite", { invite: token }).catch((err) => { $("#err").textContent = err.message; });
+    return;
+  }
   authShell(`<h2>Join AgentLedger</h2><p class="muted">Choose your name and a password of at least 12 characters.</p>
     <form id="accept"><label>Full name<input name="name" required style="width:100%"></label>
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" required style="width:100%"></label>
@@ -98,6 +132,27 @@ function renderAccept(token) {
     try { mfaStep(await api("/api/auth/accept", { method: "POST", body: { token, name: f.get("name"), password: f.get("password") } })); }
     catch (err) { $("#err").textContent = err.message; }
   };
+}
+
+// Step-up: provider accounts re-authenticate at the provider (and repeat the action on return); local accounts enter
+// their one-time code here and the action is retried.
+async function stepUp() {
+  if (S.identity === "workos" && S.me && S.me.auth_method && S.me.auth_method.startsWith("workos:")) {
+    await providerSignIn("step_up");
+    throw new Error("verifying your sign-in");
+  }
+  const code = await new Promise((resolve, reject) => {
+    const d = document.createElement("div");
+    d.className = "modal";
+    d.innerHTML = `<div class="card" style="max-width:360px;margin:15vh auto"><h3>Confirm it's you</h3>
+      <p class="small muted">This action needs a recent sign-in. Enter the 6-digit code from your authenticator app.</p>
+      <form><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" required style="width:100%;font-size:20px;letter-spacing:6px">
+      <button class="btn primary" style="margin-top:10px">Verify</button> <button type="button" class="btn" data-cancel>Cancel</button></form></div>`;
+    document.body.appendChild(d);
+    d.querySelector("[data-cancel]").onclick = () => { d.remove(); reject(new Error("verification cancelled")); };
+    d.querySelector("form").onsubmit = (e) => { e.preventDefault(); const v = new FormData(e.target).get("code"); d.remove(); resolve(v); };
+  });
+  await api("/api/auth/step-up", { method: "POST", body: { code } });
 }
 
 async function signOut() {

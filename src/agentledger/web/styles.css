@@ -101,3 +101,6 @@ pre.code { background: var(--panel-2); border-radius: 10px; padding: 10px; overf
 .hero .btn { background: rgba(255,255,255,.18); color: #fff; border: 0; }
 details summary { cursor: pointer; color: var(--ink-2); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; } .dot.on { background: var(--good); } .dot.off { background: var(--bad); }
+
+/* step-up and other confirmations */
+.modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 50; padding: 0 16px; }
