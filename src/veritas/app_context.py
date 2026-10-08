@@ -31,10 +31,12 @@ class AppContext:
         return self.foundry.router
 
     @classmethod
-    def open(cls, root: Path) -> "AppContext":
+    def open(cls, root: Path, *, tenant: Path | None = None, kb=None, scope: str = "all") -> "AppContext":
+        """`tenant` is a firm's data directory; omitted, the firm's data lives under root (single-firm/dev)."""
         root = Path(root).resolve()
-        conn = ThreadLocalConnection(root / "state" / "veritas.db")
-        foundry = Foundry(root, conn)
+        data = Path(tenant).resolve() if tenant else root
+        conn = ThreadLocalConnection(data / "state" / "veritas.db")
+        foundry = Foundry(root, conn, tenant=tenant, kb=kb, scope=scope)
         return cls(root, foundry, Packs(root / "domains"), Brain(root / "playbooks", foundry.kb))
 
     def reload(self) -> None:

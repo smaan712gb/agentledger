@@ -61,22 +61,32 @@ class Proposal(BaseModel):
         return bool(self.checks) and all(c.ok for c in self.checks)
 
 
+# Agents that work on one firm's data run inside each firm; the rest maintain the shared platform
+# (regulations, models, repositories, code) and run once.
+TENANT_KINDS = {"intake_maildrop", "intake_imap", "integrity_sweeper", "automations"}
+
+
 @dataclass
 class Paths:
-    root: Path
+    """Shared platform content lives under `root`; a firm's data lives under `tenant` (or root in dev)."""
 
+    root: Path
+    tenant: Path | None = None
+
+    @property
+    def data(self) -> Path: return self.tenant or self.root
     @property
     def rules(self) -> Path: return self.root / "rules"
     @property
     def config(self) -> Path: return self.root / "config"
     @property
-    def state(self) -> Path: return self.root / "state"
+    def state(self) -> Path: return self.data / "state"
     @property
-    def proposals(self) -> Path: return self.state / "proposals"
+    def proposals(self) -> Path: return self.root / "state" / "proposals"
     @property
-    def vault(self) -> Path: return self.root / "vault"
+    def vault(self) -> Path: return self.data / "vault"
     @property
-    def maildrop(self) -> Path: return self.root / "maildrop"
+    def maildrop(self) -> Path: return self.data / "maildrop"
     @property
     def golden(self) -> Path: return self.root / "golden"
     @property
@@ -134,10 +144,12 @@ def applier(kind: str, undo: Undoer | None = None):
 
 
 class Foundry:
-    def __init__(self, root: Path, conn: sqlite3.Connection, router: Router | None = None):
-        self.paths = Paths(Path(root))
+    def __init__(self, root: Path, conn: sqlite3.Connection, router: Router | None = None, *,
+                 tenant: Path | None = None, kb: KnowledgeBase | None = None, scope: str = "all"):
+        self.paths = Paths(Path(root), Path(tenant) if tenant else None)
         self.conn = conn
-        self.kb = KnowledgeBase(self.paths.rules)
+        self.scope = scope  # "all" (single-firm/dev), "platform" or "tenant"
+        self.kb = kb or KnowledgeBase(self.paths.rules)
         self.policy = yaml.safe_load((self.paths.config / "foundry.yaml").read_text(encoding="utf-8"))
         self.router = router or Router(Registry(self.paths.config / "models.yaml"), conn)
         self.paths.proposals.mkdir(parents=True, exist_ok=True)
@@ -263,6 +275,8 @@ class Foundry:
         now = datetime.now(timezone.utc)
         out = []
         for s in self.specs():
+            if self.scope == "platform" and s.kind in TENANT_KINDS or self.scope == "tenant" and s.kind not in TENANT_KINDS:
+                continue
             last = self.last_run(s.id)
             if last is None and s.first_run == "after_interval":
                 last = self.installed_at()

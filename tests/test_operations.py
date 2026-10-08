@@ -169,6 +169,7 @@ def test_api_segregation_and_webhook(home, monkeypatch):
     monkeypatch.setenv("VERITAS_HOME", str(home))
     monkeypatch.setenv("VERITAS_AGENTS", "0")
     monkeypatch.setenv("VERITAS_WEBHOOK_SECRET", "s3cret")
+    monkeypatch.setenv("VERITAS_DEV_AUTH", "1")
     import importlib
 
     import veritas.api.app as api_mod
@@ -187,7 +188,7 @@ def test_api_segregation_and_webhook(home, monkeypatch):
     assert [x["id"] for x in c.get("/api/clients", headers=owner).json()] == ["ortiz-auto"]
     body = json.dumps({"transactions": [{"date": "2026-05-01", "description": "POS SHELL OIL", "amount": "-40"}]}).encode()
     sig = hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
-    assert c.post("/api/hooks/ortiz-auto", content=body, headers={"X-Veritas-Signature": "bad"}).status_code == 401
-    r = c.post("/api/hooks/ortiz-auto", content=body, headers={"X-Veritas-Signature": sig})
+    assert c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-Veritas-Signature": "bad"}).status_code == 401
+    r = c.post("/api/hooks/dev/ortiz-auto", content=body, headers={"X-Veritas-Signature": sig})
     assert r.status_code == 200 and r.json()["suggestions"][0]["account"] == "6400"
     assert c.get("/api/audit", headers=cpa).json()["verification"]["ok"]
