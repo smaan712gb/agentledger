@@ -42,6 +42,9 @@ from ..security.vault import Vault
 from ..workflow.engine import TransitionError
 
 ROOT = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
+from ..envfile import load as _load_env  # noqa: E402
+
+_load_env(ROOT)  # local .env for development; real environment variables always win
 WEB = Path(__file__).resolve().parent.parent / "web"
 
 app = FastAPI(title="AgentLedger", version="0.1.0")

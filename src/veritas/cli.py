@@ -28,7 +28,11 @@ con = Console()
 
 
 def home() -> Path:
-    return Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
+    root = Path(os.environ.get("VERITAS_HOME", Path.cwd())).resolve()
+    from .envfile import load
+
+    load(root)  # local .env for development; real environment variables always win
+    return root
 
 
 def ctx():
