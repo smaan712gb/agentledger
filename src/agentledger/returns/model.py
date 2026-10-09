@@ -440,6 +440,78 @@ class K1(BaseModel):  # Schedule E Part II
     foreign_country: str = ""
     category: FTCCategory | None = None
     accrued: bool = False
+    # Form 4797 items (Schedule K-1 (Form 1065) boxes 9c and 10; (Form 1120-S) boxes 8c and 9): the share of the entity's
+    # net section 1231 gain or loss joins Part I (Form 4797 (2025) instructions, line 7); the unrecaptured section 1250 gain
+    # is the part of that gain due to depreciation, for line 5 of the Unrecaptured Section 1250 Gain Worksheet (line 11 when
+    # the K-1 is from an estate or trust). Both are informational splits of the same gain, never added twice.
+    net_section_1231_gain: Money = Z           # box 10 (1065) / box 9 (1120-S); a loss is negative
+    unrecaptured_1250_gain: Money = Z          # box 9c (1065) / box 8c (1120-S)
+
+
+# Form 4797 Part III classes (IRC §1245(a)(3), §1250(c)): section_1245 is depreciable personal property (and the real
+# property §1245(a)(3) lists), section_1250 depreciable real property that is not §1245 property, land is never
+# depreciable (a §1231 asset with no recapture), other is §1231 property with no depreciation (a leasehold of land, an
+# amortizable asset is section_1245).
+PropertyClass = Literal["section_1245", "section_1250", "land", "other"]
+
+
+class Disposition(BaseModel):
+    """One sale or exchange of property used in a trade or business or held for the production of rents (Form 4797 line 2,
+    10 or 19). Amounts default to None, not zero: a disposition whose price, basis or depreciation is not stated cannot be
+    figured and blocks (never taken as zero; enter 0 for the depreciation of land). Column letters are Form 4797 (2025):
+    (b) date acquired, (c) date sold, (d) gross sales price, (e) depreciation allowed or allowable since acquisition, (f)
+    cost or other basis plus improvements and expense of sale, (g) gain or loss = (d) + (e) - (f)."""
+    owner: Owner = "taxpayer"
+    description: str
+    acquired: date | Literal["inherited"] | None = None  # column (b); "INHERITED" is written in place of a date
+    sold: date                                            # column (c)
+    gross_sales_price: Money | None = None                # column (d) / line 20: money, FMV of property received, debt assumed
+    cost_or_basis: Money | None = None                    # column (f) / line 21, before the expense of sale (below) and the
+    #                                                       items of line 22; improvements included
+    depreciation_allowed: Money | None = None             # column (e) / line 22: allowed or allowable, incl. the §179 expense
+    #                                                       deduction and any special depreciation allowance (bonus)
+    selling_expenses: Money = Z                           # expense of sale, added to column (f) / line 21
+    property_class: PropertyClass | None = None           # None: not stated; blocks (Part III cannot be placed)
+    holding_period: Literal["short", "long"] | None = None  # derived from the dates when omitted (§1231(b)(1): more than 1 year)
+    # Section 1250 property only (Form 4797 line 26a; IRC §1250(b)(1)): depreciation (incl. any special depreciation
+    # allowance) in excess of straight line. Enter 0 for MACRS residential rental and nonresidential real property
+    # depreciated straight line with no special allowance (the instructions for line 26 require no computation for them).
+    # None: not stated; a §1250 disposition at a gain blocks.
+    additional_depreciation: Money | None = None
+    low_income_housing: bool = False                      # §1250(a)(1)(B) applicable percentage under 100%: not modelled (blocks)
+    # Activity the property was used in, one of the three (1-based index into businesses, rentals or k1s): decides Form 8960
+    # line 5b (a non-passive trade or business is not a §1411 trade or business), the QBI attribution of ordinary amounts
+    # (Reg. §1.199A-3(b)(2)(ii)(A)) and the §469(g) release Form 8582 will need.
+    schedule_c: int | None = None
+    rental: int | None = None
+    k1: int | None = None
+    # IRC §469(g)(1)(A): the taxpayer disposed of the entire interest in the passive activity in a fully taxable transaction
+    # to an unrelated person this year. Recorded for Form 8582 (not computed yet): suspended losses of the activity are
+    # then allowed in full.
+    entire_interest_disposed: bool = False
+    # Dispositions the engine does not model: each flag is a blocking diagnostic naming the form.
+    installment_sale: bool = False                        # Form 6252
+    like_kind_exchange: bool = False                      # Form 8824
+    casualty_or_theft: bool = False                       # Form 4684
+    partial_disposition: bool = False                     # Reg. §1.168(i)-8(d) partial disposition of a MACRS asset
+    related_party: bool = False                           # IRC §1239 (ordinary gain), §267 (loss disallowed)
+    # A registered asset (calc/federal.py Asset.id) whose cost and tax depreciation are the source of cost_or_basis and
+    # depreciation_allowed: the stated amounts must agree with the register (a mismatch blocks).
+    asset_id: str | None = None
+
+
+class BusinessUseRecapture(BaseModel):
+    """Form 4797 Part IV: property placed in service in an earlier year whose business use dropped to 50% or less this year,
+    so that the section 179 expense deduction (column (a), IRC §179(d)(10); Reg. §1.179-1(e)) or the excess depreciation
+    on listed property (column (b), IRC §280F(b)(2)) is recaptured as other income on the schedule that took the
+    deduction. Amounts default to None: an item without its line 33 or line 34 amount blocks."""
+    description: str
+    kind: Literal["section_179", "section_280f"]
+    deduction_claimed: Money | None = None                 # line 33: the §179 deduction claimed, or the depreciation allowable in
+    #                                                        prior years plus any §179 deduction (column (b))
+    recomputed_depreciation: Money | None = None           # line 34: the depreciation that would have been allowable (Pub. 946, 463)
+    schedule_c: int | None = None                          # the Schedule C (1-based index into businesses) that took the deduction
+    rental: int | None = None                              # a Schedule E property: not modelled (blocks)
 
 
 class ForeignTaxCredit(BaseModel):
@@ -549,6 +621,8 @@ class IndividualReturn(BaseModel):
     businesses: list[Business] = []
     rentals: list[Rental] = []
     k1s: list[K1] = []
+    dispositions: list[Disposition] = []                  # Form 4797 Parts I-III: sales of property used in a trade or business
+    business_use_recaptures: list[BusinessUseRecapture] = []  # Form 4797 Part IV: §179 / §280F(b)(2) recapture
     other_income: dict[str, Money] = {}  # Schedule 1 line 8 items, keyed by line letter or label
     qbi_loss_carryforward: Money = Z
     reit_ptp_loss_carryforward: Money = Z

@@ -152,7 +152,7 @@ def test_the_store_accepts_the_prior_year_group_and_records_its_carryover(fam): 
     v = R.latest(rid)
     assert v["result"]["forms"]["sch_d"]["14"] == "-10000" and v["result"]["forms"][WS]["13"] == "7000"
     assert v["result"]["carryforwards"] == {"capital_loss_carryover_short": "0", "capital_loss_carryover_long": "7000"}
-    assert v["result"]["pinned"]["engine"] == ENGINE_VERSION == "1040-2026.3"    # computations changed: recompute reopens review
+    assert v["result"]["pinned"]["engine"] == ENGINE_VERSION == "1040-2026.4"    # computations changed: recompute reopens review
     assert fam.conn.execute("SELECT detail FROM return_retention_facts WHERE return_id = ? AND kind = 'carryover'",
                             (rid,)).fetchone()[0] == "prior_year.capital_loss_carryover_long"
     assert WS not in v["result"]["coverage"]["forms"]                           # a worksheet, not a registry form

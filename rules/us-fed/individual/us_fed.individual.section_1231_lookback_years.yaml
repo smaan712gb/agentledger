@@ -1,0 +1,29 @@
+id: us_fed.individual.section_1231_lookback_years
+title: Section 1231(c) recapture of net section 1231 losses, number of preceding years looked back to
+jurisdiction: US-FED
+category: individual
+value_type: integer
+unit: years
+citation: IRC §1231(c)(2)(A); Form 4797 (2025) line 8
+tags:
+- '1231'
+- '4797'
+- nonrecaptured losses
+- lookback
+notes: >-
+  A net section 1231 gain is ordinary income to the extent of the "non-recaptured net section 1231 losses"
+  (§1231(c)(1)): the net section 1231 losses of the 5 most recent preceding taxable years (§1231(c)(2)(A)) not yet
+  applied against a net section 1231 gain (§1231(c)(2)(B)). Form 4797 (2025) line 8 asks for the losses "deducted
+  during the 5 preceding tax years that have not yet been applied"; Pub. 544 (2025), Nonrecaptured section 1231
+  losses: "These losses are applied against your net section 1231 gain beginning with the earliest loss in the
+  5-year period." A loss from a year before the window has expired and is not counted. Statutory, not indexed
+  (Tax Reform Act of 1984, P.L. 98-369 §1085(a), for net section 1231 losses of taxable years beginning after
+  December 31, 1981).
+values:
+- effective_from: '1985-01-01'
+  value: 5
+  provenance:
+    source: IRC §1231(c)(2)(A) ("the 5 most recent preceding taxable years"); Form 4797 (2025) instructions, lines 7-9
+      and the line 8 example; Pub. 544 (2025), chapter 3, Nonrecaptured section 1231 losses and its example
+    url: https://www.irs.gov/instructions/i4797
+    verified_on: '2026-10-09'

@@ -189,3 +189,20 @@
              prior_year: {ftc_excess_limitation: {passive: 0}}}
   expect: 939
   source: Form 1116 (2025) instructions, Part I lines 3a-3g and Part III lines 17-24; IRC §904(a), (c); Rev. Proc. 2025-32 §4.01, §4.14
+# Form 4797 worked by hand (Form 4797 (2025) Part III lines 20-25b and 30-32, Part I lines 6-7, Part II lines 13-18b; Pub. 544
+# (2025) chapter 3, Section 1245 Property, Gain Treated as Ordinary Income): a machine bought in 2022 for 20,000 with 12,000 of
+# depreciation allowed is sold in 2026 for 24,000: adjusted basis 8,000, total gain 16,000; the smaller of the gain and the
+# depreciation, 12,000, is ordinary income under IRC §1245(a)(1) (line 25b, line 31, line 13, line 18b to Schedule 1 line 4); the
+# 4,000 remainder (line 32, line 6, line 7) is section 1231 gain, long-term capital gain on Schedule D line 11 because the
+# prior-year group states no nonrecaptured section 1231 losses (IRC §1231(a), (c)).
+- id: f1040-2026-section-1245-recapture
+  calc: form_1040_line
+  inputs:
+    form: f4797
+    line: "18b"
+    return: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             w2s: [{wages: 60000}], prior_year: {},
+             dispositions: [{description: Machine, acquired: "2022-03-01", sold: "2026-06-01", gross_sales_price: 24000, cost_or_basis: 20000,
+                             depreciation_allowed: 12000, property_class: section_1245}]}
+  expect: 12000
+  source: Form 4797 (2025) lines 20-25b, 30-32, 6-7 and 13-18b and its instructions; Pub. 544 (2025) chapter 3, Section 1245 Property; IRC §1245(a)(1), §1231(a), (c)

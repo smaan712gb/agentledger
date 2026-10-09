@@ -119,6 +119,10 @@ def _unmodelled(r: IndividualReturn) -> list[str]:
     if _foreign_taxes(r):
         out.append("foreign tax credit limitation (PolicyEngine credits min(foreign taxes, tax before credits), without the §904 "
                    "limitation, the separate categories or carryovers: compared as an upper bound only)")
+    if r.dispositions or r.business_use_recaptures or any(k.net_section_1231_gain or k.unrecaptured_1250_gain for k in r.k1s):
+        out.append("Form 4797 (PolicyEngine takes other_net_gain and the capital gain as inputs: fed from Part II line 18b, Part I's gain to "
+                   "Schedule D line 11 and Schedule D line 19; the section 1231 netting, the recapture, the §1231(c) lookback, the Part IV "
+                   "recapture and Form 8960 line 5b are not cross-checked, only AGI and the tax on the amounts)")
     return out
 
 
@@ -210,6 +214,8 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
             cf_short, cf_long = _carryovers(r)
             st -= cf_short
             lt -= cf_long
+            if ours is not None:                           # Form 4797 Part I: the net section 1231 gain Schedule D line 11 takes
+                lt += ours.line("sch_d", "11")
             d.update({
                 "long_term_capital_loss_carryover": {yr: float(cf_long)},
                 "taxable_interest_income": {yr: float(sum((i.interest + i.us_savings_bond_interest for i in r.interest), Decimal(0)))},
@@ -242,6 +248,10 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
         tax_unit["deductible_mortgage_interest"] = {yr: float(r.itemized.mortgage_interest_1098)}
     if ours is not None and ours.line("sch_1", "13") > 0:
         tax_unit["health_savings_account_ald"] = {yr: float(ours.line("sch_1", "13"))}
+    if ours is not None and ours.line("sch_1", "4"):             # Form 4797 Part II, line 18b: PolicyEngine's other_net_gain input
+        tax_unit["other_net_gain"] = {yr: float(ours.line("sch_1", "4"))}
+    if ours is not None and ours.line("sch_d", "19") > 0:        # Schedule D line 19, as the worksheet reduced it
+        tax_unit["unrecaptured_section_1250_gain"] = {yr: float(ours.line("sch_d", "19"))}
     if _foreign_taxes(r):
         tax_unit["foreign_tax_credit_potential"] = {yr: float(_foreign_taxes(r))}
     return {

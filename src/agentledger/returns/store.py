@@ -25,7 +25,7 @@ from ..calc.engine import Ctx
 from ..kb.store import KnowledgeBase
 from ..workflow.engine import Definition, Engine, State, Transition, TransitionError
 from . import documents as docs
-from .individual import PER_OWNER_CARRYFORWARDS, compute_individual
+from .individual import PER_OWNER_CARRYFORWARDS, PER_YEAR_CARRYFORWARDS, compute_individual
 from .model import IndividualReturn
 
 SCHEMA = """
@@ -184,7 +184,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS filing_submissions_planned ON filing_submissio
 """
 
 CPA = ("cpa",)
-ENGINE_VERSION = "1040-2026.3"
+ENGINE_VERSION = "1040-2026.4"
 USES_INDEXED = "return_document_uses_indexed"
 CARRYFORWARDS_INDEXED = "return_carryforwards_indexed"
 # A return whose figures are final for the next year's roll-forward: filed and accepted, or filed on paper.
@@ -411,17 +411,24 @@ NOL_LINES = frozenset({"8a", "a"})        # Schedule 1 line 8a, the net operatin
 
 
 def carryforward_row(key: str) -> tuple[str, str]:
-    """A Result.carryforwards key as stored: (kind, detail), the detail being the owner of a per-person kind."""
+    """A Result.carryforwards key as stored: (kind, detail), the detail being the owner of a per-person kind or the year of
+    a per-year kind (`nonrecaptured_1231_loss_2026` -> ("nonrecaptured_1231_loss", "2026"))."""
     for kind in PER_OWNER_CARRYFORWARDS:
         if key == kind:
             return kind, "taxpayer"
         if key == f"spouse_{kind}":
             return kind, "spouse"
+    for kind in PER_YEAR_CARRYFORWARDS:
+        if key.startswith(f"{kind}_") and key[len(kind) + 1:].isdigit():
+            return kind, key[len(kind) + 1:]
     return key, ""
 
 
 def carryforward_name(kind: str, detail: str) -> str:
-    """The inverse of carryforward_row: the next year's prior_year input name."""
+    """The inverse of carryforward_row: the next year's prior_year input name (a per-year kind keeps its `<kind>_<year>` key;
+    roll_forward turns those into the prior_year list the year belongs to)."""
+    if kind in PER_YEAR_CARRYFORWARDS:
+        return f"{kind}_{detail}" if detail else kind
     return kind if detail in ("", "taxpayer") else f"{detail}_{kind}"
 
 
@@ -681,10 +688,24 @@ class Returns:
             raise ValueError("compute the return before rolling it forward")
         block: dict[str, Any] = {"filing_status": v["inputs"].get("filing_status"), "agi": (v["result"].get("summary") or {}).get("agi"),
                                  "tax": (v["result"].get("summary") or {}).get("total_tax")}
-        block.update({k: str(x) for k, x in self.carryforwards(rid, int(v["version"])).items()})
-        prior_year = {k: str(x) for k, x in block.items() if x is not None}
+        # Per-year carryforwards (the nonrecaptured net section 1231 losses, Form 4797 line 8) become the prior_year list
+        # that holds one entry per loss year, each entry with its own provenance.
+        per_year: dict[str, list[tuple[str, Decimal]]] = {}
+        for k, x in self.carryforwards(rid, int(v["version"])).items():
+            kind, detail = carryforward_row(k)
+            if kind in PER_YEAR_CARRYFORWARDS:
+                per_year.setdefault(kind, []).append((detail, x))
+            else:
+                block[k] = str(x)
+        prior_year: dict[str, Any] = {k: str(x) for k, x in block.items() if x is not None}
         provenance = {f"prior_year.{k}": {"source": "return", "return_id": rid, "version": int(v["version"]), "box": k, "value": x,
                                           "confirmed": False} for k, x in prior_year.items()}
+        for year, amount in sorted(per_year.get("nonrecaptured_1231_loss", [])):
+            entries = prior_year.setdefault("nonrecaptured_1231_losses", [])
+            provenance[f"prior_year.nonrecaptured_1231_losses[{len(entries)}].nonrecaptured_loss"] = {
+                "source": "return", "return_id": rid, "version": int(v["version"]), "box": f"nonrecaptured_1231_loss_{year}", "value": str(amount),
+                "confirmed": False}
+            entries.append({"tax_year": int(year), "nonrecaptured_loss": str(amount)})
         return {"client_id": r["client_id"], "tax_year": r["tax_year"] + 1, "from_return": rid, "version": int(v["version"]),
                 "prior_year": prior_year, "provenance": provenance}
 
@@ -954,7 +975,12 @@ class Returns:
 
     def _calculate(self, rid: str, cur: dict[str, Any]) -> tuple[IndividualReturn, Any, dict[str, Any]]:
         ret = IndividualReturn.model_validate(cur["inputs"])
-        res = compute_individual(Ctx(self.kb), ret)
+        assets = None
+        if any(d.asset_id is not None for d in ret.dispositions):   # Form 4797: a disposition names a registered asset
+            from ..ledger.store import assets as registered_assets
+
+            assets = [a for a, _ in registered_assets(self.conn, self.get(rid)["client_id"])]
+        res = compute_individual(Ctx(self.kb), ret, assets)
         result = res.to_dict()
         forms = list(result["forms"]) + (["f1040x"] if self.get(rid)["form"] == "1040-X" else [])
         result["coverage"] = self._coverage(forms, ret.tax_year)

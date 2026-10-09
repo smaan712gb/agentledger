@@ -1,0 +1,32 @@
+id: us_fed.individual.section_1250_applicable_percentage
+title: Section 1250 recapture, applicable percentage of additional depreciation for individuals
+jurisdiction: US-FED
+category: individual
+value_type: rate
+unit: fraction
+citation: IRC §1250(a)(1)(A)-(B); Form 4797 (2025) line 26b
+tags:
+- depreciation recapture
+- '1250'
+- '4797'
+- additional depreciation
+notes: >-
+  Gain on the disposition of section 1250 property (depreciable real property that is not section 1245 property,
+  §1250(c)) is ordinary income to the extent of the "applicable percentage" of the additional depreciation
+  (depreciation in excess of straight line, §1250(b)(1)) attributable to periods after December 31, 1975
+  (§1250(a)(1)(A)). The percentage is 100 percent for every class of property other than the low-income housing
+  of §1250(a)(1)(B)(i)-(iv), whose percentage falls 1 point per full month held over 100 months (§1250(a)(1)(B);
+  Pub. 544 (2025), Applicable Percentage). Form 4797 (2025) instructions, line 26b: "Generally, use 100% as the
+  percentage for this line." Additional depreciation of 1970-1975 (line 26d, §1250(a)(2)) and the 20 percent of
+  §291(a)(1) (line 26f) concern pre-1976 property and C corporations only, neither of which an individual's
+  return figures here. Straight-line MACRS residential rental and nonresidential real property has no additional
+  depreciation (the instructions for line 26 require no computation for it). Not indexed.
+values:
+- effective_from: '1976-01-01'
+  value: 1.0
+  provenance:
+    source: IRC §1250(a)(1)(B)(v) (100 percent "in the case of section 1250 property not described in clause (i), (ii),
+      (iii), or (iv)"); Form 4797 (2025) instructions, lines 26a-26g; Pub. 544 (2025), chapter 3, Section 1250 Property
+      and Applicable Percentage
+    url: https://www.irs.gov/instructions/i4797
+    verified_on: '2026-10-09'

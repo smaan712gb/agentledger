@@ -14,9 +14,10 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
 
 from ..calc.engine import D, Ctx
+from ..calc.federal import Asset, tax_depreciation
 from . import tax as T
-from .model import (SCHEDULE_C_LINES, Business, CapitalTransaction, Dependent, HSAFacts, IndividualReturn, IRAAccount, IRAFacts,
-                    Owner, Person, Retirement)
+from .model import (SCHEDULE_C_LINES, Business, CapitalTransaction, Dependent, Disposition, HSAFacts, IndividualReturn, IRAAccount,
+                    IRAFacts, Owner, Person, Retirement)
 from .sheet import Sheets, pos, whole
 
 SUPPORTED_YEARS = {2026}
@@ -41,13 +42,40 @@ MONTHS = [f"{m:02d}" for m in range(1, 13)]
 # Result.carryforwards keys that exist per person: the spouse's is stored under the spouse_ prefix of the next year's
 # prior_year group (model.PriorYear).
 PER_OWNER_CARRYFORWARDS = ("traditional_ira_basis", "roth_ira_basis", "roth_conversion_basis", "hsa_last_month_rule_excess")
+# Result.carryforwards keys that exist per year, keyed `<kind>_<year>`: stored as (kind, detail = the year) and listed by the
+# next year's prior_year group per year (the nonrecaptured net section 1231 losses of Form 4797 line 8, model.Section1231Loss).
+PER_YEAR_CARRYFORWARDS = ("nonrecaptured_1231_loss",)
 TWENTY_PERCENT = Decimal("0.20")
 TEN_PERCENT = Decimal("0.10")
+# Form 4797 dispositions the engine does not model, each a blocking diagnostic naming the form that would be needed.
+UNSUPPORTED_DISPOSITIONS = (
+    ("installment_sale", "form_4797_installment_sale", "an installment sale is reported on Form 6252 (Form 4797 lines 4 and 15), not supported"),
+    ("like_kind_exchange", "form_4797_like_kind_exchange", "a like-kind exchange is reported on Form 8824 (Form 4797 lines 5 and 16), not supported"),
+    ("casualty_or_theft", "form_4797_casualty_or_theft", "a casualty or theft is reported on Form 4684 (Form 4797 lines 3 and 14), not supported"),
+    ("partial_disposition", "form_4797_partial_disposition", "a partial disposition of a MACRS asset (Reg. §1.168(i)-8(d); lines 1b, 1c) is not supported"),
+    ("related_party", "form_4797_related_party", "a sale to a related person (IRC §1239 ordinary gain, §267 loss disallowance) is not supported"),
+    ("low_income_housing", "form_4797_low_income_housing", "the §1250(a)(1)(B) applicable percentage of low-income housing (line 26b) is not supported"),
+)
 
 
 def carryforward_key(kind: str, owner: Owner) -> str:
     """The prior_year input name a per-person carryforward is stored under next year."""
     return kind if owner == "taxpayer" else f"spouse_{kind}"
+
+
+def held_long_term(acquired: date, sold: date) -> bool:
+    """Held more than 1 year (IRC §1222(3), §1231(b)(1)): the holding period starts the day after acquisition and includes
+    the day of disposition (Form 4797 (2025) instructions, Part I), so a sale on the first anniversary is short-term."""
+    try:
+        anniversary = acquired.replace(year=acquired.year + 1)
+    except ValueError:  # 29 February
+        anniversary = date(acquired.year + 1, 3, 1)
+    return sold > anniversary
+
+
+def part_iii_column(index: int) -> str:
+    """Form 4797 Part III property columns A-D; a fifth property starts another form (E, F, ... here)."""
+    return chr(ord("A") + index)
 
 
 def round_up_10(amount: Decimal) -> Decimal:
@@ -115,6 +143,23 @@ class _IRA:
 
 
 @dataclass
+class _F4797:
+    """What Form 4797 hands to the rest of the return."""
+    filed: bool = False                   # a Form 4797 is part of the return
+    line_7: Decimal = Z                   # Part I net section 1231 gain or (loss)
+    line_8: Decimal = Z                   # nonrecaptured net section 1231 losses of the 5 preceding years
+    to_schedule_d: Decimal = Z            # the long-term capital gain of line 7 or line 9, Schedule D line 11
+    ordinary: Decimal = Z                 # line 18b, Schedule 1 line 4
+    unrecaptured_1250: Decimal = Z        # Unrecaptured Section 1250 Gain Worksheet line 3 (total over the §1250 properties of Part III)
+    unrecaptured_rows: list[dict[str, str]] = field(default_factory=list)  # the worksheet's lines 1-3 per property
+    niit_excluded: Decimal = Z            # Form 8960 line 5b: gains (negative) and losses (positive) of non-§1411 trades or businesses
+    niit_unplaced: int = 0                # dispositions with no activity link: Form 8960 cannot place them (blocks when it applies)
+    qbi_ordinary: dict[int, Decimal] = field(default_factory=dict)      # ordinary amounts attributable to each Schedule C (1-based)
+    sch_c_other_income: dict[int, Decimal] = field(default_factory=dict)  # Part IV recapture to Schedule C line 6 (1-based)
+    depreciable: bool = False             # a depreciable asset was disposed of (the AMT basis may differ, Form 6251 lines 2k, 2l)
+
+
+@dataclass
 class Result:
     tax_year: int
     filing_status: str
@@ -166,15 +211,19 @@ class Result:
         }
 
 
-def compute_individual(ctx: Ctx, r: IndividualReturn) -> Result:
-    return _Individual(ctx, r).compute()
+def compute_individual(ctx: Ctx, r: IndividualReturn, assets: list[Asset] | None = None) -> Result:
+    """`assets` is the client's asset register (calc/federal.py Asset, from the ledger): a Form 4797 disposition that names
+    an `asset_id` takes its cost and tax depreciation from it instead of stated amounts."""
+    return _Individual(ctx, r, assets).compute()
 
 
 class _Individual:
     _ftc: Decimal
 
-    def __init__(self, ctx: Ctx, r: IndividualReturn):
+    def __init__(self, ctx: Ctx, r: IndividualReturn, assets: list[Asset] | None = None):
         self.ctx, self.r = ctx, r
+        self.assets: dict[str, Asset] = {a.id: a for a in assets or []}
+        self._f4797 = _F4797()                  # Form 4797 results (Schedule D line 11, Schedule 1 line 4, Form 8960 line 5b, ...)
         self.y = r.tax_year
         self.on = date(r.tax_year, 12, 31)
         self.fs = r.filing_status
@@ -234,6 +283,7 @@ class _Individual:
         self._form_8606_distributions()
         self._retirement()
         self._form_8889()
+        self._form_4797()
         self._schedule_c()
         self._schedule_se()
         self._schedule_d()
@@ -860,6 +910,410 @@ class _Individual:
             self._carryforwards[carryforward_key("hsa_last_month_rule_excess", owner)] = whole(carry)
         self._hsa[owner] = {k: self.g(f, k) for k in ("13", "16", "17b", "20", "21")}
 
+    # ----------------------------------------------------------------- Form 4797
+    def _form_4797(self) -> None:
+        """Form 4797, Sales of Business Property (the 2025 form and instructions; the 2026 form is not posted and nothing on
+        it is indexed). Part I nets the section 1231 gains and losses of property used in a trade or business and held more
+        than 1 year (IRC §1231(a), (b)(1)) after the recapture of Part III: a net gain is long-term capital gain (Schedule D
+        line 11), a net loss ordinary (line 11), and a net gain is ordinary to the extent of the nonrecaptured net section
+        1231 losses of the 5 preceding years (§1231(c); lines 8, 9 and 12), applied earliest loss first (Pub. 544 (2025),
+        Nonrecaptured section 1231 losses). Part II collects the ordinary gains and losses (property held 1 year or less on
+        line 10, lines 11-13) to Schedule 1 line 4 (line 18b). Part III figures the recapture: section 1245 property is
+        ordinary to the extent of the depreciation allowed or allowable (§1245(a)(1); lines 25a-25b), section 1250 property
+        to the extent of the applicable percentage of the additional depreciation over straight line (§1250(a)(1), (b)(1);
+        lines 26a-26g; 100% for an individual's property other than low-income housing, us_fed.individual.section_1250_
+        applicable_percentage; the 20% of §291(a)(1) on line 26f is a C corporation's); the rest of the gain (line 32) joins
+        Part I (line 6), and the part of it due to depreciation is unrecaptured section 1250 gain (§1(h)(6)) for the
+        Schedule D line 19 worksheet (_unrecaptured_1250_worksheet). Part IV recaptures the §179 deduction (§179(d)(10)) or
+        the §280F(b)(2) excess depreciation when business use drops to 50% or less, as other income of the Schedule C that
+        took the deduction. For the AMT the gain or loss may differ (§56(a)(1), (6); Form 6251 lines 2k and 2l): AMT
+        depreciation is not computed, so a depreciable disposition raises a warning until the adjustment is stated."""
+        r = self.r
+        st = self._f4797
+        f = "f4797"
+        items: list[dict[str, Any]] = []
+        for n, d in enumerate(r.dispositions, 1):
+            item = self._disposition(n, d)
+            if item is not None:
+                items.append(item)
+        k1_rows: list[dict[str, Any]] = []
+        for i, k in enumerate(r.k1s, 1):
+            if k.net_section_1231_gain:
+                k1_rows.append({"description": f"Schedule K-1 {k.entity_name}, net section 1231 gain or (loss)", "gain": k.net_section_1231_gain,
+                                "activity": ("k1", i), "entire_interest": False, "ordinary": Z, "section_1231": k.net_section_1231_gain})
+        part_iv = self._form_4797_part_iv()
+        if not items and not k1_rows and not part_iv:
+            return
+        st.filed = True
+        rows_i: list[dict[str, Any]] = []
+        rows_ii: list[dict[str, Any]] = []
+        cols = 0
+        for item in items:
+            if not item["long"]:                                  # held 1 year or less: Part II line 10, whatever the class
+                item["part"], item["ordinary"] = "II", item["gain"]
+                rows_ii.append(item)
+            elif item["gain"] <= 0 or item["class"] in ("land", "other"):   # a §1231 loss, or a gain with nothing to recapture
+                item["part"], item["section_1231"] = "I", item["gain"]
+                rows_i.append(item)
+            else:
+                self._form_4797_part_iii(item, part_iii_column(cols))
+                cols += 1
+        if cols > 4:
+            self.s.diag("info", "form_4797_additional_part_iii", f"{cols} properties in Part III: columns beyond D go on an additional Form 4797.", f)
+
+        def describe(row: dict[str, Any]) -> dict[str, str]:
+            return {"description": row["description"], "acquired": str(row["acquired"]), "sold": str(row["sold"]),
+                    "sales_price": str(whole(row["price"])), "depreciation": str(whole(row["dep"])), "basis_and_expenses": str(whole(row["basis"])),
+                    "gain": str(whole(row["gain"])), "class": row["class"], "source": row["source"]}
+
+        # Part I: line 2 rows (the Schedule K-1 net section 1231 amounts are entered in Part I, instructions for line 7).
+        self.s.fact(f, "part_i", [describe(x) for x in rows_i] + [{"description": x["description"], "gain": str(whole(x["gain"]))} for x in k1_rows])
+        line_2 = self.set(f, "2", sum((x["gain"] for x in rows_i), Z) + sum((x["gain"] for x in k1_rows), Z),
+                          "Section 1231 gains and losses not reported in Part III (and Schedule K-1 net section 1231 amounts)")
+        self.set(f, "6", self.g(f, "32"), "Gain from line 32, from other than casualty or theft")
+        line_7 = self.set(f, "7", line_2 + self.g(f, "6"), "Net section 1231 gain or (loss)")
+        st.line_7 = line_7
+        line_12 = Z
+        if line_7 > 0:
+            line_8 = self._section_1231_lookback(line_7)
+            st.line_8 = line_8
+            if line_8 > 0:
+                self.set(f, "8", line_8, "Nonrecaptured net section 1231 losses from prior years (IRC §1231(c))")
+                line_9 = self.set(f, "9", pos(line_7 - line_8))
+                line_12 = line_7 if line_9 == 0 else line_8
+                st.to_schedule_d = line_9
+            else:
+                st.to_schedule_d = line_7
+        else:
+            self._section_1231_lookback(line_7)                   # prior losses stay unapplied; this year's loss joins them
+        # Part II.
+        self.s.fact(f, "part_ii", [describe(x) for x in rows_ii])
+        self.set(f, "10", sum((x["gain"] for x in rows_ii), Z), "Ordinary gains and losses, property held 1 year or less")
+        self.set(f, "11", min(line_7, Z), "Loss, if any, from line 7")
+        self.set(f, "12", line_12, "Gain from line 7 treated as ordinary income (IRC §1231(c)), or the amount from line 8")
+        self.set(f, "13", self.g(f, "31"), "Gain from line 31 (recapture)")
+        line_17 = self.set(f, "17", sum((self.g(f, x) for x in ("10", "11", "12", "13", "14", "15", "16")), Z))
+        self.set(f, "18b", line_17, "To Schedule 1, line 4")
+        st.ordinary = line_17
+        # Where the gains belong: Form 8960 line 5b, the QBI of a Schedule C, the §469(g) release of Form 8582.
+        ordinary_share = Decimal(1) if line_7 <= 0 else (line_12 / line_7 if line_12 else Z)
+        released: list[dict[str, Any]] = []
+        for item in items + k1_rows:
+            activity = item["activity"]
+            if activity is None:
+                st.niit_unplaced += 1
+            else:
+                kind, idx = activity
+                if self._non_section_1411(kind, idx):
+                    st.niit_excluded -= item["gain"]
+                if kind == "schedule_c":
+                    st.qbi_ordinary[idx] = st.qbi_ordinary.get(idx, Z) + item["ordinary"] + item["section_1231"] * ordinary_share
+            if item["entire_interest"]:
+                if activity is None:
+                    self.s.diag("error", "form_4797_activity_unknown",
+                                f"{item['description']}: the entire interest in an activity was disposed of, but no activity is named "
+                                "(schedule_c, rental or k1).", f)
+                    continue
+                passive = self._passive_activity(*activity)
+                released.append({"description": item["description"], "activity": f"{activity[0]}[{activity[1]}]", "passive": passive})
+                if passive:
+                    self.s.diag("warning", "form_8582_release_not_computed",
+                                f"{item['description']}: the entire interest in passive activity {activity[0]}[{activity[1]}] was disposed of in a "
+                                "fully taxable transaction (IRC §469(g)(1)(A)); its suspended losses are allowed in full on Form 8582, "
+                                "which is not computed yet.", "f8582")
+        if released:
+            self.s.fact(f, "section_469g_dispositions", released)
+        if st.depreciable and "disposition" not in r.amt_adjustments:
+            self.s.diag("warning", "form_6251_disposition_adjustment_unverified",
+                        "A depreciable asset was disposed of: its AMT basis may differ from the regular tax basis (property depreciated 200% "
+                        "declining balance after 1998, section 1250 property not depreciated straight line), so the AMT gain or loss may "
+                        "differ (IRC §56(a)(1), (6); Form 6251 lines 2k and 2l). AMT depreciation is not computed: state amt_adjustments "
+                        "'disposition' (and 'depreciation'), 0 when the bases are the same.", "f6251", "2k")
+
+    def _disposition(self, n: int, d: Disposition) -> dict[str, Any] | None:
+        """One Form 4797 row with every fact it needs, or None when it cannot be figured (each reason is a blocking
+        diagnostic; nothing is taken as zero). The gain is column (g): (d) gross sales price plus (e) depreciation less (f)
+        cost or other basis plus the expense of sale, the same as line 24 (line 20 less the adjusted basis of line 23)."""
+        f = "f4797"
+        where = f"dispositions[{n}] {d.description}"
+        bad = False
+        for attr, code, message in UNSUPPORTED_DISPOSITIONS:
+            if getattr(d, attr):
+                self.s.diag("error", code, f"{where}: {message}.", f)
+                bad = True
+        links = [(k, getattr(d, k)) for k in ("schedule_c", "rental", "k1") if getattr(d, k) is not None]
+        activity: tuple[str, int] | None = None
+        if len(links) > 1:
+            self.s.diag("error", "form_4797_activity_ambiguous", f"{where}: name one activity (schedule_c, rental or k1), not several.", f)
+            bad = True
+        elif links:
+            kind, idx = links[0]
+            count = {"schedule_c": len(self.r.businesses), "rental": len(self.r.rentals), "k1": len(self.r.k1s)}[kind]
+            if not 1 <= idx <= count:
+                self.s.diag("error", "form_4797_activity_unknown", f"{where}: {kind} {idx} does not exist on this return ({count} on the return).", f)
+                bad = True
+            else:
+                activity = (kind, idx)
+        price, basis, dep, cls = d.gross_sales_price, d.cost_or_basis, d.depreciation_allowed, d.property_class
+        acquired: Any = d.acquired
+        source = "stated"
+        register_failed = False                              # the register knows the asset but could not figure its depreciation
+        if d.asset_id is not None:
+            a = self.assets.get(d.asset_id)
+            if a is None:
+                self.s.diag("error", "form_4797_asset_unknown", f"{where}: asset {d.asset_id!r} is not in the client's asset register.", f)
+                bad = True
+            else:
+                reg_dep = self._register_depreciation(a, d.sold, where)
+                register_failed = reg_dep is None
+                for stated, reg, name in ((basis, a.cost, "cost_or_basis"), (dep, reg_dep, "depreciation_allowed")):
+                    if stated is not None and reg is not None and whole(stated) != whole(reg):
+                        self.s.diag("error", "form_4797_asset_register_conflict",
+                                    f"{where}: {name} is stated as {whole(stated)} but the asset register gives {whole(reg)} for {a.id}.", f)
+                        bad = True
+                if cls not in (None, "section_1245"):
+                    self.s.diag("error", "form_4797_asset_register_conflict",
+                                f"{where}: a registered MACRS {a.recovery_years}-year asset is section 1245 property, not {cls}.", f)
+                    bad = True
+                basis = a.cost if basis is None else basis
+                dep = reg_dep if dep is None else dep
+                cls = cls or "section_1245"
+                acquired = acquired or a.acquired
+                source = f"asset register {a.id}"
+        for value, code, name in ((price, "form_4797_sales_price_unknown", "gross sales price (column (d), line 20)"),
+                                  (basis, "form_4797_basis_unknown", "cost or other basis (column (f), line 21)"),
+                                  (dep, "form_4797_depreciation_unknown", "depreciation allowed or allowable (column (e), line 22; 0 for land)")):
+            if value is None and not (register_failed and code == "form_4797_depreciation_unknown"):
+                self.s.diag("error", code, f"{where}: the {name} is not stated; it is never taken as zero.", f)
+                bad = True
+        bad = bad or register_failed
+        if cls is None:
+            self.s.diag("error", "form_4797_property_class_unknown",
+                        f"{where}: state the property class (section_1245, section_1250, land or other); Part III cannot be placed without it.", f)
+            bad = True
+        if d.sold.year != self.y:
+            self.s.diag("error", "form_4797_sale_date_outside_year", f"{where}: sold {d.sold}, outside tax year {self.y}.", f)
+            bad = True
+        if bad or price is None or basis is None or dep is None or cls is None:
+            return None
+        if d.holding_period is not None:
+            long = d.holding_period == "long"
+        elif acquired == "inherited":
+            long = True
+        elif isinstance(acquired, date):
+            long = held_long_term(acquired, d.sold)
+        else:
+            self.s.diag("error", "form_4797_holding_period_unknown", f"{where}: state the date acquired or the holding period.", f)
+            return None
+        if cls in ("land", "other") and dep > 0:
+            self.s.diag("error", "form_4797_land_depreciated",
+                        f"{where}: {cls} carries no depreciation ({whole(dep)} stated); a depreciable asset is section_1245 or section_1250 property.", f)
+            return None
+        if cls == "section_1250" and isinstance(acquired, date) and acquired < date(1976, 1, 1):
+            self.s.diag("error", "form_4797_pre_1976_property",
+                        f"{where}: section 1250 property acquired before 1976 needs the additional depreciation of 1970-1975 (line 26d), not supported.", f)
+            return None
+        gross_basis = basis + d.selling_expenses
+        gain = price + dep - gross_basis
+        if cls == "section_1250" and long and gain > 0 and d.additional_depreciation is None:
+            self.s.diag("error", "form_4797_additional_depreciation_unknown",
+                        f"{where}: state the additional depreciation (depreciation over straight line, line 26a; 0 for straight-line MACRS real "
+                        "property): the section 1250 recapture cannot be figured without it.", f)
+            return None
+        if dep > 0 and cls in ("section_1245", "section_1250"):
+            self._f4797.depreciable = True
+        return {"n": n, "description": d.description, "acquired": acquired, "sold": d.sold, "price": price, "dep": dep, "basis": gross_basis,
+                "gain": gain, "long": long, "class": cls, "activity": activity, "ordinary": Z, "section_1231": Z, "source": source,
+                "entire_interest": d.entire_interest_disposed, "additional_depreciation": d.additional_depreciation}
+
+    def _register_depreciation(self, a: Asset, sold: date, where: str) -> Decimal | None:
+        """Depreciation allowed or allowable on a registered asset through the year of sale (calc/federal.py tax_depreciation:
+        §179, bonus, then MACRS from the half-year table): half of the table amount in the year of disposition (half-year
+        convention, Pub. 946; Pub. 544 (2025) Section 1245 example: "$960 (1/2 of $1,920)" in the year of sale). An asset
+        disposed of in the year it was placed in service gets no depreciation and is not modelled here."""
+        first = a.placed_in_service.year
+        if sold.year <= first:
+            self.s.diag("error", "form_4797_asset_disposed_in_service_year",
+                        f"{where}: asset {a.id} was placed in service in {first} and sold in {sold.year}; no depreciation is allowed for property "
+                        "placed in service and disposed of in the same year (Pub. 946), not supported.", "f4797")
+            return None
+        total = Z
+        for year in range(first, sold.year + 1):
+            amount = tax_depreciation(self.ctx, a, year)
+            total += amount / 2 if year == sold.year else amount
+        return total
+
+    def _form_4797_part_iii(self, item: dict[str, Any], col: str) -> None:
+        """One Part III column (lines 19-26) for a depreciable asset held more than 1 year and sold at a gain; the recapture
+        goes to line 31 (Part II line 13), the rest to line 32 (Part I line 6)."""
+        f = "f4797"
+        item["part"] = f"III-{col}"
+        self.s.fact(f, f"19{col}", {"description": item["description"], "acquired": str(item["acquired"]), "sold": str(item["sold"]),
+                                     "class": item["class"], "source": item["source"]})
+        self.set(f, f"20{col}", item["price"], "Gross sales price")
+        l21 = self.set(f, f"21{col}", item["basis"], "Cost or other basis plus expense of sale")
+        l22 = self.set(f, f"22{col}", item["dep"], "Depreciation allowed or allowable")
+        l23 = self.set(f, f"23{col}", l21 - l22, "Adjusted basis")
+        l24 = self.set(f, f"24{col}", self.g(f, f"20{col}") - l23, "Total gain")
+        if item["class"] == "section_1245":
+            l25a = self.set(f, f"25a{col}", l22)
+            recapture = self.set(f, f"25b{col}", min(l24, l25a), "Ordinary income: depreciation recapture (IRC §1245(a)(1))")
+        else:
+            pct = self.dec("us_fed.individual.section_1250_applicable_percentage")
+            l26a = self.set(f, f"26a{col}", item["additional_depreciation"], "Additional depreciation after 1975 (IRC §1250(b)(1))")
+            l26b = self.set(f, f"26b{col}", pct * min(l24, l26a), f"Applicable percentage {pct:.0%} of the smaller of line 24 or 26a (IRC §1250(a)(1))")
+            self.set(f, f"26c{col}", pos(l24 - l26a))
+            self.set(f, f"26e{col}", Z, "No additional depreciation of 1970-1975 (line 26d)")
+            self.set(f, f"26f{col}", Z, "Section 291 amount: corporations only")
+            recapture = self.set(f, f"26g{col}", l26b + self.g(f, f"26e{col}") + self.g(f, f"26f{col}"))
+            line_3 = min(l22, l24) - recapture
+            self._f4797.unrecaptured_1250 += line_3
+            self._f4797.unrecaptured_rows.append({"description": item["description"], "1": str(min(l22, l24)), "2": str(recapture), "3": str(line_3)})
+        item["ordinary"] = recapture
+        item["section_1231"] = l24 - recapture
+        self.set(f, "30", self.g(f, "30") + l24, "Total gains for all properties, line 24")
+        self.set(f, "31", self.g(f, "31") + recapture, "Recapture, lines 25b and 26g; to line 13")
+        self.set(f, "32", self.g(f, "30") - self.g(f, "31"), "To line 6 (other than casualty or theft)")
+
+    def _section_1231_lookback(self, line_7: Decimal) -> Decimal:
+        """Form 4797 line 8: the net section 1231 losses of the 5 preceding years not yet applied against a net section 1231
+        gain (IRC §1231(c)(2); us_fed.individual.section_1231_lookback_years), from prior_year.nonrecaptured_1231_losses. The
+        gain on line 7 recaptures them earliest year first (Pub. 544); what remains, and this year's net loss, carry to the
+        next year as `nonrecaptured_1231_loss_<year>` while the year stays inside the window."""
+        f = "f4797"
+        py = self.r.prior_year
+        window = int(self.p("us_fed.individual.section_1231_lookback_years"))
+        if py is None and line_7 > 0:
+            self.s.diag("error", "form_4797_nonrecaptured_losses_unknown",
+                        "A net section 1231 gain is ordinary income to the extent of the nonrecaptured net section 1231 losses of the 5 "
+                        "preceding years (IRC §1231(c)): state prior_year.nonrecaptured_1231_losses (an empty prior-year group states none).",
+                        f, "8")
+        counted: list[tuple[int, Decimal]] = []
+        for e in py.nonrecaptured_1231_losses if py is not None else []:
+            if e.tax_year >= self.y:
+                self.s.diag("error", "form_4797_nonrecaptured_loss_year_invalid",
+                            f"prior_year.nonrecaptured_1231_losses: {e.tax_year} is not a preceding year of {self.y}.", f, "8")
+            elif e.nonrecaptured_loss < 0:
+                self.s.diag("error", "form_4797_nonrecaptured_loss_sign",
+                            f"prior_year.nonrecaptured_1231_losses: the {e.tax_year} loss is entered as a positive amount (got {whole(e.nonrecaptured_loss)}).", f, "8")
+            elif e.tax_year < self.y - window:
+                self.s.diag("info", "form_4797_nonrecaptured_loss_expired",
+                            f"The {e.tax_year} net section 1231 loss is outside the {window} preceding years of {self.y} and is not recaptured.", f, "8")
+            else:
+                counted.append((e.tax_year, e.nonrecaptured_loss))
+        counted.sort()
+        schedule: list[dict[str, str]] = []
+        to_apply = max(line_7, Z)
+        for year, loss in counted:
+            applied = min(loss, to_apply)
+            to_apply -= applied
+            remaining = loss - applied
+            carried = remaining > 0 and year >= self.y + 1 - window
+            schedule.append({"year": str(year), "loss": str(whole(loss)), "recaptured": str(whole(applied)), "remaining": str(whole(remaining)),
+                             "carried_to_next_year": str(carried)})
+            if carried:
+                self._carryforwards[f"nonrecaptured_1231_loss_{year}"] = whole(remaining)
+        if line_7 < 0:
+            self._carryforwards[f"nonrecaptured_1231_loss_{self.y}"] = whole(-line_7)
+            schedule.append({"year": str(self.y), "loss": str(whole(-line_7)), "recaptured": "0", "remaining": str(whole(-line_7)),
+                             "carried_to_next_year": "True"})
+        if schedule:
+            self.s.fact(f, "nonrecaptured_losses", schedule)
+        return sum((loss for _, loss in counted), Z)
+
+    def _form_4797_part_iv(self) -> bool:
+        """Part IV, lines 33-35: the recapture of the §179 deduction (column (a)) or of the §280F(b)(2) excess depreciation
+        (column (b)) when business use drops to 50% or less, reported as other income on the Schedule C that took the
+        deduction (and so in its self-employment earnings, as the instructions for line 35 note)."""
+        f = "f4797"
+        rows: list[dict[str, str]] = []
+        for n, x in enumerate(self.r.business_use_recaptures, 1):
+            where = f"business_use_recaptures[{n}] {x.description}"
+            bad = False
+            if x.deduction_claimed is None:
+                self.s.diag("error", "form_4797_part_iv_deduction_unknown", f"{where}: the line 33 amount is not stated.", f, "33")
+                bad = True
+            if x.recomputed_depreciation is None:
+                self.s.diag("error", "form_4797_part_iv_recomputed_unknown", f"{where}: the recomputed depreciation of line 34 is not stated.", f, "34")
+                bad = True
+            if x.schedule_c is None or x.rental is not None:
+                self.s.diag("error", "form_4797_part_iv_schedule_unsupported",
+                            f"{where}: the recapture is other income of the schedule that took the deduction; only a Schedule C business is supported.", f, "35")
+                bad = True
+            elif not 1 <= x.schedule_c <= len(self.r.businesses):
+                self.s.diag("error", "form_4797_activity_unknown", f"{where}: schedule_c {x.schedule_c} does not exist on this return.", f, "35")
+                bad = True
+            if bad or x.deduction_claimed is None or x.recomputed_depreciation is None or x.schedule_c is None:
+                continue
+            col = "a" if x.kind == "section_179" else "b"
+            l33 = self.set(f, f"33{col}", self.g(f, f"33{col}") + x.deduction_claimed,
+                           "Section 179 expense deduction" if col == "a" else "Depreciation allowable in prior years (IRC §280F(b)(2))")
+            l34 = self.set(f, f"34{col}", self.g(f, f"34{col}") + x.recomputed_depreciation, "Recomputed depreciation")
+            self.set(f, f"35{col}", pos(l33 - l34), "Recapture amount: other income of the schedule that took the deduction")
+            amount = pos(whole(x.deduction_claimed) - whole(x.recomputed_depreciation))
+            st = self._f4797
+            st.sch_c_other_income[x.schedule_c] = st.sch_c_other_income.get(x.schedule_c, Z) + amount
+            st.depreciable = True
+            rows.append({"description": x.description, "kind": x.kind, "33": str(whole(x.deduction_claimed)), "34": str(whole(x.recomputed_depreciation)),
+                         "35": str(amount), "reported_on": f"sch_c[{x.schedule_c}] line 6"})
+        if rows:
+            self.s.fact(f, "part_iv", rows)
+        return bool(rows)
+
+    def _non_section_1411(self, kind: str, idx: int) -> bool:
+        """Whether the activity is a trade or business that is not a section 1411 trade or business (Reg. §1.1411-5: neither
+        passive to the taxpayer nor trading), so that gains and losses on its property are excluded from net investment
+        income (Form 8960 line 5b). A rental is never one here (rents are investment income unless a real estate
+        professional's trade or business, which Form 8960 line 4b flags)."""
+        if kind == "schedule_c":
+            return self.r.businesses[idx - 1].materially_participates
+        if kind == "k1":
+            return not self.r.k1s[idx - 1].passive
+        return False
+
+    def _passive_activity(self, kind: str, idx: int) -> bool:
+        if kind == "schedule_c":
+            return not self.r.businesses[idx - 1].materially_participates
+        if kind == "rental":
+            return not self.r.rentals[idx - 1].real_estate_professional
+        return self.r.k1s[idx - 1].passive
+
+    def _unrecaptured_1250_worksheet(self, collectibles_and_1202: Decimal, sch_d_7: Decimal, carryover_long: Decimal) -> Decimal:
+        """Unrecaptured Section 1250 Gain Worksheet (Schedule D instructions, line 19; IRC §1(h)(6)): lines 1-3 per section
+        1250 property of Form 4797 Part III that made an entry in Part I (the smaller of line 22 or 24, less line 26g; the
+        line 3 amounts totalled), line 5 the Schedule K-1 amounts of partnerships and S corporations, lines 7-9 limited to
+        the Form 4797 line 7 gain less its line 8, line 11 the 1099-DIV box 2b and estate or trust K-1 amounts, lines 14-17
+        the collectibles and §1202 items, the Schedule D line 7 loss and the long-term carryover that reduce it, line 18 to
+        Schedule D line 19. Returns 0 (and writes nothing) when no amount feeds it."""
+        r, st = self.r, self._f4797
+        k1_5 = sum((k.unrecaptured_1250_gain for k in r.k1s if k.entity_type != "estate_trust"), Z)
+        k1_11 = sum((k.unrecaptured_1250_gain for k in r.k1s if k.entity_type == "estate_trust"), Z)
+        div_11 = sum((d.unrecaptured_1250_gain for d in r.dividends), Z)
+        if not (st.unrecaptured_1250 or k1_5 or k1_11 or div_11):
+            return Z
+        f = "ws_unrecaptured_1250"
+        l9 = Z
+        if st.line_7 > 0:
+            if st.unrecaptured_rows:
+                self.s.fact(f, "properties", st.unrecaptured_rows)
+            l3 = self.set(f, "3", st.unrecaptured_1250, "Form 4797 Part III section 1250 properties: smaller of line 22 or 24, less line 26g (total)")
+            l4 = self.set(f, "4", Z, "Installment sales (Form 6252): none")
+            l5 = self.set(f, "5", k1_5, "Schedule K-1 unrecaptured section 1250 gain (partnerships, S corporations)")
+            l6 = self.set(f, "6", l3 + l4 + l5)
+            l7 = self.set(f, "7", min(l6, st.line_7), "Smaller of line 6 or the gain on Form 4797 line 7")
+            l8 = self.set(f, "8", st.line_8, "Form 4797 line 8")
+            l9 = self.set(f, "9", pos(l7 - l8))
+        l10 = self.set(f, "10", Z, "Sale of a partnership interest: none")
+        l11 = self.set(f, "11", k1_11 + div_11, "Form 1099-DIV box 2b and estate or trust Schedule K-1 amounts")
+        l12 = self.set(f, "12", Z, "Section 1250 property not entered in Part I of Form 4797: none")
+        l13 = self.set(f, "13", l9 + l10 + l11 + l12)
+        l14 = self.set(f, "14", collectibles_and_1202, "28% Rate Gain Worksheet lines 1-4 (collectibles and section 1202 gain or loss)")
+        l15 = self.set(f, "15", min(sch_d_7, Z), "Schedule D line 7 loss")
+        l16 = self.set(f, "16", -carryover_long, "Long-term capital loss carryover (Schedule D line 14)")
+        combined = l14 + l15 + l16
+        l17 = self.set(f, "17", -combined if combined < 0 else Z, "Lines 14-16 combined, a loss as a positive amount")
+        return self.set(f, "18", pos(l13 - l17), "Unrecaptured section 1250 gain, to Schedule D line 19")
+
     def _schedule_c(self) -> None:
         meals_pct = self.dec("us_fed.business.meals_deductible_pct")
         ho = self.p("us_fed.business.home_office_simplified")
@@ -873,7 +1327,8 @@ class _Individual:
             self.set(f, "3", self.g(f, "1") - self.g(f, "2"))
             self.set(f, "4", b.cost_of_goods_sold)
             self.set(f, "5", self.g(f, "3") - self.g(f, "4"))
-            self.set(f, "6", b.other_income)
+            recapture = self._f4797.sch_c_other_income.get(i, Z)
+            self.set(f, "6", b.other_income + recapture, "Other income, incl. Form 4797 line 35 recapture" if recapture else "")
             self.set(f, "7", self.g(f, "5") + self.g(f, "6"), "Gross income")
             total = Z
             for key, amount in b.expenses.items():
@@ -999,23 +1454,26 @@ class _Individual:
         k1_st = sum((k.net_short_term_gain for k in r.k1s), Z)
         k1_lt = sum((k.net_long_term_gain for k in r.k1s), Z)
         cgd = sum((d.capital_gain_distributions for d in r.dividends), Z)
+        f4797_lt = self._f4797.to_schedule_d
         self.set("sch_d", "5", k1_st)
         self.set("sch_d", "6", -cf_short, "Short-term capital loss carryover (prior-year Capital Loss Carryover Worksheet, line 8)")
         st = sum((self.g("sch_d", f"{line}h") for line in ("1a", "1b", "2", "3")), Z) + self.g("sch_d", "5") + self.g("sch_d", "6")
         self.set("sch_d", "7", st, "Net short-term capital gain or (loss)")
+        self.set("sch_d", "11", f4797_lt, "Gain from Form 4797, Part I (line 7, or line 9 after the IRC §1231(c) recapture)")
         self.set("sch_d", "12", k1_lt)
         self.set("sch_d", "13", cgd, "Capital gain distributions")
         self.set("sch_d", "14", -cf_long, "Long-term capital loss carryover (prior-year Capital Loss Carryover Worksheet, line 13)")
         lt = sum((self.g("sch_d", f"{line}h") for line in ("8a", "8b", "9", "10")), Z) + sum(
-            (self.g("sch_d", x) for x in ("12", "13", "14")), Z)
+            (self.g("sch_d", x) for x in ("11", "12", "13", "14")), Z)
         self.set("sch_d", "15", lt, "Net long-term capital gain or (loss)")
         l16 = self.set("sch_d", "16", st + lt)
         self._sch_d_18 = self._sch_d_19 = Z
         if l16 > 0 and lt > 0:
-            rate28 = pos(collectibles + sum((d.collectibles_gain for d in r.dividends), Z))
-            unrecap = pos(sum((d.unrecaptured_1250_gain for d in r.dividends), Z))
+            collectibles_and_1202 = collectibles + sum((d.collectibles_gain for d in r.dividends), Z)
+            rate28 = pos(collectibles_and_1202)
+            unrecap = self._unrecaptured_1250_worksheet(collectibles_and_1202, st, cf_long)
             self._sch_d_18 = self.set("sch_d", "18", rate28, "28% rate gain")
-            self._sch_d_19 = self.set("sch_d", "19", unrecap, "Unrecaptured section 1250 gain")
+            self._sch_d_19 = self.set("sch_d", "19", unrecap, "Unrecaptured section 1250 gain (Unrecaptured Section 1250 Gain Worksheet, line 18)")
             seven_a = l16
         elif l16 < 0:
             lim = self.p("us_fed.individual.capital_loss_limit")
@@ -1024,7 +1482,7 @@ class _Individual:
         else:
             seven_a = l16
         only_distributions = not r.capital_transactions and not k1_st and not k1_lt and not cf_short \
-            and not cf_long and not self._sch_d_18 and not self._sch_d_19
+            and not cf_long and not self._sch_d_18 and not self._sch_d_19 and not f4797_lt
         self.s.fact("f1040", "schedule_d_not_required", bool(only_distributions and cgd > 0))
         self.set("f1040", "7a", seven_a, "Capital gain or (loss)")
         if only_distributions:
@@ -1064,7 +1522,7 @@ class _Individual:
                     allowance = Z
             # _adj_pre does not yet hold the IRA deduction (figured after total income is known), as §469(i)(3)(F) requires.
             magi = (self.g("f1040", "1z") + self.g("f1040", "2b") + self.g("f1040", "3b") + self.g("f1040", "4b")
-                    + self.g("f1040", "5b") + self.g("f1040", "7a") + self.g("sch_1", "3") + nonpassive_rentals
+                    + self.g("f1040", "5b") + self.g("f1040", "7a") + self.g("sch_1", "3") + self._f4797.ordinary + nonpassive_rentals
                     + self._k1_nonpassive_income() + self._other_sch1_income() - self._adj_pre)
             allowance = pos(allowance - pos(magi - start) * D(ra["phaseout_rate"]))
             if not all(p.active_participation for p, n in rental_net if not p.real_estate_professional and n < 0):
@@ -1090,6 +1548,7 @@ class _Individual:
         self.set("sch_e", "41", self.g("sch_e", "26") + self.g("sch_e", "32"), "Total income or (loss)")
         self.set("sch_1", "1", r.state_refund_taxable, "Taxable state and local refunds (tax benefit rule)")
         self.set("sch_1", "2a", r.alimony_received)
+        self.set("sch_1", "4", self._f4797.ordinary, "Other gains or (losses), Form 4797 line 18b")
         self.set("sch_1", "5", self.g("sch_e", "41"), "Schedule E, line 41")
         self.set("sch_1", "7", sum((u.amount for u in r.unemployment), Z), "Unemployment compensation (1099-G box 1)")
         other = self.set("sch_1", "8f", sum((h["16"] + h["20"] for h in self._hsa.values()), Z), "Form 8889, lines 16 and 20")
@@ -1611,9 +2070,11 @@ class _Individual:
         items: list[dict[str, Any]] = []
         total_profit = sum((pos(v["profit"]) for v in self.se.values()), Z)
         a = r.adjustments
-        for b, net in self.biz_net:
+        for n, (b, net) in enumerate(self.biz_net, 1):
             share = (pos(net) / total_profit) if total_profit > 0 else Z
-            qbi = net - (self._se_half + a.self_employed_health_insurance + a.self_employed_retirement) * share
+            # Form 4797 ordinary amounts of the business's property (recapture, short-term gains, a net section 1231 loss, the
+            # §1231(c) amount) are QBI; its section 1231 gain treated as capital gain is not (Reg. §1.199A-3(b)(2)(ii)(A)).
+            qbi = net - (self._se_half + a.self_employed_health_insurance + a.self_employed_retirement) * share + self._f4797.qbi_ordinary.get(n, Z)
             items.append({"name": b.name, "ein": b.ein, "qbi": qbi, "w2": b.w2_wages, "ubia": b.ubia, "sstb": b.sstb,
                           "active": b.materially_participates})
         for k in r.k1s:
@@ -2675,8 +3136,17 @@ class _Individual:
             self.s.diag("warning", "niit_reps", "Real estate professional rentals may be excluded from NIIT only with a trade or "
                                                 "business finding (Reg. §1.1411-4(g)(7)); review line 4b.", f, "4b")
         self.set(f, "4c", self.g(f, "4a"))
-        self.set(f, "5a", self.g("f1040", "7a"))
-        self.set(f, "5d", self.g(f, "5a"))
+        # Line 5a: Form 1040 line 7a and Schedule 1 line 4 (Form 8960 (2025) instructions); line 5b excludes the gains and losses
+        # on property held in a trade or business that is not a section 1411 trade or business (Reg. §1.1411-4(d)(4)(i)), as
+        # the Lines 5a-5d worksheet lines 2(a) and 2(b): gains as negative amounts, losses as positive amounts.
+        self.set(f, "5a", self.g("f1040", "7a") + self.g("sch_1", "4"), "Form 1040 line 7a and Schedule 1 line 4")
+        st = self._f4797
+        if st.niit_unplaced:
+            self.s.diag("error", "form_8960_disposition_activity_unknown",
+                        f"{st.niit_unplaced} Form 4797 disposition(s) name no activity (schedule_c, rental or k1): whether the gain or loss is "
+                        "net investment income (Form 8960 line 5b) cannot be decided.", f, "5b")
+        self.set(f, "5b", st.niit_excluded, "Gain or loss on property held in a non-section 1411 trade or business (Form 4797), excluded from NII")
+        self.set(f, "5d", self.g(f, "5a") + self.g(f, "5b") + self.g(f, "5c"))
         l8 = self.set(f, "8", sum((self.g(f, x) for x in ("1", "2", "3", "4c", "5d", "6", "7")), Z), "Total investment income")
         self.set(f, "11", Z)
         l12 = self.set(f, "12", pos(l8 - self.g(f, "11")), "Net investment income")

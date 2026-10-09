@@ -32,7 +32,8 @@ capabilities:
   - {id: sch_d,      name: "Schedule D",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
      evidence: ["tests/test_returns_capital_loss_carryover.py (hand-worked from the Schedule D instructions' Capital Loss Carryover Worksheet, lines 1-13)",
                 "golden/scenarios.yaml f1040-2026-capital-loss-carryover",
-                "tests/test_returns_oracle.py capital_loss_carryover (PolicyEngine: AGI, taxable income, capital loss deduction)"],
+                "tests/test_returns_oracle.py capital_loss_carryover (PolicyEngine: AGI, taxable income, capital loss deduction)",
+                "tests/test_returns_4797.py (line 11 from Form 4797 Part I; line 19 from the Unrecaptured Section 1250 Gain Worksheet lines 1-18, incl. the 1099-DIV box 2b netting against a short-term loss and the long-term carryover)"],
      pending: "tax-content owner sign-off (coverage owner is null); the carryover to 2027 is computed (ws_capital_loss_carryover) and reported as Result.carryforwards"}
   - {id: f8949,      name: "Form 8949",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: sch_e,      name: "Schedule E",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
@@ -47,7 +48,8 @@ capabilities:
      limits: ["AMT foreign tax credit (line 8) under the IRC §59(a)(3) simplified limitation election only; the AMTI-based AMT Form 1116 blocks (form_1116_amt_election_not_made)"]}
   - {id: f8959,      name: "Form 8959",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: f8960,      name: "Form 8960",                         jurisdiction: US-FED, years: [2026], status: manual-assisted,
-     limits: ["investment expense allocations (line 9) not computed"]}
+     limits: ["investment expense allocations (line 9) not computed",
+              "line 5b only from Form 4797 dispositions with an activity link (a materially participating Schedule C or a non-passive K-1 activity is excluded from NII); the substantially appreciated property rule and the capital loss carryforward adjustment are not modelled"]}
   - {id: f2441,      name: "Form 2441",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: f8863,      name: "Form 8863",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: f8880,      name: "Form 8880 (saver's credit)",        jurisdiction: US-FED, years: [2026], status: manual-assisted,
@@ -92,7 +94,20 @@ capabilities:
      pending: "tax-content owner sign-off (coverage owner is null)"}
   - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8962,      name: "Form 8962 (premium tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
-  - {id: f4797,      name: "Form 4797 (business property)",     jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f4797,      name: "Form 4797 (business property)",     jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["Parts I-III for sales and exchanges of property used in a trade or business or held for rents (section 1245, section 1250, land, other non-depreciable section 1231 property), from stated dispositions or the client's asset register (cost; §179, bonus and half-year MACRS through the year of sale); installment sales (Form 6252), like-kind exchanges (Form 8824), casualties and thefts (Form 4684), partial dispositions, related-party sales (§1239, §267), low-income housing (§1250(a)(1)(B)) and section 1250 property acquired before 1976 (line 26d) block",
+              "section 1250 additional depreciation (line 26a) is a stated fact (0 for straight-line MACRS real property); the applicable percentage is 100% (us_fed.individual.section_1250_applicable_percentage); the §291(a)(1) amount (line 26f) is a C corporation's and is never figured",
+              "the §1231(c) lookback takes prior_year.nonrecaptured_1231_losses per loss year, earliest first (us_fed.individual.section_1231_lookback_years) and blocks when the prior-year group is absent with a net gain; the remaining loss per year is a carryforward (nonrecaptured_1231_loss_<year>) rolled forward into the next year's list",
+              "Part IV recapture (§179, §280F(b)(2)) only for a Schedule C business (other income on its line 6); Schedule E and F property blocks; lines 1a-1c, 3-5, 14-16, 18a and 27-29 (sections 1252, 1254, 1255), the QOF deferral, the mark-to-market election and the section 121 exclusion are not modelled; the Unrecaptured Section 1250 Gain Worksheet lines 4, 10 and 12 are zero",
+              "Form 8960 line 5b excludes the gains and losses of property held in a materially participating Schedule C or a non-passive K-1 activity (rentals stay in NII); the substantially appreciated property rule (Reg. §1.469-2(c)(2)(iii)) and the capital loss carryforward adjustment (worksheet lines 2(h)-2(i)) are not modelled; a disposition without an activity link blocks when Form 8960 applies",
+              "AMT: the Form 6251 line 2k/2l adjustment is not computed (a depreciable disposition raises a warning until amt_adjustments states it)",
+              "QBI: ordinary amounts attributable to a Schedule C business (recapture, short-term gains, a net section 1231 loss, the §1231(c) amount) are added to its QBI and section 1231 gain treated as capital gain is excluded (Reg. §1.199A-3(b)(2)(ii)(A)); K-1 amounts are left to the entity's box 20 code Z",
+              "§469(g): the entire-interest disposition is recorded (facts section_469g_dispositions) with a warning for a passive activity; Form 8582 is not computed",
+              "the 2026 Form 4797 and Schedule D are not posted: line numbers follow the 2025 forms, whose figures are statutory and not indexed"],
+     evidence: ["tests/test_returns_4797.py (hand-worked from Form 4797 (2025) and its instructions incl. the line 8 example, Pub. 544 (2025) chapter 3's Section 1245 Property example and Nonrecaptured section 1231 losses example, the Schedule D (2025) instructions' Unrecaptured Section 1250 Gain Worksheet and Schedule D Tax Worksheet, the Form 8960 (2025) instructions lines 5a-5b, Pub. 946 Table A-1 with the 2024 special allowance)",
+                "golden/scenarios.yaml f1040-2026-section-1245-recapture",
+                "tests/test_returns_oracle.py section_1245_recapture, unrecaptured_1250_gain (PolicyEngine takes other_net_gain, the capital gain and the unrecaptured section 1250 gain as inputs: AGI, the tax incl. the 25% part and the NIIT are cross-checked)"],
+     pending: "tax-content owner sign-off (coverage owner is null)"}
   - {id: sch_f,      name: "Schedule F",                        jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f2210,      name: "Form 2210 (underpayment penalty)",  jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8582,      name: "Form 8582 (passive activity loss)", jurisdiction: US-FED, years: [2026], status: unsupported}
