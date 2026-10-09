@@ -1,0 +1,35 @@
+id: us_fed.individual.ftc_carryover_years
+title: Foreign tax credit, carryback and carryover periods for unused foreign tax
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: years
+citation: IRC §904(c); Reg. §1.904-2
+keys:
+- back
+- forward
+tags:
+- foreign tax credit
+- '1116'
+- 904(c)
+- carryover
+- Schedule B
+notes: >-
+  Foreign taxes paid or accrued in a year that exceed the §904(a) limitation for their separate category (§904(d)) are
+  deemed paid or accrued in the first preceding year and then in the ten succeeding years, in that order, to the extent
+  not already absorbed (§904(c); Reg. §1.904-2). The periods are statutory, not indexed: the American Jobs Creation Act
+  of 2004 (P.L. 108-357 §417) set them at 1 back / 10 forward for excess taxes arising in tax years beginning after
+  October 22, 2004 (before: 2 back / 5 forward). In the year the carryover is used, that year's own taxes are credited
+  first and the carryovers are applied earliest year first (Form 1116 (2025) instructions, line 10: "apply it to the
+  earliest year to which it may be carried"; Pub. 514 (2025), Carryback and Carryover). No foreign tax is carried to or
+  from a year of the §904(j) election (§904(j)(1)(B)). The AMT foreign tax credit has its own carryovers (§59(a)(1)).
+values:
+- effective_from: '2005-01-01'
+  value:
+    back: 1
+    forward: 10
+  provenance:
+    source: IRC §904(c); Form 1116 (2025) instructions, Part III line 10 and Schedule B; Pub. 514 (2025), Carryback and
+      Carryover, Example 1
+    url: https://www.irs.gov/instructions/i1116
+    verified_on: '2026-10-09'

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
 
 from ..calc.engine import D, Ctx
@@ -30,6 +30,9 @@ SAVERS_CREDIT_W2_CODES = frozenset({"D", "E", "F", "G", "H", "S", "AA", "BB", "E
 # 1099-R box 7 codes of distributions that are rollovers in full and so never reduce Form 8880 line 3 (instructions,
 # Line 4: "distributions not taxable as the result of a rollover or a trustee-to-trustee transfer").
 ROLLOVER_DISTRIBUTION_CODES = frozenset({"G", "H"})
+# Form 1116 Parts I and II have one column per country (A, B, C); income from more countries needs additional forms.
+FTC_COLUMNS = 3
+FTC_RATIO_PLACES = Decimal("0.0001")  # lines 3f and 19: "round off the result to at least four decimal places"
 
 
 def steps(amount: Decimal, step: Decimal, *, round_up: bool) -> Decimal:
@@ -61,7 +64,9 @@ class Result:
     sheets: Sheets
     sources: list[dict[str, Any]] = field(default_factory=list)
     # What this return carries to the next tax year, keyed by the next return's `prior_year` input names (whole dollars,
-    # positive amounts). Computed, never entered; persisted as return_carryforwards in a later slice.
+    # positive amounts); unused foreign tax, which `prior_year.ftc_carryovers` lists per year, is keyed
+    # `ftc_carryover_<category>_<year paid>` and, for the AMT credit, `ftc_amt_carryover_<category>_<year paid>`.
+    # Computed, never entered; persisted as return_carryforwards in a later slice.
     carryforwards: dict[str, Decimal] = field(default_factory=dict)
 
     @property
@@ -123,6 +128,8 @@ class _Individual:
         self.biz_net: list[tuple[Business, Decimal]] = []
         self._ti_unfloored = Z                  # Form 1040 line 15 as it would be if it could be negative (§1212(b)(2))
         self._carryforwards: dict[str, Decimal] = {}
+        self._ftc = Z                           # Form 1116 line 35 (or the §904(j) credit), Schedule 3 line 1
+        self._f1116: dict[str, Any] = {}        # what the AMT foreign tax credit reuses (Form 6251 line 8)
 
     # ----------------------------------------------------------------- helpers
     def p(self, rule_id: str) -> Any:
@@ -168,6 +175,7 @@ class _Individual:
         self._deductions()
         self._capital_loss_carryover()
         self._tax()
+        self._form_1116()
         self._amt()
         self._credits()
         self._other_taxes()
@@ -1127,10 +1135,10 @@ class _Individual:
             tmt = self.set(f, "7", self._amt_part_iii(l6, flat), "Part III, line 40")
         else:
             tmt = self.set(f, "7", flat(l6))
-        ftc = self._ftc_amount()
-        self.set(f, "8", ftc if tmt > 0 else Z, "AMT foreign tax credit (simplified limitation election)")
+        self.set(f, "8", self._amt_ftc(l4, tmt), "AMT foreign tax credit (AMT Form 1116, simplified limitation election)")
         l9 = self.set(f, "9", pos(tmt - self.g(f, "8")), "Tentative minimum tax")
-        l10 = self.set(f, "10", pos(self.g("f1040", "16") + self.g("sch_2", "1z") - ftc))
+        l10 = self.set(f, "10", pos(self.g("f1040", "16") + self.g("sch_2", "1z") - self._ftc),
+                       "Form 1040 line 16 plus Schedule 2 line 1z, less Schedule 3 line 1")
         l11 = self.set(f, "11", pos(l9 - l10), "Alternative minimum tax")
         if l11 <= 0 and l4 <= exemption:
             self.s.forms.pop(f, None)
@@ -1173,24 +1181,460 @@ class _Individual:
         l39 = self.set(f, "39", flat(l12))
         return self.set(f, "40", min(l38, l39))
 
-    # ----------------------------------------------------------------- credits
-    def _ftc_amount(self) -> Decimal:
-        if hasattr(self, "_ftc"):
-            return self._ftc
-        paid = sum((i.foreign_tax_paid for i in self.r.interest), Z) + sum((d.foreign_tax_paid for d in self.r.dividends), Z)
-        self._ftc = Z
-        if paid > 0:
-            lim = self.p("us_fed.individual.foreign_tax_credit_simplified_limit")
-            if paid <= D(lim["mfj"] if self.fs == "mfj" else lim["other"]):
-                self._ftc = min(paid, self.g("f1040", "16"))
-            else:
-                self.s.diag("error", "form_1116_required", f"Foreign taxes of {whole(paid)} exceed the de minimis limit: "
-                                                            "Form 1116 is required and is not yet supported.", "sch_3", "1")
-        return self._ftc
+    # ----------------------------------------------------------------- foreign tax credit
+    def _foreign_items(self) -> list[dict[str, Any]]:
+        """Every payer item carrying foreign tax or foreign-source income (1099-INT box 6, 1099-DIV box 7, Schedule K-1
+        box 21 with its Schedule K-3 items), with the facts Form 1116 needs. `gross` is the item's gross income on the
+        return, the most its foreign-source part can be; `qualified` the most of that part that can be qualified
+        dividends (used only to test the adjustment exception, an upper bound)."""
+        out: list[dict[str, Any]] = []
+        for j, i in enumerate(self.r.interest):
+            if i.foreign_tax_paid or i.foreign_source_income:
+                out.append({"ref": f"interest[{j}]", "name": i.payer or "1099-INT", "tax": i.foreign_tax_paid,
+                            "income": i.foreign_source_income, "country": i.foreign_country.strip(), "category": i.category,
+                            "accrued": i.accrued, "gross": i.interest + i.us_savings_bond_interest, "qualified": Z, "kind": "interest"})
+        for j, d in enumerate(self.r.dividends):
+            if d.foreign_tax_paid or d.foreign_source_income:
+                out.append({"ref": f"dividends[{j}]", "name": d.payer or "1099-DIV", "tax": d.foreign_tax_paid,
+                            "income": d.foreign_source_income, "country": d.foreign_country.strip(), "category": d.category,
+                            "accrued": d.accrued, "gross": d.ordinary, "qualified": min(d.foreign_source_income or Z, d.qualified),
+                            "kind": "dividends"})
+        for j, k in enumerate(self.r.k1s):
+            if k.foreign_tax_paid or k.foreign_source_income:
+                out.append({"ref": f"k1s[{j}]", "name": k.entity_name, "tax": k.foreign_tax_paid, "income": k.foreign_source_income,
+                            "country": k.foreign_country.strip(), "category": k.category, "accrued": k.accrued,
+                            "gross": k.interest + k.ordinary_dividends + pos(k.net_short_term_gain) + pos(k.net_long_term_gain),
+                            "qualified": min(k.foreign_source_income or Z, k.qualified_dividends), "kind": "other"})
+        return out
 
+    @staticmethod
+    def _ftc_ratio(numerator: Decimal, denominator: Decimal) -> Decimal:
+        """Form 1116 lines 3f and 19: a ratio rounded to four decimal places, never more than 1, zero when either side is."""
+        if numerator <= 0 or denominator <= 0:
+            return Z
+        return min(Decimal(1), (numerator / denominator).quantize(FTC_RATIO_PLACES, rounding=ROUND_HALF_UP))
+
+    def _form_1116(self) -> None:
+        """Form 1116, foreign tax credit (IRC §901; the §904(a) limitation per separate category, §904(d)).
+
+        Lines follow Form 1116 (2025) and its instructions, read on 2026-10-09 (the 2026 form is not posted; nothing on
+        it is indexed). Passive category only. Part I: gross foreign-source income (line 1a) less a ratable share
+        (line 3f, gross foreign-source income over gross income from all sources, four decimal places) of the deductions
+        not definitely related to any income: the standard deduction, or Schedule A medical, general sales, real estate
+        and personal property taxes (line 3a), and Schedule 1 Part II adjustments other than interest (line 3b);
+        interest expense (lines 4a, 4b) is allocated to U.S. income when gross foreign-source income is within the
+        instructions' $5,000 rule and blocks otherwise. Part III: this year's taxes plus carryovers (line 14) against the
+        tax on line 20 (Form 1040 line 16 plus Schedule 2 line 1z) times net foreign-source taxable income over taxable
+        income before the senior deduction (lines 17-19, 21); Part IV (completed even for one form) carries line 24 to
+        Schedule 3 line 1. Unused taxes go back one year, then forward ten (§904(c), Reg. §1.904-2;
+        us_fed.individual.ftc_carryover_years): this year's taxes are used before the carryovers, the earliest carryover
+        first; what the prior year's excess limitation would absorb is a claim on that year and blocks. The §904(j)
+        election (us_fed.individual.foreign_tax_credit_simplified_limit) takes a de minimis credit without the form and
+        bars every carryover to or from the year. Everything else the form needs and the return does not state, and every
+        case outside this scope (general and other categories, high-taxed income of §904(d)(2)(F), the qualified dividend
+        adjustment when the adjustment exception fails, deductions allocated by other rules), is a blocking diagnostic."""
+        r = self.r
+        self._ftc, self._f1116 = Z, {}
+        items = self._foreign_items()
+        if not items:
+            return
+        f = "f1116[passive]"
+        problems: list[tuple[str, str, str | None]] = []
+
+        def problem(code: str, message: str, line: str | None = None) -> None:
+            problems.append((code, message, line))
+
+        years = self.p("us_fed.individual.ftc_carryover_years")
+        back, forward = int(years["back"]), int(years["forward"])
+        paid = sum((i["tax"] for i in items), Z)
+        for i in items:
+            if i["category"] is None:
+                problem("form_1116_category_unknown", f"{i['name']}: state the separate category of its foreign-source income "
+                                                      f"({i['ref']}.category, from Schedule K-3); a pass-through's is never defaulted.")
+            elif i["category"] == "general":
+                problem("form_1116_general_category", f"{i['name']}: general category income (IRC §904(d)(1)(D)) is not yet supported on Form 1116.")
+            elif i["category"] != "passive":
+                problem("form_1116_category_unsupported", f"{i['name']}: the {i['category']} category (IRC §904(d)(1), (6)) is not supported on Form 1116.")
+        # Carryovers into this year: each is placed by the year its tax was paid (Schedule B), used within the ten years
+        # after it (§904(c)) and expires with the tenth. A carryover from a later year is a carryback into this year.
+        entries: list[tuple[int, Decimal, Decimal | None]] = []
+        for c in (r.prior_year.ftc_carryovers if r.prior_year is not None else []):
+            if c.category != "passive":
+                problem("form_1116_general_category" if c.category == "general" else "form_1116_category_unsupported",
+                        f"A {c.category} category foreign tax carryover of {whole(c.carryover)} is not supported on Form 1116.", "10")
+            elif c.from_year is None:
+                problem("form_1116_carryover_year_unknown", f"A foreign tax carryover of {whole(c.carryover)} has no year "
+                        "(prior_year.ftc_carryovers[].from_year): Schedule B (Form 1116) places it by year and its expiry cannot be checked.", "10")
+            elif c.from_year >= self.y:
+                problem("form_1116_carryover_year_invalid", f"A foreign tax carryover from {c.from_year} into {self.y} is a carryback "
+                        f"(IRC §904(c): {back} year back): it is claimed on an amended {self.y} return once {c.from_year} is filed, which is out of scope.", "10")
+            elif c.from_year < self.y - forward:
+                problem("form_1116_carryover_year_invalid", f"The foreign tax carryover of {whole(c.carryover)} from {c.from_year} expired after "
+                        f"{c.from_year + forward} (IRC §904(c): {forward} years forward): remove it.", "10")
+            elif c.carryover < 0 or (c.amt_carryover is not None and c.amt_carryover < 0):
+                problem("form_1116_carryover_year_invalid", f"The foreign tax carryover from {c.from_year} is negative.", "10")
+            else:
+                entries.append((c.from_year, c.carryover, c.amt_carryover))
+        entries.sort()
+        regular_tax = self.g("f1040", "16") + self.g("sch_2", "1z")       # line 20: the tax the credit is taken against
+        # §904(j): the credit without Form 1116 when every foreign tax is on passive income shown on a payee statement and
+        # the total is de minimis. No limitation, and no foreign tax carried to or from the year (§904(j)(1)(B)).
+        lim = self.p("us_fed.individual.foreign_tax_credit_simplified_limit")
+        de_minimis = D(lim["mfj"] if self.fs == "mfj" else lim["other"])
+        election = r.foreign_tax_credit.de_minimis_election
+        qualifies = Z < paid <= de_minimis and all(i["category"] == "passive" for i in items)
+        if qualifies and election is not False:
+            if election is None and (entries or paid > regular_tax):
+                why = ("the carryovers from earlier years could not be used this year" if entries else
+                       f"{whole(paid - regular_tax)} of the foreign tax exceeds the tax and could not be carried forward")
+                problem("form_1116_de_minimis_election_unknown",
+                        f"Foreign taxes of {whole(paid)} are within the IRC §904(j) de minimis amount of {whole(de_minimis)}, but under that "
+                        f"election {why} (§904(j)(1)(B)). State foreign_tax_credit.de_minimis_election: true to claim "
+                        f"{whole(min(paid, regular_tax))} without Form 1116, false to file Form 1116.", "1")
+            if problems:
+                for code, message, line in problems:
+                    self.s.diag("error", code, message, f, line)
+                return
+            self._ftc = min(paid, regular_tax)
+            lost = paid - self._ftc
+            self.s.fact("sch_3", "foreign_tax_credit", {"election": "IRC §904(j)", "stated": election is True, "form_1116": False,
+                                                        "foreign_taxes": str(whole(paid)), "not_creditable": str(whole(lost))})
+            self.s.diag("info", "foreign_tax_credit_904j",
+                        f"Foreign tax credit of {whole(self._ftc)} claimed without Form 1116 under the IRC §904(j) election "
+                        f"({'stated' if election is True else 'applied and recorded'}: foreign taxes of {whole(paid)} within {whole(de_minimis)}, "
+                        f"passive income on payee statements). No foreign tax is carried to or from {self.y}"
+                        + (f"; {whole(lost)} exceeds the tax and is not creditable" if lost > 0 else "") + ".", "sch_3", "1")
+            self._f1116 = {"904j": paid}
+            self._ftc_carry_through(entries, forward)
+            return
+        if qualifies:
+            self.s.fact(f, "de_minimis_election", False)
+        # Facts the form needs from the payer statements and the preparer.
+        for i in items:
+            if i["income"] is None:
+                problem("form_1116_foreign_source_income_unknown",
+                        f"{i['name']}: foreign tax of {whole(i['tax'])} but the foreign-source income is not stated ({i['ref']}.foreign_source_income, "
+                        "from the payer's supplemental statement; enter 0 if none). Form 1116 line 1a cannot be figured while it is unknown.", "1a")
+            elif i["income"] > i["gross"]:
+                problem("form_1116_foreign_source_exceeds_income", f"{i['name']}: foreign-source income of {whole(i['income'])} exceeds the "
+                                                                   f"item's income on the return ({whole(i['gross'])}).", "1a")
+            if not i["country"]:
+                problem("form_1116_country_unknown", f"{i['name']}: state the foreign country or U.S. territory ({i['ref']}.foreign_country; "
+                                                     "'RIC' for a mutual fund), Form 1116 Part I line g.", "g")
+        if len({i["accrued"] for i in items}) > 1:
+            problem("form_1116_accrued_mixed", "Foreign taxes are stated partly as paid and partly as accrued: Form 1116 Part II claims "
+                                               "the credit on one basis for the year (IRC §905(a)).", "8")
+        names = sorted({i["country"] for i in items if i["country"]})
+        if len(names) > FTC_COLUMNS:
+            problem("form_1116_countries_exceed_columns", f"Foreign-source income from {len(names)} countries ({', '.join(names)}): Form 1116 "
+                                                          f"Part I has {FTC_COLUMNS} columns and additional forms are not supported.", "g")
+        # Line 3e, gross income from all sources: every item of gross income on the return before deductions (Schedule C
+        # line 7, gross rents and royalties, gains before losses), excluding exempt income. A pass-through's business income
+        # is net of its expenses, so its gross income is not on the return.
+        gross_all = sum((self.g("f1040", x) for x in ("1z", "2b", "3b", "4b", "5b", "6b")), Z)
+        gross_all += sum((pos(t.proceeds - t.cost_basis + t.adjustment) for t in r.capital_transactions), Z)
+        gross_all += sum((pos(k.net_short_term_gain) + pos(k.net_long_term_gain) + k.guaranteed_payments for k in r.k1s), Z)
+        gross_all += sum((d.capital_gain_distributions for d in r.dividends), Z)
+        gross_all += self.g("sch_1", "1") + self.g("sch_1", "2a") + self.g("sch_1", "7")
+        gross_all += sum((self.g(f"sch_c[{n}]", "7") for n in range(1, len(r.businesses) + 1)), Z)
+        gross_all += sum((p.rents + p.royalties for p in r.rentals), Z)
+        gross_all += sum((abs(v) for k, v in r.other_income.items() if k not in ("8a", "8d", "8s")), Z)
+        for k in r.k1s:
+            if k.ordinary_income or k.net_rental_income:
+                problem("form_1116_gross_income_unknown", f"{k.entity_name}: a pass-through's ordinary business or rental income is net of its "
+                                                          "expenses; the gross income Form 1116 line 3e needs is not on the return.", "3e")
+        # Lines 3a and 3b, deductions not definitely related to any income (instructions, lines 3a, 3b); interest is line 4b.
+        senior = self.g("sch_1a", "43")
+        if self.itemizing:
+            a = "sch_a"
+            l3a = self.g(a, "4") + (self.g(a, "5a") if r.itemized.use_sales_tax else Z) + self.g(a, "5b") + self.g(a, "5c")
+            unsupported = []
+            if self.g(a, "5a") and not r.itemized.use_sales_tax:
+                unsupported.append("state and local income taxes (Schedule A line 5a; Pub. 514, State income taxes)")
+            if self.g(a, "6"):
+                unsupported.append("other taxes (Schedule A line 6)")
+            if self.g(a, "16"):
+                unsupported.append("casualty and theft losses (Schedule A line 16)")
+            if self.g(a, "17z"):
+                unsupported.append("other itemized deductions (Schedule A line 17z)")
+            if self.g(a, "18") != sum((self.g(a, x) for x in ("4", "7", "10", "15", "16", "17z")), Z):
+                unsupported.append("the IRC §68 limitation on itemized deductions")
+            if unsupported:
+                problem("form_1116_deductions_unsupported", "Form 1116 lines 3a-4b: the allocation of " + "; ".join(unsupported)
+                        + " between U.S. and foreign-source income is not modelled.", "3a")
+            interest_expense = self.g(a, "8e") + self.g(a, "9")
+        else:
+            l3a = self.g("f1040", "12e")
+            interest_expense = Z
+        student_loan = self.g("sch_1", "21")
+        l3b = self.g("sch_1", "26") - student_loan
+        interest_expense += student_loan + self.g("sch_1a", "36")
+        gross_cat = sum((i["income"] or Z for i in items), Z)
+        if interest_expense > 0:
+            small = self.dec("us_fed.individual.ftc_interest_expense_de_minimis")
+            if gross_cat <= small:
+                self.s.fact(f, "interest_expense_us_source", {"amount": str(whole(interest_expense)),
+                                                              "rule": f"gross foreign-source income not over {whole(small)} (instructions, line 4a)"})
+            else:
+                problem("form_1116_interest_expense", f"Interest expense of {whole(interest_expense)} (home mortgage, investment, student loan or "
+                        f"vehicle loan interest) is apportioned on Form 1116 lines 4a and 4b when gross foreign-source income exceeds {whole(small)}: "
+                        "not modelled.", "4a")
+        # Foreign qualified dividends: the adjustment exception (instructions, Foreign Qualified Dividends and Capital
+        # Gains (Losses)): ordinary income on line 5 of the Qualified Dividends and Capital Gain Tax Worksheet within the 24%
+        # bracket, and foreign-source qualified dividends plus capital gain distributions under the de minimis amount; the
+        # election not to adjust is made by not adjusting. Otherwise lines 1a and 18 need the 0.4054/0.5405 adjustment.
+        qualified_foreign = sum((i["qualified"] for i in items), Z)
+        if self._sdtw_lines:
+            problem("form_1116_qualified_dividend_adjustment", "The Schedule D Tax Worksheet was used (28% rate or unrecaptured §1250 gain): "
+                                                                "the Form 1116 adjustment exception for that worksheet is not modelled.", "1a")
+        elif self._qdcg_lines:
+            exc = self.dec("us_fed.individual.ftc_qualified_dividend_adjustment_exception")
+            ceiling = T.brackets(self.ctx, self.y, self.fs)[4][0]      # the 24% bracket ends where the 32% bracket begins
+            l5 = self._qdcg_lines.get("5", Z)
+            if qualified_foreign < exc and l5 <= ceiling:
+                self.s.fact(f, "adjustment_exception", {"qdcg_worksheet_line_5": str(whole(l5)), "not_over": str(whole(ceiling)),
+                                                        "foreign_qualified_dividends_at_most": str(whole(qualified_foreign)),
+                                                        "under": str(whole(exc)), "elected_by_not_adjusting": True})
+            else:
+                problem("form_1116_qualified_dividend_adjustment",
+                        f"The adjustment exception does not apply (Qualified Dividends and Capital Gain Tax Worksheet line 5 {whole(l5)} against "
+                        f"{whole(ceiling)}; foreign-source qualified dividends of up to {whole(qualified_foreign)} against {whole(exc)}): the "
+                        "0.4054/0.5405 adjustment of Form 1116 lines 1a and 18 is not modelled.", "1a")
+        # Line 3g for the category, and the high tax kickout screened per payer item on its net income (§904(d)(2)(F);
+        # Reg. §1.904-4(c)): foreign tax over the top §1 rate times the income makes it general category income.
+        top_rate = D(self.p("us_fed.individual.tax_rates")["rates"][-1])
+        l3c = l3a + l3b
+        ratio = self._ftc_ratio(gross_cat, gross_all)
+        l3g = whole(l3c * ratio)
+        for i in items:
+            if i["income"] is None:
+                continue
+            income = i["income"]
+            net = pos(income - (l3g * income / gross_cat if gross_cat > 0 else Z))
+            if i["tax"] > top_rate * net:
+                problem("form_1116_high_tax_kickout", f"{i['name']}: foreign tax of {whole(i['tax'])} exceeds {top_rate * 100}% of its net "
+                        f"foreign-source income of {whole(net)}: high-taxed income is general category income (IRC §904(d)(2)(B)(iii)(II), (F); "
+                        "Reg. §1.904-4(c); Form 1116 line 13) and is not supported.", "13")
+        if problems:
+            for code, message, line in problems:
+                self.s.diag("error", code, message, f, line)
+            return
+        columns: dict[str, dict[str, Decimal]] = {}
+        for i in items:
+            col = columns.setdefault(i["country"], {"gross_income": Z, "taxes_dividends": Z, "taxes_interest": Z, "taxes_other": Z, "taxes_total": Z})
+            col["gross_income"] += i["income"] or Z
+            col[f"taxes_{i['kind']}"] += i["tax"]
+            col["taxes_total"] += i["tax"]
+        self.s.fact(f, "category", "passive")
+        self.s.fact(f, "columns", {c: {k: str(whole(v)) for k, v in d.items()} for c, d in columns.items()})
+        self.s.fact(f, "paid_or_accrued", "accrued" if items[0]["accrued"] else "paid")
+        # Part I
+        self.set(f, "1a", gross_cat, "Gross foreign-source income (passive category, payer statements)")
+        self.set(f, "2", Z, "Expenses definitely related to the income on line 1a")
+        self.set(f, "3a", l3a, "Schedule A lines 4, 5a (general sales taxes), 5b and 5c" if self.itemizing else "Standard deduction")
+        self.set(f, "3b", l3b, "Schedule 1 Part II adjustments other than interest (instructions, line 3b)")
+        self.set(f, "3c", l3c)
+        self.set(f, "3d", gross_cat, "Gross foreign-source income")
+        self.set(f, "3e", gross_all, "Gross income from all sources")
+        self.s.fact(f, "3f", str(ratio))
+        self.set(f, "3g", l3g, "Pro rata share of deductions not definitely related")
+        self.set(f, "4a", Z, "Home mortgage interest")
+        self.set(f, "4b", Z, "Other interest expense")
+        self.set(f, "5", Z, "Losses from foreign sources")
+        l6 = self.set(f, "6", l3g)
+        l7 = self.set(f, "7", gross_cat - l6, "Taxable income from sources outside the United States")
+        # Part II
+        l8 = self.set(f, "8", paid, "Foreign taxes paid or accrued (1099-INT box 6, 1099-DIV box 7, Schedule K-1)")
+        # Part III
+        self.set(f, "9", l8)
+        l10 = self.set(f, "10", sum((reg for _, reg, _ in entries), Z), "Carryover from prior years (Schedule B)")
+        l11 = self.set(f, "11", l8 + l10)
+        self.set(f, "12", Z, "Reduction in foreign taxes")
+        self.set(f, "13", Z, "Taxes reclassified under high tax kickout")
+        l14 = self.set(f, "14", l11, "Total foreign taxes available for credit")
+        l15 = self.set(f, "15", l7)
+        self.set(f, "16", Z, "Adjustments to line 15")
+        l17 = self.set(f, "17", l15, "Net foreign-source taxable income")
+        l18 = self.set(f, "18", self._ti_unfloored + senior, "Form 1040 line 11b less line 14, plus the Schedule 1-A senior deduction")
+        l19 = self._ftc_ratio(l17, l18)
+        self.s.fact(f, "19", str(l19))
+        l20 = self.set(f, "20", regular_tax, "Form 1040 line 16 plus Schedule 2 line 1z")
+        l21 = self.set(f, "21", l20 * l19, "Maximum amount of credit")
+        self.set(f, "22", Z, "Increase in limitation (IRC §960(c))")
+        l23 = self.set(f, "23", l21)
+        l24 = self.set(f, "24", min(l14, l23))
+        # Part IV (completed even when only one Form 1116 is filed: instructions (2025), Part IV)
+        l27 = self.set(f, "27", l24, "Credit for taxes on passive category income")
+        l32 = self.set(f, "32", l27)
+        l33 = self.set(f, "33", min(l20, l32))
+        self.set(f, "34", Z, "Reduction of credit for international boycott operations")
+        self._ftc = self.set(f, "35", l33, "Foreign tax credit, to Schedule 3 line 1")
+        # Schedule B: this year's taxes are used first, then the carryovers, earliest year first (§904(c); Pub. 514,
+        # Carryback and Carryover); the tenth-year remainder expires; this year's unused tax goes back before it goes forward.
+        stated = r.prior_year.ftc_excess_limitation if r.prior_year is not None else {}
+        rows, carry, trouble = self._ftc_schedule(l8, [(yr, reg) for yr, reg, _ in entries], l24,
+                                                  self._ftc_room(stated.get("passive"), [(yr, reg) for yr, reg, _ in entries]), forward, amt=False)
+        self.s.fact(f, "schedule_b", rows)
+        self._carryforwards.update(carry)
+        for code, message in trouble:
+            self.s.diag("error", code, message, f, "10")
+        self._f1116["passive"] = {"form": f, "taxes": l8, "foreign_ti": l17, "entries": entries, "forward": forward}
+
+    def _ftc_room(self, stated: Decimal | None, entries: list[tuple[int, Decimal]]) -> Decimal | None:
+        """The prior year's excess limitation, the room a carryback would use: zero when that year itself had unused tax
+        (a carryover from it is on this return), else as stated; None when it is not known."""
+        if any(yr == self.y - 1 and amount > 0 for yr, amount in entries):
+            return Z
+        return stated
+
+    def _ftc_schedule(self, taxes_now: Decimal, entries: list[tuple[int, Decimal]], used: Decimal, room: Decimal | None,
+                      forward: int, *, amt: bool) -> tuple[list[dict[str, Any]], dict[str, Decimal], list[tuple[str, str]]]:
+        """Form 1116 Schedule B for one category: how this year's credit (`used`) absorbs this year's taxes and then the
+        carryovers (earliest first), what expires, and what carries to next year. `room` is the prior year's excess
+        limitation that a carryback of this year's unused tax uses first (§904(c)); None blocks the carryforward."""
+        key = f"ftc_{'amt_' if amt else ''}carryover_passive"
+        label = "AMT " if amt else ""
+        used_now = min(taxes_now, used)
+        left = used - used_now
+        rows: list[dict[str, Any]] = []
+        carry: dict[str, Decimal] = {}
+        trouble: list[tuple[str, str]] = []
+        for yr, amount in entries:
+            take = min(amount, left)
+            left -= take
+            rest = amount - take
+            expired = rest if yr == self.y - forward else Z
+            out = rest - expired
+            rows.append({"from_year": yr, "carryover_in": str(whole(amount)), "used": str(whole(take)), "expired": str(whole(expired)),
+                         "carryover_out": str(whole(out))})
+            if out > 0:
+                carry[f"{key}_{yr}"] = whole(out)
+        unused = taxes_now - used_now
+        carryback = Z
+        if unused > 0:
+            where = f"prior_year.{'ftc_amt_excess_limitation' if amt else 'ftc_excess_limitation'}.passive"
+            if room is None:
+                trouble.append((f"form_1116_{'amt_' if amt else ''}carryback_unknown",
+                                f"{whole(unused)} of this year's {label}foreign tax is unused (IRC §904(c)): it is deemed paid in {self.y - 1} first, up to "
+                                f"that year's excess limitation, which is not stated ({where}; enter 0 if {self.y - 1} had unused foreign tax or no "
+                                f"foreign-source income). The carryover to {self.y + 1} cannot be figured while it is unknown."))
+            else:
+                carryback = min(unused, room)
+                if carryback > 0:
+                    trouble.append((f"form_1116_{'amt_' if amt else ''}carryback",
+                                    f"{whole(carryback)} of this year's {label}foreign tax is deemed paid in {self.y - 1} (IRC §904(c); that year's excess "
+                                    f"limitation of {whole(room)}) and is claimed on an amended {self.y - 1} return, which is out of scope; "
+                                    f"{whole(unused - carryback)} carries to {self.y + 1}."))
+        known = room is not None or unused == 0
+        rows.append({"from_year": self.y, "generated": str(whole(unused)), "carryback": str(whole(carryback)),
+                     "carryover_out": str(whole(unused - carryback)) if known else "unknown"})
+        if known and unused - carryback > 0:
+            carry[f"{key}_{self.y}"] = whole(unused - carryback)
+        return rows, carry, trouble
+
+    def _ftc_carry_through(self, entries: list[tuple[int, Decimal, Decimal | None]], forward: int) -> None:
+        """In a §904(j) election year no carryover is used; those from other years pass through unaffected (instructions,
+        Election To Claim the Foreign Tax Credit Without Filing Form 1116), the tenth-year ones expiring."""
+        rows = []
+        for yr, reg, amt in entries:
+            expired = yr == self.y - forward
+            rows.append({"from_year": yr, "carryover_in": str(whole(reg)), "used": "0", "expired": str(whole(reg if expired else Z)),
+                         "carryover_out": str(whole(Z if expired else reg)), "amt_carryover_out": str(whole(amt)) if amt is not None and not expired else None})
+            if not expired:
+                self._carryforwards[f"ftc_carryover_passive_{yr}"] = whole(reg)
+                if amt is not None:
+                    self._carryforwards[f"ftc_amt_carryover_passive_{yr}"] = whole(amt)
+        if rows:
+            self.s.fact("sch_3", "ftc_carryovers_unaffected", rows)
+
+    def _amt_ftc(self, amti: Decimal, tmt: Decimal) -> Decimal:
+        """Form 6251 line 8, the AMT foreign tax credit (IRC §59(a)), under the simplified limitation election of
+        §59(a)(3): the AMT Form 1116 takes the regular form's net foreign-source taxable income (line 17) over alternative
+        minimum taxable income (Form 6251 line 4, on line 18) and the tentative minimum tax before the credit (Form 6251
+        line 7, on line 20); the taxes available are this year's plus the AMT credit's own carryovers (Form 6251
+        instructions, line 8). The election is made for the first year an AMT credit is claimed and binds every later
+        year unless revoked with consent (§59(a)(3)(B)); it is never assumed. Under §904(j) the credit is the same
+        de minimis amount. The credit is claimed, and its facts required, when Form 6251 must be filed (line 7 over
+        line 10); otherwise the AMT Form 1116 only keeps the AMT credit's own carryover schedule, recorded when its facts
+        are stated and noted as untracked otherwise."""
+        r = self.r
+        if not self._f1116:
+            return Z
+        if "904j" in self._f1116:
+            return min(self._f1116["904j"], tmt) if tmt > 0 else Z
+        cat = self._f1116["passive"]
+        f, forward = cat["form"], cat["forward"]
+        entries: list[tuple[int, Decimal, Decimal | None]] = cat["entries"]
+        stated = r.prior_year.ftc_amt_excess_limitation if r.prior_year is not None else {}
+        amt_entries = [(yr, a) for yr, _, a in entries if a is not None]
+        missing = [yr for yr, _, a in entries if a is None]
+        election = r.foreign_tax_credit.amt_simplified_limitation
+        prior = r.prior_year.amt_ftc_simplified_election if r.prior_year is not None else None
+        claimed = tmt > pos(self.g("f1040", "16") + self.g("sch_2", "1z") - self._ftc)       # Form 6251 line 7 over line 10
+        if claimed:
+            if prior is True and election is False:
+                self.s.diag("error", "form_1116_amt_election_revoked", "The simplified limitation election for the AMT foreign tax credit was made in "
+                            "an earlier year and applies to every later year unless revoked with the IRS's consent (IRC §59(a)(3)(B)(ii)); it "
+                            "cannot be stated as not made.", "f6251", "8")
+                return Z
+            if election is False:
+                self.s.diag("error", "form_1116_amt_election_not_made", "Without the IRC §59(a)(3) simplified limitation election the AMT Form 1116 "
+                            "is figured on foreign-source alternative minimum taxable income (§59(a)(1)(B)), which is not modelled. State "
+                            "foreign_tax_credit.amt_simplified_limitation: true if the election was or is being made.", "f6251", "8")
+                return Z
+            if election is None and prior is not True:
+                self.s.diag("error", "form_1116_amt_election_unknown", f"Tentative minimum tax of {whole(tmt)} and foreign taxes of {whole(cat['taxes'])}: "
+                            "Form 6251 line 8 needs the AMT Form 1116. State foreign_tax_credit.amt_simplified_limitation (IRC §59(a)(3): the election "
+                            "is made for the first year an AMT foreign tax credit is claimed, binds every later year, and is recorded on this return); "
+                            "the credit is not figured while it is unknown.", "f6251", "8")
+                return Z
+            self.s.fact("f6251", "simplified_limitation_election",
+                        {"elected": True, "first_year": "earlier" if prior else self.y, "binding": "IRC §59(a)(3)(B): every later year unless revoked with consent"})
+            if not prior:
+                self.s.diag("info", "form_1116_amt_election_recorded", f"The IRC §59(a)(3) simplified limitation election for the AMT foreign tax "
+                            f"credit is made with this {self.y} return and binds every later year (prior_year.amt_ftc_simplified_election: true on them).",
+                            "f6251", "8")
+            if missing:
+                self.s.diag("error", "form_1116_amt_carryover_unknown", f"The AMT foreign tax credit has its own carryovers (IRC §59(a)(1)): state the "
+                            f"AMT carryover of {', '.join(str(y) for y in missing)} (prior_year.ftc_carryovers[].amt_carryover; enter 0 if none).", "f6251", "8")
+                return Z
+        else:
+            reasons = []
+            if not (election is True or prior is True):
+                reasons.append("the IRC §59(a)(3) simplified limitation election is not stated (foreign_tax_credit.amt_simplified_limitation)")
+            if missing:
+                reasons.append(f"the AMT carryover of {', '.join(str(y) for y in missing)} is not stated (prior_year.ftc_carryovers[].amt_carryover)")
+            if reasons:
+                self._amt_untracked(f, reasons)
+                return Z
+        l14 = cat["taxes"] + sum((a for _, a in amt_entries), Z)
+        l17 = cat["foreign_ti"]
+        l19 = self._ftc_ratio(l17, amti)
+        l21 = whole(tmt * l19)
+        l24 = min(l14, l21)
+        l33 = min(tmt, l24)
+        self.s.fact(f, "amt", {"14": str(whole(l14)), "17": str(whole(l17)), "18": str(whole(amti)), "19": str(l19), "20": str(whole(tmt)),
+                               "21": str(l21), "24": str(whole(l24)), "33": str(whole(l33)), "claimed": claimed})
+        rows, carry, trouble = self._ftc_schedule(cat["taxes"], amt_entries, l33, self._ftc_room(stated.get("passive"), amt_entries), forward, amt=True)
+        if trouble and not claimed:
+            self._amt_untracked(f, [m for _, m in trouble])
+            return l33
+        self.s.fact(f, "schedule_b_amt", rows)
+        self._carryforwards.update(carry)
+        for code, message in trouble:
+            self.s.diag("error", code, message, "f6251", "8")
+        return l33
+
+    def _amt_untracked(self, form: str, reasons: list[str]) -> None:
+        self.s.diag("warning", "form_1116_amt_carryover_not_tracked",
+                    "No AMT foreign tax credit is claimed this year (Form 6251 line 7 is not over line 10). This year's foreign taxes and any AMT "
+                    "carryovers carry to next year under the AMT credit's own schedule (IRC §59(a)(1)), which is not recorded: " + "; ".join(reasons) + ".",
+                    form)
+
+    # ----------------------------------------------------------------- credits
     def _credits(self) -> None:
         l18 = self.g("f1040", "18")
-        ftc = min(self._ftc_amount(), l18)
+        ftc = min(self._ftc, l18)
         self.set("sch_3", "1", ftc, "Foreign tax credit")
         remaining = l18 - ftc
         dc = min(self._form_2441(), remaining)

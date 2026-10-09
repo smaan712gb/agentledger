@@ -71,6 +71,8 @@ NAME_FIELDS = {"W-2": ("employer_name", "employer_name"), "1099-INT": ("payer_na
                "5498-SA": ("payer_name", "trustee"), "1095-A": ("issuer_name", "issuer")}
 # Text attributes copied as printed (no amount, no code), by document type: extraction key -> input field.
 TEXT_FIELDS = {"1095-A": {"policy_number": "policy_number", "marketplace": "marketplace", "marketplace_identifier": "marketplace"}}
+# Boxes that name a foreign country or U.S. territory (text, with provenance): 1099-INT box 7, 1099-DIV box 8 (Form 1116 Part I line g).
+COUNTRY_BOXES: dict[tuple[str, str], str] = {("1099-INT", "box7"): "foreign_country", ("1099-DIV", "box8"): "foreign_country"}
 # Checkbox boxes: the label that is checked, read into a typed field; anything else is unreadable, never a default.
 CHECKBOX_FIELDS: dict[tuple[str, str], tuple[str, dict[str, str]]] = {
     ("1099-SA", "box5"): ("account_type", {"hsa": "hsa", "archer": "archer_msa", "ma msa": "ma_msa", "ma_msa": "ma_msa",
@@ -87,9 +89,11 @@ ALIASES = {
     "W-2": {"wages": "box1", "wages_tips_other_compensation": "box1", "federal_income_tax_withheld": "box2",
             "social_security_wages": "box3", "social_security_tax_withheld": "box4", "medicare_wages_and_tips": "box5",
             "medicare_tax_withheld": "box6"},
-    "1099-INT": {"interest_income": "box1", "federal_income_tax_withheld": "box4", "tax_exempt_interest": "box8"},
+    "1099-INT": {"interest_income": "box1", "federal_income_tax_withheld": "box4", "foreign_tax_paid": "box6",
+                 "foreign_country": "box7", "foreign_country_or_us_territory": "box7", "tax_exempt_interest": "box8"},
     "1099-DIV": {"total_ordinary_dividends": "box1a", "ordinary_dividends": "box1a", "qualified_dividends": "box1b",
-                 "total_capital_gain_distributions": "box2a", "federal_income_tax_withheld": "box4"},
+                 "total_capital_gain_distributions": "box2a", "federal_income_tax_withheld": "box4", "foreign_tax_paid": "box7",
+                 "foreign_country": "box8", "foreign_country_or_us_territory": "box8"},
     "1099-R": {"gross_distribution": "box1", "taxable_amount": "box2a", "federal_income_tax_withheld": "box4",
                "distribution_code": "box7"},
     "SSA-1099": {"net_benefits": "box5", "benefits_paid": "box5"},
@@ -298,6 +302,12 @@ def populate(conn: sqlite3.Connection, client_id: str, tax_year: int, *, joint: 
                     mapped += 1
                 elif code:
                     out.cannot_read(doc_id, r[3], lst, "distribution_code", box, value)
+                continue
+            if box is not None and (doc_type, box) in COUNTRY_BOXES:
+                country = str(value).strip()
+                if country:
+                    item[COUNTRY_BOXES[(doc_type, box)]] = country
+                    out.provenance[f"{lst}[{idx}].{COUNTRY_BOXES[(doc_type, box)]}"] = {"document_id": doc_id, "box": box, "value": country}
                 continue
             if box is not None and (doc_type, box) in CHECKBOX_FIELDS:
                 fld, labels = CHECKBOX_FIELDS[(doc_type, box)]

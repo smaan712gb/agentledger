@@ -52,10 +52,21 @@ CASES = {
                                      ira_accounts=[IRAAccount(owner="spouse", roth_contributions=3000, fmv=20000)],
                                      retirement_savings=[RetirementSavings(owner="taxpayer", testing_period_distributions=0),
                                                          RetirementSavings(owner="spouse", testing_period_distributions=0)]),
+    # Form 1116: wages 60,000, a foreign bank's 10,000 of interest with 1,500 of foreign tax; the §904(a) limitation allows 939.
+    # PolicyEngine credits min(1,500, tax before credits) = 1,500: an upper bound the engine must stay under.
+    "foreign_tax_credit": dict(filing_status="single", taxpayer=you(), w2s=[W2(wages=60000)],
+                               interest=[Interest(payer="Hanse Bank", interest=10000, foreign_tax_paid=1500, foreign_source_income=10000,
+                                                  foreign_country="Germany")], prior_year=PriorYear(ftc_excess_limitation={"passive": 0})),
+    # 85 of foreign tax within the §904(j) de minimis amount: credited in full without Form 1116, as PolicyEngine does.
+    "foreign_tax_credit_de_minimis": dict(filing_status="single", taxpayer=you(), w2s=[W2(wages=50000)],
+                                          dividends=[Dividends(ordinary=2400, qualified=2000, foreign_tax_paid=85)]),
 }
 # What the engine must show for the new items before the cross-check counts as evidence (hand-worked, see
-# tests/test_returns_capital_loss_carryover.py and tests/test_returns_8880.py).
-EXPECTED = {"capital_loss_carryover": ("sch_d", "21", -3000), "savers_credit": ("sch_3", "4", 200), "savers_credit_joint_roth": ("sch_3", "4", 400)}
+# tests/test_returns_capital_loss_carryover.py, tests/test_returns_8880.py and tests/test_returns_1116.py).
+EXPECTED = {"capital_loss_carryover": ("sch_d", "21", -3000), "savers_credit": ("sch_3", "4", 200), "savers_credit_joint_roth": ("sch_3", "4", 400),
+            "foreign_tax_credit": ("sch_3", "1", 939), "foreign_tax_credit_de_minimis": ("sch_3", "1", 85)}
+LABELS = {"capital_loss_carryover": "capital loss deduction", "savers_credit": "saver's credit", "savers_credit_joint_roth": "saver's credit",
+          "foreign_tax_credit": "foreign tax credit (upper bound)", "foreign_tax_credit_de_minimis": "foreign tax credit (upper bound)"}
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
@@ -69,6 +80,9 @@ def test_agrees_with_policyengine(name):
     assert len(cc.compared) >= 10
     assert cc.agrees, [(d.item, str(d.agentledger), str(d.policyengine)) for d in cc.discrepancies]
     if name in EXPECTED:
-        label = "capital loss deduction" if name == "capital_loss_carryover" else "saver's credit"
+        label = LABELS[name]
         assert label in cc.compared and cc.compared[label][0] != 0            # the item itself was compared, not just AGI
         assert not any("capital loss carryovers" in u for u in cc.unmodelled)
+    if name.startswith("foreign_tax_credit"):
+        mine, theirs = cc.compared["foreign tax credit (upper bound)"]
+        assert mine <= theirs and any("foreign tax credit limitation" in u for u in cc.unmodelled)

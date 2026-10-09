@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 Money = Decimal
 Owner = Literal["taxpayer", "spouse"]
 FilingStatus = Literal["single", "mfj", "mfs", "hoh", "qss"]
+# Form 1116 separate categories (IRC §904(d)(1); Form 1116, boxes a-g above Part I).
+FTCCategory = Literal["passive", "general", "foreign_branch", "section_951a", "treaty", "lump_sum", "section_901j"]
 Z = Decimal(0)
 
 
@@ -91,8 +93,14 @@ class Interest(BaseModel):  # 1099-INT
     us_savings_bond_interest: Money = Z  # box 3
     federal_withholding: Money = Z       # box 4
     foreign_tax_paid: Money = Z          # box 6
+    foreign_country: str = ""            # box 7, foreign country or U.S. territory ("RIC" for a mutual fund)
     tax_exempt_interest: Money = Z       # box 8
     private_activity_bond_interest: Money = Z  # box 9
+    # Form 1116 facts the payer's supplemental statement carries (no 1099 box): the foreign-source part of boxes 1 and 3.
+    # None: not stated, never zero. A credit beyond the §904(j) de minimis cannot be figured without it.
+    foreign_source_income: Money | None = None
+    category: FTCCategory = "passive"    # §904(d) separate category of the foreign-source income (interest is passive)
+    accrued: bool = False                # the foreign tax is accrued rather than paid (Form 1116 Part II box (i); §905(a))
 
 
 class Dividends(BaseModel):  # 1099-DIV
@@ -108,8 +116,14 @@ class Dividends(BaseModel):  # 1099-DIV
     federal_withholding: Money = Z       # box 4
     section_199a_dividends: Money = Z    # box 5
     foreign_tax_paid: Money = Z          # box 7
+    foreign_country: str = ""            # box 8, foreign country or U.S. territory ("RIC" for a mutual fund)
     exempt_interest_dividends: Money = Z  # box 12
     private_activity_bond_dividends: Money = Z  # box 13
+    # Form 1116 facts from the payer's supplemental statement (no 1099 box): the foreign-source part of box 1a. None: not
+    # stated, never zero. A credit beyond the §904(j) de minimis cannot be figured without it.
+    foreign_source_income: Money | None = None
+    category: FTCCategory = "passive"    # §904(d) separate category of the foreign-source income (dividends are passive)
+    accrued: bool = False                # the foreign tax is accrued rather than paid (Form 1116 Part II box (i); §905(a))
 
 
 class CapitalTransaction(BaseModel):  # 1099-B / 1099-DA / 8949 row
@@ -235,9 +249,15 @@ class MarketplaceCoverage(BaseModel):  # Form 1095-A
 
 
 class ForeignTaxCarryover(BaseModel):  # Form 1116 Schedule B, unused foreign tax by separate category (IRC §904(c))
-    category: Literal["passive", "general", "foreign_branch", "section_951a", "treaty", "lump_sum", "section_901j"]
+    """One year's unused foreign tax carried into this year (the prior-year Schedule B, line 8, one column). `from_year` is
+    the year the tax was paid or accrued: the carryover can be used in the 10 years after it and expires with the tenth
+    (§904(c)); a carryover whose year is not stated cannot be placed and blocks. `amt_carryover` is the same year's unused
+    AMT foreign tax credit (the AMT Form 1116's Schedule B; the AMT credit has its own carryovers, §59(a)(1)); None: not
+    stated, never zero."""
+    category: FTCCategory
     from_year: int | None = None
     carryover: Money
+    amt_carryover: Money | None = None
 
 
 class Section1231Loss(BaseModel):  # Form 4797 line 8: nonrecaptured net section 1231 losses of the 5 preceding years
@@ -255,6 +275,15 @@ class PriorYear(BaseModel):
     capital_loss_carryover_short: Money | None = None  # Capital Loss Carryover Worksheet line 8, to this year's Schedule D line 6
     capital_loss_carryover_long: Money | None = None   # worksheet line 13, to Schedule D line 14
     ftc_carryovers: list[ForeignTaxCarryover] = []
+    # The prior year's excess limitation by category (its Form 1116 line 23 less line 14, if positive; 0 when it had unused
+    # foreign tax or no foreign-source income): the room a carryback of this year's unused foreign tax would use first
+    # (§904(c)). Absent: not stated; an excess this year then blocks instead of being carried forward in full. The AMT
+    # credit's own excess limitation is stated separately (§59(a)(1)).
+    ftc_excess_limitation: dict[FTCCategory, Money] = {}
+    ftc_amt_excess_limitation: dict[FTCCategory, Money] = {}
+    # Whether the §59(a)(3) simplified limitation was elected for the AMT foreign tax credit in an earlier year (binding
+    # for every later year unless revoked with the IRS's consent). None: not stated.
+    amt_ftc_simplified_election: bool | None = None
     nonrecaptured_1231_losses: list[Section1231Loss] = []
     traditional_ira_basis: Money | None = None    # Form 8606 line 14 of the prior year (basis in traditional IRAs)
     roth_ira_basis: Money | None = None           # basis in Roth IRA contributions (Form 8606 Part III)
@@ -346,6 +375,29 @@ class K1(BaseModel):  # Schedule E Part II
     w2_wages: Money = Z
     ubia: Money = Z
     sstb: bool = False
+    # Foreign items (Schedule K-1 box 21 / Schedule K-3 Parts II and III), for Form 1116. The category is never defaulted
+    # for a pass-through (its foreign-source income may be general or passive): None blocks when foreign tax is present.
+    foreign_tax_paid: Money = Z
+    foreign_source_income: Money | None = None   # the partner's or shareholder's share of foreign-source gross income
+    foreign_country: str = ""
+    category: FTCCategory | None = None
+    accrued: bool = False
+
+
+class ForeignTaxCredit(BaseModel):
+    """Form 1116 elections: facts no document carries.
+
+    `de_minimis_election` (IRC §904(j)): claim the credit without Form 1116 when every foreign tax is on passive income
+    shown on payee statements and totals $300 or less ($600 on a joint return). The limitation does not apply, and no
+    foreign tax may be carried to or from the year (§904(j)(1)(B)). None: not stated; the engine applies the election and
+    records it when nothing turns on the choice, and asks when a carryover or an excess would be affected.
+
+    `amt_simplified_limitation` (IRC §59(a)(3)): figure the AMT foreign tax credit from the regular tax's foreign-source
+    taxable income over alternative minimum taxable income. The election is made for the first year an AMT foreign tax
+    credit is claimed and binds every later year unless revoked with the IRS's consent (§59(a)(3)(B)). None: not stated;
+    an AMT credit is never figured while it is unknown."""
+    de_minimis_election: bool | None = None
+    amt_simplified_limitation: bool | None = None
 
 
 class CarLoan(BaseModel):
@@ -449,6 +501,7 @@ class IndividualReturn(BaseModel):
     # stored with it still load; any entry is a blocking diagnostic (form_8880_deprecated_input).
     retirement_savings_contributions: dict[Owner, Money] = {}
     amt_adjustments: dict[str, Money] = {}  # Form 6251 preference items, e.g. "iso": bargain element
+    foreign_tax_credit: ForeignTaxCredit = ForeignTaxCredit()  # Form 1116 elections
     excess_aptc_repayment: Money = Z     # from Form 8962
     net_premium_tax_credit: Money = Z    # from Form 8962
     household_employment_taxes: Money = Z

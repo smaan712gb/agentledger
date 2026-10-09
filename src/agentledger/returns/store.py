@@ -383,7 +383,7 @@ CARRYOVER_INPUTS = frozenset({"capital_loss_carryover_short", "capital_loss_carr
                               "qbi_loss_carryforward", "reit_ptp_loss_carryforward", "prior_year_unallowed_loss",
                               "prior_year_overpayment_applied",
                               # the prior-year group (model.PriorYear) and the Form 8880 testing-period distributions
-                              "prior_year", "ftc_carryovers", "carryover", "nonrecaptured_loss", "traditional_ira_basis",
+                              "prior_year", "ftc_carryovers", "carryover", "amt_carryover", "nonrecaptured_loss", "traditional_ira_basis",
                               "roth_ira_basis", "testing_period_distributions"})
 NOL_LINES = frozenset({"8a", "a"})        # Schedule 1 line 8a, the net operating loss deduction (other_income)
 
@@ -591,7 +591,7 @@ class Returns:
 
     def _record_retention_facts(self, rid: str, inputs: dict[str, Any], result: dict[str, Any] | None, version: int) -> None:
         facts_now = {"carryover": ",".join(carryovers(inputs))}
-        foreign = [f"{k}[{i}]" for k in ("interest", "dividends") for i, it in enumerate(inputs.get(k) or [])
+        foreign = [f"{k}[{i}]" for k in ("interest", "dividends", "k1s") for i, it in enumerate(inputs.get(k) or [])
                    if isinstance(it, dict) and _nonzero(it.get("foreign_tax_paid"))]
         if _nonzero(((result or {}).get("forms") or {}).get("sch_3", {}).get("1")):
             foreign.append("schedule 3 line 1")
