@@ -647,6 +647,54 @@ class Payments(BaseModel):
     apply_to_next_year: Money = Z
 
 
+class DirectDeposit(BaseModel):
+    """Where a Form 1040-X refund goes (the routing number, account number and account type under line 22). Only an
+    electronically filed Form 1040-X is refunded by direct deposit; a paper one is refunded by check."""
+    routing_number: str = ""
+    account_number: str = ""
+    account_type: Literal["checking", "savings"] | None = None
+
+
+class PreviousAdjustment(BaseModel):
+    """The IRS changed the return as filed (a math error notice, an examination, an agreed CP2000): Form 1040-X column A
+    then shows the adjusted amounts, not the return's (Form 1040-X instructions, Column A). `lines` is keyed by the
+    engine's Form 1040 line keys ("11a" adjusted gross income, "15" taxable income, "16" tax, "24c" total tax, "33" total
+    payments, "34" overpayment, ...): each stated line replaces the as-filed figure; lines not stated stay as filed. The
+    reason names the notice or transcript the amounts come from and is part of the approved package."""
+    reason: str = ""
+    lines: dict[str, Money] = {}
+
+
+class Amendment(BaseModel):
+    """Form 1040-X facts no document carries (returns/amendment.py). Column A comes from the original return as it was
+    approved, signed and filed (the sealed version the approval pinned), column C from this return's inputs; these are the
+    rest of the form.
+
+    `explanation` is Part III ("Explanation of Changes"): required, at least 10 characters, a review blocker until stated.
+    `paid_with_original_return` is the tax paid with the original return (line 16; 0 when nothing was paid): None is not
+    stated and blocks when the original showed an amount owed. `paid_after_filing` is additional tax paid after the original
+    was filed (notices, installments; line 16) and `last_payment_on` the date of the latest such payment (IRC §6511(a): a
+    refund claim is timely within 2 years of a payment). `original_refund_received` and `original_overpayment_applied` are
+    checked against the original's lines 35a and 36 (line 18 takes the original's overpayment as filed or as adjusted; a
+    difference is a warning naming `as_previously_adjusted`). `superseding`: a return filed before the due date, extensions
+    included, supersedes the original rather than amending it; None derives it from today's date and the IRC §7503 due date
+    (`extension_filed` moves the due date to October 15). `original_filed_on` overrides the filing date on record (a paper
+    return's postmark) for the §6511 and superseding dates. `apply_to_estimated_tax` is line 23, the part of the new
+    overpayment (line 21) applied to next year's estimated tax; the original's election already stands in line 18."""
+    explanation: str = ""
+    as_previously_adjusted: PreviousAdjustment | None = None
+    paid_with_original_return: Money | None = None
+    paid_after_filing: Money = Z
+    last_payment_on: date | None = None
+    original_refund_received: Money | None = None
+    original_overpayment_applied: Money | None = None
+    superseding: bool | None = None
+    extension_filed: bool = False
+    original_filed_on: date | None = None
+    apply_to_estimated_tax: Money = Z
+    direct_deposit: DirectDeposit | None = None
+
+
 class IndividualReturn(BaseModel):
     tax_year: int
     filing_status: FilingStatus
@@ -705,3 +753,5 @@ class IndividualReturn(BaseModel):
     claim_eic: bool = True
     citizen_or_qualified_alien: bool = True  # Schedule 3-A Part II
     want_federal_public_benefit: bool = True
+    # Form 1040-X facts (a return created by Returns.start_amendment); None on an original return.
+    amendment: Amendment | None = None

@@ -1267,6 +1267,8 @@ def get_return(rid: str, user=Depends(me)) -> dict[str, Any]:
     else:  # a client sees the outcome and the status, not working papers
         res = v["result"] or {}
         out["forms"] = {"f1040": res.get("forms", {}).get("f1040", {})}
+        if "f1040x" in res.get("forms", {}):          # an amended return: the taxpayer signs columns A, B and C too
+            out["forms"]["f1040x"] = res["forms"]["f1040x"]
     return jsonable(out)
 
 

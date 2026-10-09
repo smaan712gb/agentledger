@@ -61,6 +61,9 @@ def test_an_amendment_keeps_what_the_filed_return_accounted_for(fam, monkeypatch
     out = R.populate_from_documents(amended, "maya")
     assert "d_w2dup" not in out["documents"] and out["conflicts"] == 0
     assert _w2_sources(R, amended) == ["d_w2a", "d_w2b"]
+    # Form 1040-X Part III (T1-01 S9): the explanation of changes is a review blocker until stated.
+    R.save_inputs(amended, {**R.latest(amended)["inputs"], "amendment": {"explanation": "test amendment: no change to the figures"}}, "maya")
+    assert _w2_sources(R, amended) == ["d_w2a", "d_w2b"]              # the edit kept every item's document
     R.confirm(amended, None, "maya")
     assert R.submit_for_review(amended, "maya").status == "in_review"
     assert R.approve(amended, "lee", "cpa").status == "approved"

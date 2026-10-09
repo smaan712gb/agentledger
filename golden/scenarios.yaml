@@ -224,3 +224,21 @@
                          parent: {name: Alex Rivera, ssn: "400-00-0001", filing_status: single, taxable_income: 60000, tax: 7918}}}
   expect: 1302
   source: Form 8615 (2026 draft) lines 1-18 and its instructions (Who Must File, lines 1-18); IRC §1(g); Rev. Proc. 2025-32 §4.01, §4.02, §4.14(2)
+# Form 1040-X worked by hand (Form 1040-X (2025) lines 1-20 and instructions; Rev. Proc. 2025-32 §4.01 and §2.15): a single filer's
+# original return, wages 60,000 with 6,000 withheld, taxable income 43,900, tax at the 43,925 midpoint 5,023, refund 977, filed
+# 2027-04-01. The amendment (2027-09-01) corrects the wages to 62,000: taxable income 45,900, tax 5,263 (column B +240); line 17
+# total payments 6,000 (nothing paid with the original), line 18 the 977 overpayment on the original, line 19 = 5,023, line 20
+# amount owed = 5,263 - 5,023 = 240. A two-return scenario through the form_1040x_line calculator (returns/amendment.py).
+- id: f1040x-2026-wage-correction
+  calc: form_1040x_line
+  inputs:
+    line: amount_owed
+    filed_on: "2027-04-01"
+    today: "2027-09-01"
+    original: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+               w2s: [{wages: 60000, federal_withholding: 6000}]}
+    corrected: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+                w2s: [{wages: 62000, federal_withholding: 6000}]}
+    amendment: {explanation: "W-2c from the employer: box 1 wages 62,000, not 60,000", paid_with_original_return: 0}
+  expect: 240
+  source: Form 1040-X (2025) lines 1, 5, 6, 11, 17-20 and instructions (column A as filed, column B net change, line 18 overpayment on the original); Rev. Proc. 2025-32 §4.01, §2.15; IRC §6513(a), §7503

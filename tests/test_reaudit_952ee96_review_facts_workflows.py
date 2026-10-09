@@ -60,6 +60,7 @@ def test_an_amendment_starts_from_the_filed_facts_without_duplicates(fam, monkey
     assert [i["source_document"] for i in v["inputs"]["interest"]] == ["d_int"]
     edited = json.loads(json.dumps(v["inputs"]))
     next(w for w in edited["w2s"] if w["source_document"] == "d_w2b")["wages"] = "43000"      # the reason for amending
+    edited["amendment"] = {"explanation": "W-2c from City Schools: box 1 wages 43,000, not 41,000"}   # Form 1040-X Part III
     R.save_inputs(amended, edited, "maya")
     R.populate_from_documents(amended, "maya")
     [c] = R.conflicts(amended)

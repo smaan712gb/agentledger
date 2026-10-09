@@ -110,7 +110,16 @@ capabilities:
   - {id: sch_f,      name: "Schedule F",                        jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f2210,      name: "Form 2210 (underpayment penalty)",  jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8582,      name: "Form 8582 (passive activity loss)", jurisdiction: US-FED, years: [2026], status: unsupported}
-  - {id: f1040x,     name: "Form 1040-X (amended)",             jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1040x,     name: "Form 1040-X (amended)",             jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["column A is the original return as approved, signed and filed through AgentLedger (the sealed version pinned by the approval, verified against the signed hash) or those figures as adjusted by the IRS (stated line by line with a reason); a return filed elsewhere cannot be amended here",
+              "one Form 1040-X per client and tax year (a second amendment of the same year blocks); a Form 1040-X is not itself amended",
+              "lines are stored by Form 1040 line (f1040x keys '<line>.A/B/C' and the named 1040-X-only lines); the 2026 Form 1040-X line map is applied by the renderer (T1-07) once the draft posts",
+              "the §6511(b)(2) look-back limit on the refundable amount, interest on the amount owed (§6601) and the §6501 assessment period are not computed (the §6511(a) claim date is a warning)",
+              "the tax paid with the original return, payments after filing and their last date, the extension and the refund received are stated facts (amendment); the filing date of a paper return is the date recorded, unless stated",
+              "Form 1045, carryback claims (Form 1040-X as a tentative refund claim), §1341, net operating loss carrybacks and a change of accounting method block through the forms they need; a joint return changed to separate after the due date blocks (§6013(b))"],
+     evidence: ["tests/test_returns_1040x.py (hand-worked from Form 1040-X (2025) lines 1-23 and its instructions, columns A, B and C, line 16 and line 18; the §6511(a), §6513 and §7503 dates from the statute)",
+                "golden/scenarios.yaml f1040x-2026-wage-correction (two-return scenario through the form_1040x_line calculator)"],
+     pending: "tax-content owner sign-off (coverage owner is null); the 2026 Form 1040-X draft and its instructions are not posted, so the line map and any 2026 change to line 16 are open"}
   - {id: f1040nr,    name: "Form 1040-NR",                      jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: manual-assisted,
      limits: ["the parent's return is a preparer's transcription (form_8615.parent) or a return of the same firm (form_8615.parent_return_id: its latest computed result, recorded with its version; the child's return must be recomputed when the parent's changes); which parent's return applies when it is not a joint return is a stated basis (form_8615.which_parent), never inferred",
