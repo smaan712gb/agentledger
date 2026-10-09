@@ -85,14 +85,34 @@ def _firm_store_backend(monkeypatch):
     from agentledger.pg import compat
 
     compat.close_all(prefix)
-    owner = pg.connect(url)
-    try:
-        for (name,) in owner.execute("SELECT nspname FROM pg_namespace WHERE nspname LIKE %s", (prefix + "%",)).fetchall():
-            owner.execute(f'DROP SCHEMA "{name}" CASCADE')
-        for (role,) in owner.execute("SELECT rolname FROM pg_roles WHERE rolname LIKE %s", ("rt\\_%" + prefix + "%",)).fetchall():
-            pg.drop_role(owner, role)
-    finally:
-        owner.close()
+    _drop_test_objects(url, prefix)
+
+
+def _drop_test_objects(url: str, prefix: str, attempts: int = 6) -> None:
+    """Drop this test's schemas and runtime roles. Several suites share one PostgreSQL server (parallel work), and
+    concurrent DROP ROLE / DROP SCHEMA statements can fail on catalog contention ("tuple concurrently updated",
+    deadlocks): those transient errors are retried; anything else is raised."""
+    import time
+
+    import psycopg
+
+    from agentledger import pg
+
+    for attempt in range(attempts):
+        owner = pg.connect(url)
+        try:
+            for (name,) in owner.execute("SELECT nspname FROM pg_namespace WHERE nspname LIKE %s", (prefix + "%",)).fetchall():
+                owner.execute(f'DROP SCHEMA IF EXISTS "{name}" CASCADE')
+            for (role,) in owner.execute("SELECT rolname FROM pg_roles WHERE rolname LIKE %s", ("rt\\_%" + prefix + "%",)).fetchall():
+                pg.drop_role(owner, role)
+            return
+        except (psycopg.errors.InternalError, psycopg.errors.DeadlockDetected, psycopg.errors.ObjectInUse,
+                psycopg.errors.LockNotAvailable):
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+        finally:
+            owner.close()
 
 
 @pytest.fixture
