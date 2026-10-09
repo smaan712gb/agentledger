@@ -215,9 +215,11 @@ def test_niit_and_additional_medicare():
 
 
 def test_unsupported_items_block_filing():
+    """Foreign tax over the §904(j) de minimis amount needs Form 1116, which cannot be figured while the payer statement's
+    foreign-source income is not stated (T1-01 S3; tests/test_returns_1116.py)."""
     r = run(filing_status="single", taxpayer=you(), w2s=[W2(wages=50000)],
             dividends=[Dividends(ordinary=20000, qualified=20000, foreign_tax_paid=900)])
-    assert any(d.code == "form_1116_required" for d in r.blocking)
+    assert any(d.code == "form_1116_foreign_source_income_unknown" for d in r.blocking)
 
 
 def test_trace_cites_authorities():

@@ -1,0 +1,28 @@
+id: us_fed.individual.ftc_qualified_dividend_adjustment_exception
+title: Form 1116 adjustment exception for foreign qualified dividends and capital gain distributions (de minimis amount)
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: Reg. §1.904(b)-1(b)(3); Form 1116 (2025) instructions, Foreign Qualified Dividends and Capital Gains (Losses)
+tags:
+- foreign tax credit
+- '1116'
+- qualified dividends
+- 904(b)
+notes: >-
+  Foreign-source qualified dividends and capital gain distributions taxed at the 15% or 20% rate are adjusted (times
+  0.4054 or 0.5405; the 0%-rate ones are left off line 1a) before they go on Form 1116 line 1a, and taxable income on line
+  18 is adjusted likewise, unless the taxpayer qualifies for the adjustment exception: ordinary income on line 5 of the
+  Qualified Dividends and Capital Gain Tax Worksheet does not exceed the top of the 24% bracket (us_fed.individual.tax_brackets,
+  the fifth floor; $197,300 / $394,600 joint for 2025) and foreign-source qualified dividends plus capital gain
+  distributions are less than this amount. The election not to adjust is made by not adjusting. The amount is not
+  indexed. The engine applies the exception and blocks (form_1116_qualified_dividend_adjustment) when it does not apply.
+values:
+- effective_from: '2003-01-01'
+  value: 20000
+  provenance:
+    source: Form 1116 (2025) instructions, Foreign Qualified Dividends and Capital Gains (Losses), Adjustment exception;
+      Reg. §1.904(b)-1(b)(3)
+    url: https://www.irs.gov/instructions/i1116
+    verified_on: '2026-10-09'

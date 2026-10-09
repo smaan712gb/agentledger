@@ -42,6 +42,11 @@ COMPARISONS: list[tuple[str, str, Any]] = [
     # active participant (no §219(g) phase-out) and the contributions are within its limit parameter.
     ("IRA deduction", "traditional_ira_contributions", lambda r: r.line("sch_1", "20")),
 ]
+# Items PolicyEngine models only as a ceiling: ours must not exceed theirs. Its foreign_tax_credit is min(the foreign
+# taxes it is given, income tax before credits), without the §904 limitation, the separate categories or carryovers.
+UPPER_BOUNDS: list[tuple[str, str, Any]] = [
+    ("foreign tax credit (upper bound)", "foreign_tax_credit", lambda r: r.line("sch_3", "1")),
+]
 # W-2 box 12 deferral codes PolicyEngine takes as inputs, and whether the deferral was pre-tax. Box 1 wages exclude a
 # pre-tax deferral while PolicyEngine subtracts its retirement inputs from employment_income itself, so the deferral is
 # added back to employment_income; a designated Roth contribution is in box 1 already.
@@ -111,7 +116,15 @@ def _unmodelled(r: IndividualReturn) -> list[str]:
                                                              "spouse_roth_ira_basis", "roth_conversion_basis", "spouse_roth_conversion_basis"))
     if basis or any(set(x.distribution_code.upper()) & {"J", "Q", "T"} for x in r.retirement) or any(a.roth_conversion for a in r.ira_accounts):
         out.append("Form 8606 (PolicyEngine takes taxable IRA distributions as an input, fed from Form 1040 line 4b)")
+    if _foreign_taxes(r):
+        out.append("foreign tax credit limitation (PolicyEngine credits min(foreign taxes, tax before credits), without the §904 "
+                   "limitation, the separate categories or carryovers: compared as an upper bound only)")
     return out
+
+
+def _foreign_taxes(r: IndividualReturn) -> Decimal:
+    return (sum((i.foreign_tax_paid for i in r.interest), Decimal(0)) + sum((d.foreign_tax_paid for d in r.dividends), Decimal(0))
+            + sum((k.foreign_tax_paid for k in r.k1s), Decimal(0)))
 
 
 def _carryovers(r: IndividualReturn) -> tuple[Decimal, Decimal]:
@@ -229,6 +242,8 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
         tax_unit["deductible_mortgage_interest"] = {yr: float(r.itemized.mortgage_interest_1098)}
     if ours is not None and ours.line("sch_1", "13") > 0:
         tax_unit["health_savings_account_ald"] = {yr: float(ours.line("sch_1", "13"))}
+    if _foreign_taxes(r):
+        tax_unit["foreign_tax_credit_potential"] = {yr: float(_foreign_taxes(r))}
     return {
         "people": people,
         "tax_units": {"tu": _prune(tax_unit, known, skipped)},
@@ -286,5 +301,14 @@ def crosscheck(ret: IndividualReturn, ours: Result, tolerance: Decimal = TOLERAN
         mine = Decimal(fn(ours))
         compared[label] = (mine, theirs)
         if abs(mine - theirs) > max(tolerance, TABLE_METHOD_TOLERANCE.get(label, Decimal(0))):
+            bad.append(Discrepancy(label, mine, theirs))
+    for label, var, fn in UPPER_BOUNDS:
+        try:
+            theirs = Decimal(str(round(float(sim.calculate(var, ret.tax_year).sum()), 2)))
+        except Exception:
+            continue
+        mine = Decimal(fn(ours))
+        compared[label] = (mine, theirs)
+        if mine - theirs > tolerance:
             bad.append(Discrepancy(label, mine, theirs))
     return CrossCheck(compared, bad, _unmodelled(ret) + sorted(f"input not in PolicyEngine: {k}" for k in skipped))

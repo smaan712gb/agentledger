@@ -1,0 +1,26 @@
+id: us_fed.individual.ftc_interest_expense_de_minimis
+title: Form 1116, gross foreign-source income under which all interest expense may be allocated to U.S. source income
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: Form 1116 (2025) instructions, Part I line 4a; Reg. §1.861-9T (apportionment of interest expense)
+tags:
+- foreign tax credit
+- '1116'
+- interest expense
+- '861'
+notes: >-
+  Home mortgage interest (line 4a) and other interest expense (line 4b: investment interest, interest of a trade or
+  business, passive activity interest, deductible student loan interest and qualified passenger vehicle loan interest)
+  are apportioned between U.S. and foreign-source income, except that "if your gross foreign source income (including
+  income excluded on Form 2555) doesn't exceed $5,000, you can allocate all of your interest expense to U.S. source
+  income" (Form 1116 (2025) instructions, line 4a). Not indexed. The engine allocates to U.S. source income under this
+  rule and blocks the apportionment above it (form_1116_interest_expense).
+values:
+- effective_from: '1987-01-01'
+  value: 5000
+  provenance:
+    source: Form 1116 (2025) instructions, Part I, line 4a
+    url: https://www.irs.gov/instructions/i1116
+    verified_on: '2026-10-09'

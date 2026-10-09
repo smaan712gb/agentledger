@@ -43,7 +43,8 @@ capabilities:
   - {id: f8995,      name: "Form 8995",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: f8995a,     name: "Form 8995-A",                       jurisdiction: US-FED, years: [2026], status: manual-assisted,
      limits: ["aggregation elections and patron reductions not supported"]}
-  - {id: f6251,      name: "Form 6251",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f6251,      name: "Form 6251",                         jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["AMT foreign tax credit (line 8) under the IRC §59(a)(3) simplified limitation election only; the AMTI-based AMT Form 1116 blocks (form_1116_amt_election_not_made)"]}
   - {id: f8959,      name: "Form 8959",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: f8960,      name: "Form 8960",                         jurisdiction: US-FED, years: [2026], status: manual-assisted,
      limits: ["investment expense allocations (line 9) not computed"]}
@@ -76,7 +77,19 @@ capabilities:
                 "golden/scenarios.yaml f1040-2026-nondeductible-ira", "tests/test_returns_oracle.py ira_deduction_not_covered (PolicyEngine traditional_ira_contributions)"],
      pending: "tax-content owner sign-off (coverage owner is null)"}
   # Known gaps on the 1040: the engine raises a blocking diagnostic when a return needs one of these.
-  - {id: f1116,      name: "Form 1116 (foreign tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f1116,      name: "Form 1116 (foreign tax credit)",    jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["passive category only: general and the other separate categories, and high-taxed passive income (§904(d)(2)(F), line 13), block",
+              "foreign-source income, country and category are stated facts from the payer's supplemental statement or Schedule K-3 (no 1099 box carries them)",
+              "deductions: the standard deduction, Schedule A lines 4, 5a (general sales taxes), 5b and 5c, and Schedule 1 Part II adjustments are apportioned (lines 3a, 3b); state and local income taxes, other taxes, casualty losses, other itemized deductions and the §68 limitation block; interest expense (lines 4a, 4b) only within the instructions' $5,000 rule; definitely related expenses (line 2), foreign losses (line 5), reductions (line 12) and §960(c) (line 22) are not modelled",
+              "qualified dividends only within the adjustment exception (Qualified Dividends and Capital Gain Tax Worksheet line 5 in the 24% bracket, foreign qualified dividends under $20,000); the 0.4054/0.5405 adjustment and the Schedule D Tax Worksheet variant block",
+              "a pass-through with ordinary business or rental income blocks (its gross income is not on the return); up to three countries",
+              "the carryback of this year's unused tax to the prior year (§904(c)) is a claim on an amended prior-year return and blocks; the prior year's excess limitation is a stated fact (prior_year.ftc_excess_limitation)",
+              "AMT credit under the §59(a)(3) simplified limitation election only, with its own stated carryovers (ftc_carryovers[].amt_carryover); when Form 6251 is not required the AMT carryover is recorded only if those facts are stated (warning otherwise)",
+              "the 2026 Form 1116 is not posted: line numbers follow the 2025 form, whose figures are statutory and not indexed"],
+     evidence: ["tests/test_returns_1116.py (hand-worked from Form 1116 (2025) and its instructions, Form 6251 (2025) instructions line 8, Pub. 514 (2025) Carryback and Carryover Example 1, Rev. Proc. 2025-32 figures)",
+                "golden/scenarios.yaml f1040-2026-foreign-tax-credit",
+                "tests/test_returns_oracle.py foreign_tax_credit, foreign_tax_credit_de_minimis (PolicyEngine credits min(foreign taxes, tax before credits): an upper bound, not an equality)"],
+     pending: "tax-content owner sign-off (coverage owner is null)"}
   - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8962,      name: "Form 8962 (premium tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f4797,      name: "Form 4797 (business property)",     jurisdiction: US-FED, years: [2026], status: unsupported}
