@@ -1,0 +1,418 @@
+{
+ "scenario": 1,
+ "title": "ATS Test Scenario 1",
+ "taxpayer": "Sadie Long",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form W-2(2)",
+  "Schedule 2",
+  "Schedule 3",
+  "Schedule H",
+  "Form 5695"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-1-09222026.pdf",
+  "sha256": "9c50096468515ff0e46698cf24c342cf68acdf59dca6cb884e01dfa1603cf5c4",
+  "page_count": 11,
+  "pages_used": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   9
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "single",
+  "taxpayer": {
+   "first_name": "Sadie",
+   "last_name": "Long",
+   "ssn": "400-00-1032"
+  },
+  "citizen_or_qualified_alien": true,
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "Garden Path",
+    "employer_ein": "00-0000007",
+    "wages": 30000,
+    "federal_withholding": 1650,
+    "ss_wages": 30000,
+    "ss_tax": 1860,
+    "medicare_wages": 30000,
+    "medicare_tax": 435
+   },
+   {
+    "owner": "taxpayer",
+    "employer_name": "Dobbin's Hardware",
+    "employer_ein": "00-0000007",
+    "wages": 18100,
+    "federal_withholding": 2400,
+    "ss_wages": 18100,
+    "ss_tax": 1122,
+    "medicare_wages": 18100,
+    "medicare_tax": 262
+   }
+  ]
+ },
+ "provenance": [
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "citizen_or_qualified_alien",
+   "page": 1,
+   "source": "cover: Taxpayer is a U.S. citizen"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 4,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 4,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 4,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 4,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 4,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 4,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 4,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 4,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "w2s[1].employer_name",
+   "page": 5,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[1].employer_ein",
+   "page": 5,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[1].wages",
+   "page": 5,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[1].federal_withholding",
+   "page": 5,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[1].ss_wages",
+   "page": 5,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[1].ss_tax",
+   "page": 5,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[1].medicare_wages",
+   "page": 5,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[1].medicare_tax",
+   "page": 5,
+   "source": "W-2 box 6"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "W-2 from Garden Path: state boxes 15-17 (VT 00-0000008 30,000 450)",
+   "page": 4,
+   "effect": "state return data: no state is computed (T1-05)"
+  },
+  {
+   "fact": "W-2 from Dobbin's Hardware: state boxes 15-17 (VT 00-0000008 18,100 305)",
+   "page": 5,
+   "effect": "state return data: no state is computed (T1-05)"
+  },
+  {
+   "fact": "Schedule H: cash wages of a household employee subject to social security and Medicare tax (lines 1 and 3: 4100, 4100), federal income tax withheld (line 7: 0); employer identification number on the form",
+   "page": 9,
+   "effect": "changes the return: Schedule H's taxes (Schedule 2 line 9) are not computed; the model takes them as an entered amount (household_employment_taxes), which the scenario does not state"
+  },
+  {
+   "fact": "Taxpayer's Tax Year 2025 carryforward credit on Form 5695 line 1 is $200.",
+   "page": 1,
+   "effect": "changes the return: Form 5695 is not modelled, so the carried-forward credit (Schedule 3 line 5) is not claimed"
+  },
+  {
+   "fact": "Assume Form 1062 and Form 1062 Schedule A are attached.",
+   "page": 1,
+   "effect": "changes the return: Form 1062 (IRC §1062 deferral) is not modelled; Form 1040 line 24b prints its amount"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "filing_status",
+   "value": "single",
+   "reason": "no filing status is checked on Form 1040; the return names no spouse and no dependent, which leaves Single (married filing separately would name the spouse, head of household and qualifying surviving spouse need a qualifying person)",
+   "page": 2
+  }
+ ],
+ "ambiguities": [
+  {
+   "page": 1,
+   "note": "the taxpayer's date of birth is not stated: the engine treats her as under 65 and not blind"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 9,
+   "repaired_glyphs": 347
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 61
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 4
+  },
+  {
+   "page": 4,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 177
+  },
+  {
+   "page": 5,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 183
+  },
+  {
+   "page": 6,
+   "form": "sch_2",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 23
+  },
+  {
+   "page": 7,
+   "form": "sch_2",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 2
+  },
+  {
+   "page": 8,
+   "form": "sch_3",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 23
+  },
+  {
+   "page": 9,
+   "form": "sch_h",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 53
+  },
+  {
+   "page": 10,
+   "form": "sch_h",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 11,
+   "form": "f5695",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 23
+  }
+ ],
+ "expected": [
+  {
+   "form": "f1040",
+   "line": "24b",
+   "page": 3,
+   "value": 200,
+   "printed": "200",
+   "engine": {
+    "form": "f1040",
+    "line": "24b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_h",
+   "line": "1",
+   "page": 9,
+   "value": 4100,
+   "printed": "4,100",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_h",
+   "line": "3",
+   "page": 9,
+   "value": 4100,
+   "printed": "4,100",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_h",
+   "line": "5",
+   "page": 9,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_h",
+   "line": "6",
+   "page": 9,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_h",
+   "line": "7",
+   "page": 9,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  }
+ ],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [],
+  "known_gaps": {
+   "f1040:24b": {
+    "status": "blocked",
+    "expected": 200,
+    "engine": null,
+    "reason": "line_not_computed",
+    "detail": "Form 1062 (IRC §1062 deferral) is not modelled"
+   },
+   "sch_h:1": {
+    "status": "blocked",
+    "expected": 4100,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule H is not computed: household employment taxes are an entered amount (household_employment_taxes) (coverage: not in the coverage registry)"
+   },
+   "sch_h:3": {
+    "status": "blocked",
+    "expected": 4100,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule H is not computed: household employment taxes are an entered amount (household_employment_taxes) (coverage: not in the coverage registry)"
+   },
+   "sch_h:5": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule H is not computed: household employment taxes are an entered amount (household_employment_taxes) (coverage: not in the coverage registry)"
+   },
+   "sch_h:6": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule H is not computed: household employment taxes are an entered amount (household_employment_taxes) (coverage: not in the coverage registry)"
+   },
+   "sch_h:7": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule H is not computed: household employment taxes are an entered amount (household_employment_taxes) (coverage: not in the coverage registry)"
+   }
+  },
+  "echo": [],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {},
+  "engine_summary": {
+   "agi": "48100",
+   "taxable_income": "32000",
+   "total_tax": "3595",
+   "payments": "4050",
+   "refund": "455",
+   "amount_owed": "0"
+  }
+ }
+}

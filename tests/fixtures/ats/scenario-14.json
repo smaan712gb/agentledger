@@ -1,0 +1,1054 @@
+{
+ "scenario": 14,
+ "title": "ATS Test Scenario 14",
+ "taxpayer": "John Rosen",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form 1040 Schedule 3-A",
+  "Form 1040 Schedule EIC",
+  "Form 1040 Schedule 8812",
+  "Form W-2"
+ ],
+ "source": {
+  "file": "ty26-1040-ats-scenario-14.pdf",
+  "sha256": "56b3ee3429ee3c6adfa295514cec2134b106ff274171cbc5dd955ecb95167fd1",
+  "page_count": 8,
+  "pages_used": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "single",
+  "taxpayer": {
+   "first_name": "John",
+   "last_name": "Rosen",
+   "ssn": "400-00-1414"
+  },
+  "dependents": [
+   {
+    "first_name": "George",
+    "last_name": "Rosen",
+    "ssn": "400-00-1401",
+    "relationship": "son",
+    "months_in_home": 12,
+    "dob": "2016-07-01"
+   },
+   {
+    "first_name": "Abigail",
+    "last_name": "Rosen",
+    "ssn": "400-00-1402",
+    "relationship": "daughter",
+    "months_in_home": 12,
+    "dob": "2017-07-01"
+   }
+  ],
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "WILLOW FARMS",
+    "employer_ein": "00-0000014",
+    "wages": 35000,
+    "federal_withholding": 2000,
+    "ss_wages": 35000,
+    "ss_tax": 2170,
+    "medicare_wages": 35000,
+    "medicare_tax": 508
+   }
+  ],
+  "want_federal_public_benefit": true,
+  "citizen_or_qualified_alien": true
+ },
+ "provenance": [
+  {
+   "path": "filing_status",
+   "page": 2,
+   "source": "Form 1040 filing status checked: Single"
+  },
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "dependents[0]",
+   "page": 2,
+   "source": "Form 1040 dependents table, columns (1)-(4)"
+  },
+  {
+   "path": "dependents[1]",
+   "page": 2,
+   "source": "Form 1040 dependents table, columns (1)-(4)"
+  },
+  {
+   "path": "dependents[0].months_in_home",
+   "page": 5,
+   "source": "Schedule EIC line 6"
+  },
+  {
+   "path": "dependents[1].months_in_home",
+   "page": 5,
+   "source": "Schedule EIC line 6"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 8,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 8,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 8,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 8,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 8,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 8,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 8,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 8,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "want_federal_public_benefit",
+   "page": 4,
+   "source": "Schedule 3-A line 7: Yes"
+  },
+  {
+   "path": "citizen_or_qualified_alien",
+   "page": 4,
+   "source": "Schedule 3-A line 8: Yes"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "Form 1040 digital asset question: No",
+   "page": 2,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "dependents[0].dob",
+   "value": "2016-07-01",
+   "reason": "Schedule EIC line 3 gives only the year of birth (2016); no age test the engine applies to a child born in 2016 depends on the day",
+   "alternatives": [
+    "2016-01-02",
+    "2016-12-31"
+   ],
+   "page": 5
+  },
+  {
+   "path": "dependents[1].dob",
+   "value": "2017-07-01",
+   "reason": "Schedule EIC line 3 gives only the year of birth (2017); no age test the engine applies to a child born in 2017 depends on the day",
+   "alternatives": [
+    "2017-01-02",
+    "2017-12-31"
+   ],
+   "page": 5
+  }
+ ],
+ "ambiguities": [
+  {
+   "page": 1,
+   "note": "the taxpayer's date of birth is not stated (line 12d is not checked); the engine treats him as under 65"
+  },
+  {
+   "page": 4,
+   "note": "sch_3a line 1a prints 5141, but it repeats f1040 line 32a, which prints 7073"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 4,
+   "form": "sch_3a",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 1,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 5,
+   "form": "sch_eic",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 1,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 6,
+   "form": "sch_8812",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 7,
+   "form": "sch_8812",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 8,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  }
+ ],
+ "expected": [
+  {
+   "form": "f1040",
+   "line": "1a",
+   "page": 2,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "f1040",
+    "line": "1a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "1z",
+   "page": 2,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "f1040",
+    "line": "1z"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "9",
+   "page": 2,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "f1040",
+    "line": "9"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "11a",
+   "page": 2,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "f1040",
+    "line": "11a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "11b",
+   "page": 3,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "f1040",
+    "line": "11b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "12e",
+   "page": 3,
+   "value": 16100,
+   "printed": "16,100",
+   "engine": {
+    "form": "f1040",
+    "line": "12e"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "14",
+   "page": 3,
+   "value": 16100,
+   "printed": "16,100",
+   "engine": {
+    "form": "f1040",
+    "line": "14"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "15",
+   "page": 3,
+   "value": 18900,
+   "printed": "18,900",
+   "engine": {
+    "form": "f1040",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "16",
+   "page": 3,
+   "value": 2020,
+   "printed": "2,020",
+   "engine": {
+    "form": "f1040",
+    "line": "16"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "18",
+   "page": 3,
+   "value": 2020,
+   "printed": "2,020",
+   "engine": {
+    "form": "f1040",
+    "line": "18"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "19",
+   "page": 3,
+   "value": 2020,
+   "printed": "2,020",
+   "engine": {
+    "form": "f1040",
+    "line": "19"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "21",
+   "page": 3,
+   "value": 2020,
+   "printed": "2,020",
+   "engine": {
+    "form": "f1040",
+    "line": "21"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "22",
+   "page": 3,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "f1040",
+    "line": "22"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24a",
+   "page": 3,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "f1040",
+    "line": "24a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24c",
+   "page": 3,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "f1040",
+    "line": "24c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "25a",
+   "page": 3,
+   "value": 2000,
+   "printed": "2,000",
+   "engine": {
+    "form": "f1040",
+    "line": "25a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "25d",
+   "page": 3,
+   "value": 2000,
+   "printed": "2,000",
+   "engine": {
+    "form": "f1040",
+    "line": "25d"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "27a",
+   "page": 3,
+   "value": 4693,
+   "printed": "4,693",
+   "engine": {
+    "form": "f1040",
+    "line": "27a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "28",
+   "page": 3,
+   "value": 2380,
+   "printed": "2,380",
+   "engine": {
+    "form": "f1040",
+    "line": "28"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "32a",
+   "page": 3,
+   "value": 7073,
+   "printed": "7,073",
+   "engine": {
+    "form": "f1040",
+    "line": "32a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "32b",
+   "page": 3,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "f1040",
+    "line": "32b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "32c",
+   "page": 3,
+   "value": 7073,
+   "printed": "7,073",
+   "engine": {
+    "form": "f1040",
+    "line": "32c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "33",
+   "page": 3,
+   "value": 9073,
+   "printed": "9,073",
+   "engine": {
+    "form": "f1040",
+    "line": "33"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "34",
+   "page": 3,
+   "value": 9073,
+   "printed": "9,073",
+   "engine": {
+    "form": "f1040",
+    "line": "34"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "35a",
+   "page": 3,
+   "value": 9073,
+   "printed": "9,073",
+   "engine": {
+    "form": "f1040",
+    "line": "35a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3a",
+   "line": "1a",
+   "page": 4,
+   "value": 5141,
+   "printed": "5,141",
+   "engine": {
+    "form": "sch_3a",
+    "line": "1a"
+   },
+   "role": "ambiguous",
+   "note": "the scenario's own arithmetic contradicts this line (see ambiguities)"
+  },
+  {
+   "form": "sch_3a",
+   "line": "1b",
+   "page": 4,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_3a",
+    "line": "1b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3a",
+   "line": "2",
+   "page": 4,
+   "value": 5141,
+   "printed": "5,141",
+   "engine": {
+    "form": "sch_3a",
+    "line": "2"
+   },
+   "role": "ambiguous",
+   "note": "the scenario's own arithmetic contradicts this line (see ambiguities)"
+  },
+  {
+   "form": "sch_3a",
+   "line": "3",
+   "page": 4,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_3a",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3a",
+   "line": "4",
+   "page": 4,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_3a",
+    "line": "4"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3a",
+   "line": "5",
+   "page": 4,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_3a",
+    "line": "5"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3a",
+   "line": "6",
+   "page": 4,
+   "value": 5141,
+   "printed": "5,141",
+   "engine": {
+    "form": "sch_3a",
+    "line": "6"
+   },
+   "role": "ambiguous",
+   "note": "the scenario's own arithmetic contradicts this line (see ambiguities)"
+  },
+  {
+   "form": "sch_3a",
+   "line": "8",
+   "page": 4,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_3a",
+    "line": "8"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "1",
+   "page": 6,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "sch_8812",
+    "line": "1"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "3",
+   "page": 6,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "sch_8812",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "4",
+   "page": 6,
+   "value": 2,
+   "printed": "2",
+   "engine": {
+    "form": "sch_8812",
+    "fact": "4"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "5",
+   "page": 6,
+   "value": 4400,
+   "printed": "4,400",
+   "engine": {
+    "form": "sch_8812",
+    "line": "5"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "8",
+   "page": 6,
+   "value": 4400,
+   "printed": "4,400",
+   "engine": {
+    "form": "sch_8812",
+    "line": "8"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "9",
+   "page": 6,
+   "value": 200000,
+   "printed": "200,000",
+   "engine": {
+    "form": "sch_8812",
+    "line": "9"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "10",
+   "page": 6,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_8812",
+    "line": "10"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "11",
+   "page": 6,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_8812",
+    "line": "11"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "12",
+   "page": 6,
+   "value": 4400,
+   "printed": "4,400",
+   "engine": {
+    "form": "sch_8812",
+    "line": "12"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "13",
+   "page": 6,
+   "value": 2020,
+   "printed": "2,020",
+   "engine": {
+    "form": "sch_8812",
+    "line": "13"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "14",
+   "page": 6,
+   "value": 2020,
+   "printed": "2,020",
+   "engine": {
+    "form": "sch_8812",
+    "line": "14"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "16a",
+   "page": 7,
+   "value": 2380,
+   "printed": "2,380",
+   "engine": {
+    "form": "sch_8812",
+    "line": "16a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "16b",
+   "page": 7,
+   "value": 3400,
+   "printed": "3,400",
+   "engine": {
+    "form": "sch_8812",
+    "line": "16b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "16b",
+   "page": 7,
+   "value": 2,
+   "printed": "2",
+   "inline": true,
+   "engine": {
+    "form": "sch_8812",
+    "line": "16b"
+   },
+   "role": "info"
+  },
+  {
+   "form": "sch_8812",
+   "line": "17",
+   "page": 7,
+   "value": 2380,
+   "printed": "2,380",
+   "engine": {
+    "form": "sch_8812",
+    "line": "17"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "18a",
+   "page": 7,
+   "value": 35000,
+   "printed": "35,000",
+   "engine": {
+    "form": "sch_8812",
+    "line": "18a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "19",
+   "page": 7,
+   "value": 32500,
+   "printed": "32,500",
+   "engine": {
+    "form": "sch_8812",
+    "line": "19"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "20",
+   "page": 7,
+   "value": 4875,
+   "printed": "4,875",
+   "engine": {
+    "form": "sch_8812",
+    "line": "20"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_8812",
+   "line": "27",
+   "page": 7,
+   "value": 2380,
+   "printed": "2,380",
+   "engine": {
+    "form": "sch_8812",
+    "line": "27"
+   },
+   "role": "result"
+  }
+ ],
+ "gap_causes": [
+  {
+   "lines": "f1040:(16|18|19|21)|sch_8812:(13|14)",
+   "cause": "The scenario figures the tax on 18,900 by the rate schedule (1,240 + 12% of 6,500 = 2,020); the Tax Table, which the 2026 instructions prescribe below $100,000 and the engine follows, figures it at the row's midpoint, 18,925: 1,240 + 12% of 6,525 = 2,023. The child tax credit is limited to the tax (Credit Limit Worksheet A), so lines 19 and 21 and Schedule 8812 lines 13-14 follow."
+  },
+  {
+   "lines": "f1040:28|sch_8812:(16a|17|27)",
+   "cause": "Follows from the tax: the additional child tax credit is the child tax credit the tax cannot absorb (Schedule 8812 line 16a = 4,400 less line 14): 2,380 on the scenario's 2,020, 2,377 on the engine's 2,023."
+  },
+  {
+   "lines": "f1040:27a",
+   "cause": "The scenario's earned income credit of 4,693 is what the TY2025 amounts give for two children (maximum 7,152, phase-out from 23,350 at 21.06%, at the EIC Table midpoint 35,025: 7,152 - 2,459 = 4,693); the engine applies the 2026 amounts of Rev. Proc. 2025-32 §4.06 (maximum 7,316, phase-out from 23,890): 7,316 - 21.06% x 11,135 = 4,971."
+  },
+  {
+   "lines": "f1040:(32a|32c|33|34|35a)",
+   "cause": "Follows from lines 27a and 28 (the refundable credits)."
+  }
+ ],
+ "recorded": {
+  "matched": [
+   "f1040:11a",
+   "f1040:11b",
+   "f1040:12e",
+   "f1040:14",
+   "f1040:15",
+   "f1040:1a",
+   "f1040:1z",
+   "f1040:22",
+   "f1040:24a",
+   "f1040:24c",
+   "f1040:25a",
+   "f1040:25d",
+   "f1040:32b",
+   "f1040:9",
+   "sch_3a:1b",
+   "sch_3a:3",
+   "sch_3a:4",
+   "sch_3a:5",
+   "sch_3a:8",
+   "sch_8812:1",
+   "sch_8812:10",
+   "sch_8812:11",
+   "sch_8812:12",
+   "sch_8812:16b",
+   "sch_8812:18a",
+   "sch_8812:19",
+   "sch_8812:20",
+   "sch_8812:3",
+   "sch_8812:4",
+   "sch_8812:5",
+   "sch_8812:8",
+   "sch_8812:9"
+  ],
+  "known_gaps": {
+   "f1040:16": {
+    "status": "differs",
+    "expected": 2020,
+    "engine": 2023
+   },
+   "f1040:18": {
+    "status": "differs",
+    "expected": 2020,
+    "engine": 2023
+   },
+   "f1040:19": {
+    "status": "differs",
+    "expected": 2020,
+    "engine": 2023
+   },
+   "f1040:21": {
+    "status": "differs",
+    "expected": 2020,
+    "engine": 2023
+   },
+   "f1040:27a": {
+    "status": "differs",
+    "expected": 4693,
+    "engine": 4971
+   },
+   "f1040:28": {
+    "status": "differs",
+    "expected": 2380,
+    "engine": 2377
+   },
+   "f1040:32a": {
+    "status": "differs",
+    "expected": 7073,
+    "engine": 7348
+   },
+   "f1040:32c": {
+    "status": "differs",
+    "expected": 7073,
+    "engine": 7348
+   },
+   "f1040:33": {
+    "status": "differs",
+    "expected": 9073,
+    "engine": 9348
+   },
+   "f1040:34": {
+    "status": "differs",
+    "expected": 9073,
+    "engine": 9348
+   },
+   "f1040:35a": {
+    "status": "differs",
+    "expected": 9073,
+    "engine": 9348
+   },
+   "sch_8812:13": {
+    "status": "differs",
+    "expected": 2020,
+    "engine": 2023
+   },
+   "sch_8812:14": {
+    "status": "differs",
+    "expected": 2020,
+    "engine": 2023
+   },
+   "sch_8812:16a": {
+    "status": "differs",
+    "expected": 2380,
+    "engine": 2377
+   },
+   "sch_8812:17": {
+    "status": "differs",
+    "expected": 2380,
+    "engine": 2377
+   },
+   "sch_8812:27": {
+    "status": "differs",
+    "expected": 2380,
+    "engine": 2377
+   }
+  },
+  "echo": [],
+  "input_unshown": [],
+  "ambiguous": [
+   "sch_3a:1a",
+   "sch_3a:2",
+   "sch_3a:6"
+  ],
+  "blocking": [],
+  "sensitivity": {
+   "dependents[0].dob": [],
+   "dependents[1].dob": []
+  },
+  "engine_summary": {
+   "agi": "35000",
+   "taxable_income": "18900",
+   "total_tax": "0",
+   "payments": "9348",
+   "refund": "9348",
+   "amount_owed": "0"
+  }
+ }
+}

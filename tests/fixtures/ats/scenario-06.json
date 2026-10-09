@@ -1,0 +1,319 @@
+{
+ "scenario": 6,
+ "title": "ATS Test Scenario 6",
+ "taxpayer": "Jeremy Davidson",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form W-2",
+  "Form W-2G",
+  "Form 1040 Schedule 1",
+  "Form 1040 Schedule E"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-6-09222026.pdf",
+  "sha256": "43e5eeb8eb511cab7eda09148c57df9cdc962b0dcdb88365236536a408ba01fa",
+  "page_count": 10,
+  "pages_used": [
+   1,
+   2,
+   4,
+   5,
+   9
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "single",
+  "taxpayer": {
+   "first_name": "Jeremy",
+   "last_name": "Davidson",
+   "ssn": "400-00-1059",
+   "dob": "2008-01-20",
+   "can_be_claimed_as_dependent": true
+  },
+  "citizen_or_qualified_alien": true,
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "Nona's Italian Kitchen",
+    "employer_ein": "00-0000012",
+    "wages": 2300,
+    "federal_withholding": 985,
+    "ss_tax": 143,
+    "medicare_tax": 33,
+    "box12": {
+     "TT": 200
+    },
+    "tipped_occupation_code": 102
+   }
+  ],
+  "other_income": {
+   "8b": 2200
+  },
+  "k1s": [
+   {
+    "entity_name": "Davidson and Davidson",
+    "entity_ein": "00-0000022",
+    "entity_type": "partnership",
+    "passive": false,
+    "ordinary_income": -1000
+   },
+   {
+    "entity_name": "Davidson and Davidson",
+    "entity_ein": "00-0000022",
+    "entity_type": "partnership",
+    "passive": false,
+    "ordinary_income": 2200
+   }
+  ]
+ },
+ "provenance": [
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "taxpayer.dob",
+   "page": 1,
+   "source": "cover: Taxpayer's Date of Birth"
+  },
+  {
+   "path": "taxpayer.can_be_claimed_as_dependent",
+   "page": 1,
+   "source": "cover: can be claimed as a dependent on parents' return"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 4,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 4,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 4,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 4,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 4,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 4,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "w2s[0].box12",
+   "page": 4,
+   "source": "W-2 box 12 (code and amount)"
+  },
+  {
+   "path": "w2s[0].tipped_occupation_code",
+   "page": 4,
+   "source": "W-2 box 14b (Treasury tipped occupation code)"
+  },
+  {
+   "path": "other_income.8b",
+   "page": 5,
+   "source": "Form W-2G box 1 (reportable winnings), Schedule 1 line 8b"
+  },
+  {
+   "path": "k1s[0].ordinary_income",
+   "page": 9,
+   "source": "Schedule E line 28 row A, column (i)"
+  },
+  {
+   "path": "k1s[1].ordinary_income",
+   "page": 9,
+   "source": "Schedule E line 28 row A, column (k)"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "Form W-2G: payer and winner block (Lucky Bear Casino | 870 Winners Road | Riverton | WY 82501 | 800-001-1111 | 00-0000013 | Jeremy Davidson | 4703 Bucks Run | Riverton | WY 82501); box 2 date won 02/15/2026; box 3 type of wager Slot Machines; box 5 transaction 8888888; box 9 winner's TIN 400-00-1059",
+   "page": 5,
+   "effect": "the model has no W-2G document: the winnings enter Schedule 1 line 8b and box 4's withholding (0) Form 1040 line 25b would take nothing"
+  },
+  {
+   "fact": "Taxpayer is in a Partnership engaged in the trade or business of gambling.",
+   "page": 1,
+   "effect": "changes the return: the engine has no gambling loss limitation (IRC §165(d) as amended by P.L. 119-21 for 2026) and takes the partnership's amounts as stated on Schedule E"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "filing_status",
+   "value": "single",
+   "reason": "no filing status is checked on Form 1040; the return names no spouse and no dependent, which leaves Single (married filing separately would name the spouse, head of household and qualifying surviving spouse need a qualifying person)",
+   "page": 2
+  },
+  {
+   "path": "k1s",
+   "value": "two entries for one partnership",
+   "reason": "Schedule E line 28 row A prints a nonpassive loss allowed (column (i)) and nonpassive income (column (k)) for the same partnership without saying which Schedule K-1 boxes they come from; each enters as its own amount of ordinary income or loss",
+   "page": 9
+  }
+ ],
+ "ambiguities": [
+  {
+   "page": 4,
+   "note": "W-2 boxes 3 and 5 (social security and Medicare wages) are blank while boxes 4 and 6 show 143 and 33 withheld; the blank boxes are entered as zero"
+  },
+  {
+   "page": 5,
+   "note": "Form W-2G box 4: besides its 0, one glyph that no font of the PDF names is printed in the box; the box is read as 0"
+  },
+  {
+   "page": 5,
+   "note": "Form W-2G: '26' is typed at the right of the form's top row (the tax year); not read"
+  },
+  {
+   "page": 5,
+   "note": "whether the W-2G's 2200 of winnings is the taxpayer's own (Schedule 1 line 8b) or part of the gambling partnership's income on Schedule E (also 2200) is not stated; both are entered as printed"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 266
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 4,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 159
+  },
+  {
+   "page": 5,
+   "form": "w2g",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 1,
+   "repaired_glyphs": 182
+  },
+  {
+   "page": 6,
+   "form": "sch_1",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  },
+  {
+   "page": 7,
+   "form": "sch_1",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 8,
+   "form": "sch_e",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  },
+  {
+   "page": 9,
+   "form": "sch_e",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 77
+  },
+  {
+   "page": 10,
+   "form": "sch_e",
+   "part": 3,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  }
+ ],
+ "expected": [
+  {
+   "form": "sch_e",
+   "line": "26",
+   "page": 9,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_e",
+    "line": "26"
+   },
+   "role": "result"
+  }
+ ],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [
+   "sch_e:26"
+  ],
+  "known_gaps": {},
+  "echo": [],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [
+   "form_8615_living_parent_unknown",
+   "form_8615_support_unknown"
+  ],
+  "sensitivity": {},
+  "engine_summary": {
+   "agi": "5700",
+   "taxable_income": "2350",
+   "total_tax": "236",
+   "payments": "1018",
+   "refund": "782",
+   "amount_owed": "0"
+  }
+ }
+}

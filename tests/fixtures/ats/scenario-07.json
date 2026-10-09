@@ -1,0 +1,133 @@
+{
+ "scenario": 7,
+ "title": "ATS Test Scenario 7",
+ "taxpayer": "Teresa Morehouse",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 4868"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-7-09012026.pdf",
+  "sha256": "d1ae6dab30474fee750fa7be5b349c206a8cd99a08d5c7504ff543e696b3a9a4",
+  "page_count": 2,
+  "pages_used": [
+   1,
+   2
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": null,
+ "provenance": [],
+ "unmodelled": [
+  {
+   "fact": "Routing Transit Number: 012345678",
+   "page": 1,
+   "effect": "Form 4868 is not modelled (backlog T2-05): the extension and its electronic payment are a separate submission, not part of a Form 1040"
+  },
+  {
+   "fact": "Bank Account Number: 1234567",
+   "page": 1,
+   "effect": "Form 4868 is not modelled (backlog T2-05): the extension and its electronic payment are a separate submission, not part of a Form 1040"
+  },
+  {
+   "fact": "Bank Account Type: Checking",
+   "page": 1,
+   "effect": "Form 4868 is not modelled (backlog T2-05): the extension and its electronic payment are a separate submission, not part of a Form 1040"
+  },
+  {
+   "fact": "Payment Amount: $4,000",
+   "page": 1,
+   "effect": "Form 4868 is not modelled (backlog T2-05): the extension and its electronic payment are a separate submission, not part of a Form 1040"
+  },
+  {
+   "fact": "Payment Due Date: 3/25/2027",
+   "page": 1,
+   "effect": "Form 4868 is not modelled (backlog T2-05): the extension and its electronic payment are a separate submission, not part of a Form 1040"
+  },
+  {
+   "fact": "Taxpayer Phone Number: 1-800-444-6543",
+   "page": 1,
+   "effect": "Form 4868 is not modelled (backlog T2-05): the extension and its electronic payment are a separate submission, not part of a Form 1040"
+  },
+  {
+   "fact": "Form 4868 Part I (name, address, SSN): Teresa Morehouse | 2548 West Gate Street | Sunset Valley T X 78745 | 400-00-1042; Part II: {'4': 14000, '5': 8075} (line 6, the balance due, and line 7, the amount paid, are blank; the cover gives a $4,000 payment)",
+   "page": 2,
+   "effect": "Form 4868 is not modelled (backlog T2-05)"
+  }
+ ],
+ "assumptions": [],
+ "ambiguities": [
+  {
+   "page": 2,
+   "note": "Form 4868 line 6 (balance due, line 4 less line 5 = 5925) and line 7 (amount paying) are blank; the cover's payment of $4,000 is not printed on the form"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 8,
+   "repaired_glyphs": 264
+  },
+  {
+   "page": 2,
+   "form": "f4868",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 88
+  }
+ ],
+ "expected": [
+  {
+   "form": "f4868",
+   "line": "4",
+   "page": 2,
+   "value": 14000,
+   "printed": "14,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4868",
+   "line": "5",
+   "page": 2,
+   "value": 8075,
+   "printed": "8,075",
+   "engine": null,
+   "role": "result"
+  }
+ ],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [],
+  "known_gaps": {
+   "f4868:4": {
+    "status": "blocked",
+    "expected": 14000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4868 (extension of time to file) is not modelled (backlog T2-05) (coverage: not in the coverage registry); the scenario has no Form 1040"
+   },
+   "f4868:5": {
+    "status": "blocked",
+    "expected": 8075,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4868 (extension of time to file) is not modelled (backlog T2-05) (coverage: not in the coverage registry); the scenario has no Form 1040"
+   }
+  },
+  "echo": [],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {},
+  "engine_summary": {}
+ }
+}

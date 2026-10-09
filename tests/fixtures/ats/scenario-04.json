@@ -1,0 +1,463 @@
+{
+ "scenario": 4,
+ "title": "ATS Test Scenario 4",
+ "taxpayer": "Dani Lozano",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form W-2",
+  "Schedule 1",
+  "Schedule 3",
+  "Schedule 3-A",
+  "Form 2441",
+  "Form 8862",
+  "Form 8863",
+  "Schedule EIC",
+  "Schedule 8812"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-4-09222026.pdf",
+  "sha256": "ae8c0996690b9dc0430f2ecb86a6cf6d5f907be18a80a4c17719ee597bb1599f",
+  "page_count": 18,
+  "pages_used": [
+   1,
+   2,
+   4,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   15,
+   16
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "hoh",
+  "taxpayer": {
+   "first_name": "Dani",
+   "last_name": "Lozano",
+   "ssn": "400-00-1039",
+   "dob": "1997-02-05",
+   "blind": true,
+   "full_time_student": true
+  },
+  "citizen_or_qualified_alien": true,
+  "dependents": [
+   {
+    "first_name": "Drina",
+    "last_name": "Lozano",
+    "ssn": "400-00-1057",
+    "dob": "2018-07-04",
+    "relationship": "daughter",
+    "months_in_home": 12
+   },
+   {
+    "first_name": "Ezekiel",
+    "last_name": "Lozano",
+    "ssn": "400-00-1058",
+    "dob": "2020-01-23",
+    "relationship": "son",
+    "months_in_home": 12
+   }
+  ],
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "Publix Super Market, Inc.",
+    "employer_ein": "00-0000029",
+    "wages": 35545,
+    "federal_withholding": 3459,
+    "ss_wages": 35545,
+    "ss_tax": 2204,
+    "medicare_wages": 35545,
+    "medicare_tax": 515
+   }
+  ],
+  "dependent_care_expenses": 2300,
+  "dependent_care_qualifying_persons": 2,
+  "students": [
+   {
+    "name": "Dani Lozano",
+    "ssn": "400-00-1039",
+    "qualified_expenses": 890
+   }
+  ],
+  "want_federal_public_benefit": true
+ },
+ "provenance": [
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "taxpayer.dob",
+   "page": 1,
+   "source": "cover: Taxpayer's Date of Birth"
+  },
+  {
+   "path": "taxpayer.blind",
+   "page": 1,
+   "source": "cover: Taxpayer is legally blind"
+  },
+  {
+   "path": "taxpayer.full_time_student",
+   "page": 1,
+   "source": "cover: Taxpayer is a full-time student"
+  },
+  {
+   "path": "dependents[0]",
+   "page": 2,
+   "source": "Form 1040 dependents table, columns (1)-(4)"
+  },
+  {
+   "path": "dependents[1]",
+   "page": 2,
+   "source": "Form 1040 dependents table, columns (1)-(4)"
+  },
+  {
+   "path": "dependents[0].dob",
+   "page": 1,
+   "source": "cover: 1st Dependent Date of Birth"
+  },
+  {
+   "path": "dependents[0].months_in_home",
+   "page": 16,
+   "source": "Schedule EIC line 6"
+  },
+  {
+   "path": "dependents[1].dob",
+   "page": 1,
+   "source": "cover: 2nd Dependent Date of Birth"
+  },
+  {
+   "path": "dependents[1].months_in_home",
+   "page": 16,
+   "source": "Schedule EIC line 6"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 4,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 4,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 4,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 4,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 4,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 4,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 4,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 4,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "dependent_care_expenses",
+   "page": 9,
+   "source": "Form 2441 line 2, column (c), both qualifying persons"
+  },
+  {
+   "path": "dependent_care_qualifying_persons",
+   "page": 9,
+   "source": "Form 2441 line 2, one row per qualifying person"
+  },
+  {
+   "path": "students[0].qualified_expenses",
+   "page": 1,
+   "source": "cover: Adjusted Qualified Education Expenses on Form 8863"
+  },
+  {
+   "path": "want_federal_public_benefit",
+   "page": 8,
+   "source": "Schedule 3-A line 7: Yes"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "Form 2441 line 1: the care providers' names, addresses and identifying numbers",
+   "page": 9,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Form 8863 Part III: the educational institution (Florida Atlantic University | 777 Glades Road, Boca Raton, FL 33431 | 0 0 0 0 0 0 0 0 4)",
+   "page": 15,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Form 8862 page 1: 2 questions answered, in page order: No, No",
+   "page": 11,
+   "effect": "a filing requirement: the engine neither asks for Form 8862 nor attaches it; it figures the credits the same way"
+  },
+  {
+   "fact": "Form 8862 page 2: 8 questions answered, in page order: Yes, Yes, Yes, Yes, Yes, Yes, Yes, Yes",
+   "page": 12,
+   "effect": "a filing requirement: the engine neither asks for Form 8862 nor attaches it; it figures the credits the same way"
+  },
+  {
+   "fact": "Form 8862 page 3: 2 questions answered, in page order: Yes, No",
+   "page": 13,
+   "effect": "a filing requirement: the engine neither asks for Form 8862 nor attaches it; it figures the credits the same way"
+  },
+  {
+   "fact": "The taxpayer has $1,325 in moving expenses.",
+   "page": 1,
+   "effect": "changes the return only for a member of the Armed Forces (Form 3903), which the scenario does not state; the model has no moving expense input"
+  },
+  {
+   "fact": "The taxpayer is not a bona fide resident of Puerto Rico.",
+   "page": 1,
+   "effect": "none: the engine already assumes it"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "filing_status",
+   "value": "hoh",
+   "reason": "no filing status is checked; the cover and the forms describe an unmarried parent (no spouse named) whose two children lived with her all year (Schedule EIC line 6: 12 months) and who paid their care; whether she is considered unmarried and paid over half the cost of the home is not stated",
+   "alternatives": [
+    "single"
+   ],
+   "page": 2
+  },
+  {
+   "path": "students[0].aotc_years_claimed",
+   "value": 0,
+   "reason": "the American opportunity credit is claimed (Form 8862 Part IV is completed for the student), but the years it was claimed before are not stated; the model's default is 0",
+   "alternatives": [
+    4
+   ]
+  }
+ ],
+ "ambiguities": [],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 19,
+   "repaired_glyphs": 26
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 146
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 4,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 182
+  },
+  {
+   "page": 5,
+   "form": "sch_1",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 22
+  },
+  {
+   "page": 6,
+   "form": "sch_1",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 7,
+   "form": "sch_3",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 22
+  },
+  {
+   "page": 8,
+   "form": "sch_3a",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 24
+  },
+  {
+   "page": 9,
+   "form": "f2441",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 216
+  },
+  {
+   "page": 10,
+   "form": "f2441",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 1
+  },
+  {
+   "page": 11,
+   "form": "f8862",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 66
+  },
+  {
+   "page": 12,
+   "form": "f8862",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 26
+  },
+  {
+   "page": 13,
+   "form": "f8862",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 14,
+   "form": "f8863",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 41
+  },
+  {
+   "page": 15,
+   "form": "f8863",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 193
+  },
+  {
+   "page": 16,
+   "form": "sch_eic",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 124
+  },
+  {
+   "page": 17,
+   "form": "sch_8812",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 22
+  },
+  {
+   "page": 18,
+   "form": "sch_8812",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  }
+ ],
+ "expected": [
+  {
+   "form": "f2441",
+   "line": "23",
+   "page": 10,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "f2441",
+    "line": "23"
+   },
+   "role": "result"
+  }
+ ],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [
+   "f2441:23"
+  ],
+  "known_gaps": {},
+  "echo": [],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {
+   "filing_status": [],
+   "students[0].aotc_years_claimed": []
+  },
+  "engine_summary": {
+   "agi": "35545",
+   "taxable_income": "9345",
+   "total_tax": "0",
+   "payments": "12081",
+   "refund": "12081",
+   "amount_owed": "0"
+  }
+ }
+}

@@ -1,0 +1,1848 @@
+{
+ "scenario": 12,
+ "title": "ATS Test Scenario 12",
+ "taxpayer": "Sam Gardenia",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form 1040 Schedule 1",
+  "Form 1040 Schedule 2",
+  "Form 1040 Schedule 3",
+  "Form 1040 Schedule C",
+  "Form 1040 Schedule SE",
+  "Form 3800",
+  "Form 3800 Schedule A",
+  "Form 4562-B",
+  "Form 7205",
+  "Form 7207",
+  "Form 7220",
+  "Form W-2",
+  "Binary Attachment (\"Schedule A Form 3800\" signature)",
+  "Binary Attachment (Form 3800 Schedule A statement)",
+  "Binary Attachment (Form 7205 certification)",
+  "Binary Attachment (Form 7207 Designer Allocation)"
+ ],
+ "source": {
+  "file": "ty26-1040-ats-scenario-12.pdf",
+  "sha256": "6d44ae53fe842b804258ca1a49400f0cc5d15a17b6fdb0cc74c016927b54c9bf",
+  "page_count": 37,
+  "pages_used": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   13,
+   14,
+   24,
+   25,
+   30,
+   35,
+   36,
+   37
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "single",
+  "taxpayer": {
+   "first_name": "Sam",
+   "last_name": "Gardenia",
+   "ssn": "400-00-1212"
+  },
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "DESIGN LLC",
+    "employer_ein": "00-0000011",
+    "wages": 100836,
+    "federal_withholding": 14444,
+    "ss_wages": 105878,
+    "ss_tax": 6564,
+    "medicare_wages": 105878,
+    "medicare_tax": 1535,
+    "box12": {
+     "DD": 10315
+    }
+   }
+  ],
+  "businesses": [
+   {
+    "owner": "taxpayer",
+    "expenses": {
+     "insurance": 550,
+     "legal_professional": 125,
+     "office": 1000,
+     "rent_other": 2500,
+     "supplies": 6532,
+     "taxes_licenses": 200,
+     "energy_efficient_buildings": 5000,
+     "other": 667
+    },
+    "name": "ENERGY BUILD",
+    "principal_business_code": "541310",
+    "accounting_method": "cash",
+    "materially_participates": true,
+    "gross_receipts": 25235
+   }
+  ]
+ },
+ "provenance": [
+  {
+   "path": "filing_status",
+   "page": 2,
+   "source": "Form 1040 filing status checked: Single"
+  },
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 37,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 37,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 37,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 37,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 37,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 37,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 37,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 37,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "w2s[0].box12",
+   "page": 37,
+   "source": "W-2 box 12 (code and amount)"
+  },
+  {
+   "path": "businesses[0].name",
+   "page": 9,
+   "source": "Schedule C line C, business name"
+  },
+  {
+   "path": "businesses[0].principal_business_code",
+   "page": 9,
+   "source": "Schedule C line B"
+  },
+  {
+   "path": "businesses[0].accounting_method",
+   "page": 9,
+   "source": "Schedule C line F: Cash"
+  },
+  {
+   "path": "businesses[0].materially_participates",
+   "page": 9,
+   "source": "Schedule C line G: Yes"
+  },
+  {
+   "path": "businesses[0].gross_receipts",
+   "page": 9,
+   "source": "sch_c line 1"
+  },
+  {
+   "path": "businesses[0].expenses.insurance",
+   "page": 9,
+   "source": "sch_c line 15"
+  },
+  {
+   "path": "businesses[0].expenses.legal_professional",
+   "page": 9,
+   "source": "sch_c line 17"
+  },
+  {
+   "path": "businesses[0].expenses.office",
+   "page": 9,
+   "source": "sch_c line 18"
+  },
+  {
+   "path": "businesses[0].expenses.rent_other",
+   "page": 9,
+   "source": "sch_c line 20b"
+  },
+  {
+   "path": "businesses[0].expenses.supplies",
+   "page": 9,
+   "source": "sch_c line 22"
+  },
+  {
+   "path": "businesses[0].expenses.taxes_licenses",
+   "page": 9,
+   "source": "sch_c line 23"
+  },
+  {
+   "path": "businesses[0].expenses.energy_efficient_buildings",
+   "page": 9,
+   "source": "sch_c line 27a"
+  },
+  {
+   "path": "businesses[0].expenses.other",
+   "page": 9,
+   "source": "sch_c line 27b"
+  },
+  {
+   "path": "businesses[0].expenses.other",
+   "page": 10,
+   "source": "sch_c line 48"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "W-2 from DESIGN LLC: state boxes 15-17 (KY 00-0000056 100,836 3,420)",
+   "page": 37,
+   "effect": "state return data: no state is computed (T1-05)"
+  },
+  {
+   "fact": "Schedule C line A (principal business or profession): DESIGNER; line E address",
+   "page": 9,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Form 1040 digital asset question: No",
+   "page": 2,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Form 3800 (general business credit, Schedule 3 line 6a): pages [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]",
+   "page": 13,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Schedule A (Form 3800): pages [35]",
+   "page": 35,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Form 7207 (advanced manufacturing production credit): pages [25, 26, 27, 28, 29]",
+   "page": 25,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Form 7220 (prevailing wage and apprenticeship): pages [30, 31, 32, 33, 34]",
+   "page": 30,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Form 7205 (energy efficient commercial buildings deduction, taken as stated on Schedule C line 27a): pages [36]",
+   "page": 36,
+   "effect": "none for the amounts: the deduction enters as the Schedule C amount; the form itself is not modelled"
+  },
+  {
+   "fact": "Form 4562-B (amortization of business startup costs, taken as stated on Schedule C line 27b): pages [24]",
+   "page": 24,
+   "effect": "none for the amounts: the deduction enters as the Schedule C amount; the form itself is not modelled"
+  },
+  {
+   "fact": "Binary Attachment (\"Schedule A Form 3800\" signature)",
+   "page": 1,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03); binary PDF attachments"
+  },
+  {
+   "fact": "Binary Attachment (Form 3800 Schedule A statement)",
+   "page": 1,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03); binary PDF attachments"
+  },
+  {
+   "fact": "Binary Attachment (Form 7205 certification)",
+   "page": 1,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03); binary PDF attachments"
+  },
+  {
+   "fact": "Binary Attachment (Form 7207 Designer Allocation)",
+   "page": 1,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03); binary PDF attachments"
+  },
+  {
+   "fact": "Schedule C Part V (other expenses): FORM 4562-B AMORTIZATION OF BUSINESS STARTUP COSTS 667",
+   "page": 10,
+   "effect": "none: the total (line 48) enters as Schedule C line 27b"
+  }
+ ],
+ "assumptions": [],
+ "ambiguities": [
+  {
+   "page": 1,
+   "note": "the taxpayer's date of birth is not stated (Form 1040 line 12d is not checked: born after January 1, 1962); the engine treats him as under 65"
+  },
+  {
+   "page": 13,
+   "note": "f3800: the amount 1 is typed on no numbered line (at x 539, y 624); not read"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 4,
+   "form": "sch_1",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 5,
+   "form": "sch_1",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 6,
+   "form": "sch_2",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 7,
+   "form": "sch_2",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 8,
+   "form": "sch_3",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 9,
+   "form": "sch_c",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 10,
+   "form": "sch_c",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 11,
+   "form": "sch_se",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 12,
+   "form": "sch_se",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 13,
+   "form": "f3800",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 14,
+   "form": "f3800",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 15,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 16,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 17,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 18,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 19,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 20,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 21,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 22,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 23,
+   "form": "f3800",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 24,
+   "form": "f4562b",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 25,
+   "form": "f7207",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 26,
+   "form": "f7207",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 27,
+   "form": "f7207",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 28,
+   "form": "f7207",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 29,
+   "form": "f7207",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 30,
+   "form": "f7220",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 31,
+   "form": "f7220",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 32,
+   "form": "f7220",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 33,
+   "form": "f7220",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 34,
+   "form": "f7220",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 35,
+   "form": "f3800_sch_a",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 36,
+   "form": "f7205",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 37,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  }
+ ],
+ "expected": [
+  {
+   "form": "f1040",
+   "line": "1a",
+   "page": 2,
+   "value": 100836,
+   "printed": "100,836",
+   "engine": {
+    "form": "f1040",
+    "line": "1a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "1z",
+   "page": 2,
+   "value": 100836,
+   "printed": "100,836",
+   "engine": {
+    "form": "f1040",
+    "line": "1z"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "8",
+   "page": 2,
+   "value": 8661,
+   "printed": "8,661",
+   "engine": {
+    "form": "f1040",
+    "line": "8"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "9",
+   "page": 2,
+   "value": 109497,
+   "printed": "109,497",
+   "engine": {
+    "form": "f1040",
+    "line": "9"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "10",
+   "page": 2,
+   "value": 612,
+   "printed": "612",
+   "engine": {
+    "form": "f1040",
+    "line": "10"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "11a",
+   "page": 2,
+   "value": 108885,
+   "printed": "108,885",
+   "engine": {
+    "form": "f1040",
+    "line": "11a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "11b",
+   "page": 3,
+   "value": 108885,
+   "printed": "108,885",
+   "engine": {
+    "form": "f1040",
+    "line": "11b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "12e",
+   "page": 3,
+   "value": 16100,
+   "printed": "16,100",
+   "engine": {
+    "form": "f1040",
+    "line": "12e"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "14",
+   "page": 3,
+   "value": 16100,
+   "printed": "16,100",
+   "engine": {
+    "form": "f1040",
+    "line": "14"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "15",
+   "page": 3,
+   "value": 92785,
+   "printed": "92,785",
+   "engine": {
+    "form": "f1040",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "16",
+   "page": 3,
+   "value": 15125,
+   "printed": "15,125",
+   "engine": {
+    "form": "f1040",
+    "line": "16"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "18",
+   "page": 3,
+   "value": 15125,
+   "printed": "15,125",
+   "engine": {
+    "form": "f1040",
+    "line": "18"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "20",
+   "page": 3,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "f1040",
+    "line": "20"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "21",
+   "page": 3,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "f1040",
+    "line": "21"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "22",
+   "page": 3,
+   "value": 5125,
+   "printed": "5,125",
+   "engine": {
+    "form": "f1040",
+    "line": "22"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "23",
+   "page": 3,
+   "value": 1224,
+   "printed": "1,224",
+   "engine": {
+    "form": "f1040",
+    "line": "23"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24a",
+   "page": 3,
+   "value": 6349,
+   "printed": "6,349",
+   "engine": {
+    "form": "f1040",
+    "line": "24a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24c",
+   "page": 3,
+   "value": 6349,
+   "printed": "6,349",
+   "engine": {
+    "form": "f1040",
+    "line": "24c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "25a",
+   "page": 3,
+   "value": 14444,
+   "printed": "14,444",
+   "engine": {
+    "form": "f1040",
+    "line": "25a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "25d",
+   "page": 3,
+   "value": 14444,
+   "printed": "14,444",
+   "engine": {
+    "form": "f1040",
+    "line": "25d"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "33",
+   "page": 3,
+   "value": 14444,
+   "printed": "14,444",
+   "engine": {
+    "form": "f1040",
+    "line": "33"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "34",
+   "page": 3,
+   "value": 8095,
+   "printed": "8,095",
+   "engine": {
+    "form": "f1040",
+    "line": "34"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "35a",
+   "page": 3,
+   "value": 8095,
+   "printed": "8,095",
+   "engine": {
+    "form": "f1040",
+    "line": "35a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "3",
+   "page": 4,
+   "value": 8661,
+   "printed": "8,661",
+   "engine": {
+    "form": "sch_1",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "10",
+   "page": 4,
+   "value": 8661,
+   "printed": "8,661",
+   "engine": {
+    "form": "sch_1",
+    "line": "10"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "15",
+   "page": 5,
+   "value": 612,
+   "printed": "612",
+   "engine": {
+    "form": "sch_1",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "26",
+   "page": 5,
+   "value": 612,
+   "printed": "612",
+   "engine": {
+    "form": "sch_1",
+    "line": "26"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_2",
+   "line": "4",
+   "page": 6,
+   "value": 1224,
+   "printed": "1,224",
+   "engine": {
+    "form": "sch_2",
+    "line": "4"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_2",
+   "line": "15",
+   "page": 7,
+   "value": 1224,
+   "printed": "1,224",
+   "engine": {
+    "form": "sch_2",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_2",
+   "line": "21",
+   "page": 7,
+   "value": 1224,
+   "printed": "1,224",
+   "engine": {
+    "form": "sch_2",
+    "line": "21"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "6a",
+   "page": 8,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "sch_3",
+    "line": "6a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "7",
+   "page": 8,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "sch_3",
+    "line": "7"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "8",
+   "page": 8,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "sch_3",
+    "line": "8"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "1",
+   "page": 9,
+   "value": 25235,
+   "printed": "25,235",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "1"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "3",
+   "page": 9,
+   "value": 25235,
+   "printed": "25,235",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "5",
+   "page": 9,
+   "value": 25235,
+   "printed": "25,235",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "5"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "7",
+   "page": 9,
+   "value": 25235,
+   "printed": "25,235",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "7"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "18",
+   "page": 9,
+   "value": 1000,
+   "printed": "1,000",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "18"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "20b",
+   "page": 9,
+   "value": 2500,
+   "printed": "2,500",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "20b"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "22",
+   "page": 9,
+   "value": 6532,
+   "printed": "6,532",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "22"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "23",
+   "page": 9,
+   "value": 200,
+   "printed": "200",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "23"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "27a",
+   "page": 9,
+   "value": 5000,
+   "printed": "5,000",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "27a"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "27b",
+   "page": 9,
+   "value": 667,
+   "printed": "667",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "27b"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "15",
+   "page": 9,
+   "value": 550,
+   "printed": "550",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "15"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "17",
+   "page": 9,
+   "value": 125,
+   "printed": "125",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "17"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "28",
+   "page": 9,
+   "value": 16574,
+   "printed": "16,574",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "28"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "29",
+   "page": 9,
+   "value": 8661,
+   "printed": "8,661",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "29"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "31",
+   "page": 9,
+   "value": 8661,
+   "printed": "8,661",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "31"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_c",
+   "line": "48",
+   "page": 10,
+   "value": 667,
+   "printed": "667",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "27b"
+   },
+   "note": "printed on sch_c line 48; Part V total, which Schedule C line 27b repeats; the engine keeps line 27b only",
+   "role": "input"
+  },
+  {
+   "form": "sch_se",
+   "line": "2",
+   "page": 11,
+   "value": 8661,
+   "printed": "8,661",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "2"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "3",
+   "page": 11,
+   "value": 8661,
+   "printed": "8,661",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "4a",
+   "page": 11,
+   "value": 7998,
+   "printed": "7,998",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "4a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "4c",
+   "page": 11,
+   "value": 7998,
+   "printed": "7,998",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "4c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "6",
+   "page": 11,
+   "value": 7998,
+   "printed": "7,998",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "6"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "8a",
+   "page": 11,
+   "value": 105878,
+   "printed": "105,878",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "8a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "8d",
+   "page": 11,
+   "value": 105878,
+   "printed": "105,878",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "8d"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "9",
+   "page": 11,
+   "value": 78622,
+   "printed": "78,622",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "9"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "10",
+   "page": 11,
+   "value": 992,
+   "printed": "992",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "10"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "11",
+   "page": 11,
+   "value": 232,
+   "printed": "232",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "11"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "12",
+   "page": 11,
+   "value": 1224,
+   "printed": "1,224",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "12"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "13",
+   "page": 11,
+   "value": 612,
+   "printed": "612",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "13"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "1",
+   "page": 13,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "6",
+   "page": 13,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "7",
+   "page": 13,
+   "value": 16147,
+   "printed": "16,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "9",
+   "page": 13,
+   "value": 16147,
+   "printed": "16,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "11",
+   "page": 13,
+   "value": 16147,
+   "printed": "16,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "12",
+   "page": 13,
+   "value": 16147,
+   "printed": "16,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "13",
+   "page": 13,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "15",
+   "page": 13,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "16",
+   "page": 13,
+   "value": 16147,
+   "printed": "16,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "17",
+   "page": 13,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "26",
+   "page": 14,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "27",
+   "page": 14,
+   "value": 16147,
+   "printed": "16,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "28",
+   "page": 14,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "29",
+   "page": 14,
+   "value": 6147,
+   "printed": "6,147",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "30",
+   "page": 14,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "36",
+   "page": 14,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "37",
+   "page": 14,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f3800",
+   "line": "38",
+   "page": 14,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  }
+ ],
+ "gap_causes": [
+  {
+   "lines": "f1040:(14|15)",
+   "cause": "The scenario takes no qualified business income deduction (Form 1040 line 13b is blank). The engine figures 1,610: 20% of Schedule C's 8,661 less the deductible part of self-employment tax (612) (Form 8995); nothing in the scenario rules the deduction out."
+  },
+  {
+   "lines": "f1040:(16|18)",
+   "cause": "Taxable income differs by the QBI deduction. On its own taxable income of 92,785 the scenario's tax of 15,125 is the rate schedule's exact amount; the Tax Table, which the 2026 instructions prescribe below $100,000 and the engine follows, gives 15,123 for that amount (midpoint 92,775). The engine's 14,771 is the Tax Table amount on its taxable income of 91,175 (midpoint 91,175)."
+  },
+  {
+   "lines": "f1040:(20|21|22|24a|24c|34|35a)|sch_3:(7|8)",
+   "cause": "Form 3800 (the 10,000 general business credit on Schedule 3 line 6a, from Form 7207) is not modelled, so the engine has no credit on Schedule 3 lines 6a-8 and Form 1040 lines 20-21; the lines after them follow (the engine's return owes 1,551 where the scenario's is refunded 8,095)."
+  }
+ ],
+ "recorded": {
+  "matched": [
+   "f1040:10",
+   "f1040:11a",
+   "f1040:11b",
+   "f1040:12e",
+   "f1040:1a",
+   "f1040:1z",
+   "f1040:23",
+   "f1040:25a",
+   "f1040:25d",
+   "f1040:33",
+   "f1040:8",
+   "f1040:9",
+   "sch_1:10",
+   "sch_1:15",
+   "sch_1:26",
+   "sch_1:3",
+   "sch_2:15",
+   "sch_2:21",
+   "sch_2:4",
+   "sch_c#1:28",
+   "sch_c#1:29",
+   "sch_c#1:3",
+   "sch_c#1:31",
+   "sch_c#1:5",
+   "sch_c#1:7",
+   "sch_se#taxpayer:10",
+   "sch_se#taxpayer:11",
+   "sch_se#taxpayer:12",
+   "sch_se#taxpayer:13",
+   "sch_se#taxpayer:2",
+   "sch_se#taxpayer:3",
+   "sch_se#taxpayer:4a",
+   "sch_se#taxpayer:4c",
+   "sch_se#taxpayer:6",
+   "sch_se#taxpayer:8a",
+   "sch_se#taxpayer:8d",
+   "sch_se#taxpayer:9"
+  ],
+  "known_gaps": {
+   "f1040:14": {
+    "status": "differs",
+    "expected": 16100,
+    "engine": 17710
+   },
+   "f1040:15": {
+    "status": "differs",
+    "expected": 92785,
+    "engine": 91175
+   },
+   "f1040:16": {
+    "status": "differs",
+    "expected": 15125,
+    "engine": 14771
+   },
+   "f1040:18": {
+    "status": "differs",
+    "expected": 15125,
+    "engine": 14771
+   },
+   "f1040:20": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "f1040:21": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "f1040:22": {
+    "status": "differs",
+    "expected": 5125,
+    "engine": 14771
+   },
+   "f1040:24a": {
+    "status": "differs",
+    "expected": 6349,
+    "engine": 15995
+   },
+   "f1040:24c": {
+    "status": "differs",
+    "expected": 6349,
+    "engine": 15995
+   },
+   "f1040:34": {
+    "status": "differs",
+    "expected": 8095,
+    "engine": 0
+   },
+   "f1040:35a": {
+    "status": "differs",
+    "expected": 8095,
+    "engine": 0
+   },
+   "f3800:1": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:11": {
+    "status": "blocked",
+    "expected": 16147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:12": {
+    "status": "blocked",
+    "expected": 16147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:13": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:15": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:16": {
+    "status": "blocked",
+    "expected": 16147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:17": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:26": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:27": {
+    "status": "blocked",
+    "expected": 16147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:28": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:29": {
+    "status": "blocked",
+    "expected": 6147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:30": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:36": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:37": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:38": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:6": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:7": {
+    "status": "blocked",
+    "expected": 16147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f3800:9": {
+    "status": "blocked",
+    "expected": 16147,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 3800 (general business credit) is not modelled (coverage: not in the coverage registry)"
+   },
+   "sch_3:6a": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "line_not_computed",
+    "detail": "Form 3800 (general business credit) is not modelled"
+   },
+   "sch_3:7": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "sch_3:8": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   }
+  },
+  "echo": [
+   "sch_c#1:1",
+   "sch_c#1:15",
+   "sch_c#1:17",
+   "sch_c#1:18",
+   "sch_c#1:20b",
+   "sch_c#1:22",
+   "sch_c#1:23",
+   "sch_c#1:27a",
+   "sch_c#1:27b",
+   "sch_c#1:48"
+  ],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {},
+  "engine_summary": {
+   "agi": "108885",
+   "taxable_income": "91175",
+   "total_tax": "15995",
+   "payments": "14444",
+   "refund": "0",
+   "amount_owed": "1551"
+  }
+ }
+}

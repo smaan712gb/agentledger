@@ -1,0 +1,188 @@
+{
+ "scenario": 5,
+ "title": "ATS Test Scenario 5",
+ "taxpayer": "Sam Wheat",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form W-2",
+  "Form 8888"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-5-09222026.pdf",
+  "sha256": "fb94f6a34c6419243e2ca55a94e060a6664bc2730ebfc20cbaef1a893031b30b",
+  "page_count": 5,
+  "pages_used": [
+   1,
+   2,
+   4,
+   5
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "single",
+  "taxpayer": {
+   "first_name": "Sam",
+   "last_name": "Wheat",
+   "ssn": "400-00-1037",
+   "dob": "1986-02-07"
+  },
+  "citizen_or_qualified_alien": true,
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "Doughnut Castle",
+    "employer_ein": "00-0000057",
+    "wages": 50510,
+    "federal_withholding": 10268,
+    "ss_wages": 50510,
+    "ss_tax": 3132,
+    "medicare_wages": 50510,
+    "medicare_tax": 732
+   }
+  ]
+ },
+ "provenance": [
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "taxpayer.dob",
+   "page": 1,
+   "source": "cover: Taxpayer's Date of Birth"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 4,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 4,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 4,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 4,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 4,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 4,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 4,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 4,
+   "source": "W-2 box 6"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "Allocate the Taxpayer's refund on Form 8888 as follows, $1,000 into saving account and the remainder of refund should be deposited into the checking account.",
+   "page": 1,
+   "effect": "filing data: the engine figures the refund (Form 1040 line 35a) but has no direct deposit or Form 8888 model"
+  },
+  {
+   "fact": "Form 8888 lines 1b-2d (line 1: routing 012345672, account 12345678, Checking; line 2: routing 012345672, account 1234567, Savings); lines 1a and 2a, the amounts, are blank",
+   "page": 5,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "filing_status",
+   "value": "single",
+   "reason": "no filing status is checked on Form 1040; the return names no spouse and no dependent, which leaves Single (married filing separately would name the spouse, head of household and qualifying surviving spouse need a qualifying person)",
+   "page": 2
+  }
+ ],
+ "ambiguities": [],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 11,
+   "repaired_glyphs": 385
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 4,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 153
+  },
+  {
+   "page": 5,
+   "form": "f8888",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 193
+  }
+ ],
+ "expected": [],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [],
+  "known_gaps": {},
+  "echo": [],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {},
+  "engine_summary": {
+   "agi": "50510",
+   "taxable_income": "34410",
+   "total_tax": "3883",
+   "payments": "10268",
+   "refund": "6385",
+   "amount_owed": "0"
+  }
+ }
+}

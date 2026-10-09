@@ -1,0 +1,696 @@
+{
+ "scenario": 2,
+ "title": "ATS Test Scenario 2",
+ "taxpayer": "James and June Brown",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form W-2 (2)",
+  "Schedule 1",
+  "Schedule A",
+  "Schedule C",
+  "Form 8283"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-2-09222026.pdf",
+  "sha256": "b2d58c490b489294cb80137c5755e28f2bba806aa9329248311b81e58d932915",
+  "page_count": 13,
+  "pages_used": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "mfj",
+  "taxpayer": {
+   "first_name": "James",
+   "last_name": "Brown",
+   "ssn": "400-00-1038",
+   "dob": "1978-08-02"
+  },
+  "spouse": {
+   "first_name": "June",
+   "last_name": "Brown",
+   "ssn": "400-00-1071",
+   "dob": "1979-03-19"
+  },
+  "citizen_or_qualified_alien": true,
+  "dependents": [
+   {
+    "first_name": "Jonah",
+    "last_name": "Brown",
+    "ssn": "400-00-1070",
+    "dob": "2010-07-20",
+    "relationship": "son",
+    "full_time_student": true,
+    "months_in_home": 12
+   }
+  ],
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "Coca-Cola Beverages Northeast",
+    "employer_ein": "00-1111111",
+    "wages": 29623,
+    "federal_withholding": 923,
+    "ss_wages": 29623,
+    "ss_tax": 1837,
+    "medicare_wages": 29623,
+    "medicare_tax": 430
+   },
+   {
+    "owner": "spouse",
+    "employer_name": "Extra Space Storage",
+    "employer_ein": "00-0000013",
+    "wages": 8645,
+    "federal_withholding": 170,
+    "ss_wages": 8645,
+    "ss_tax": 536,
+    "medicare_wages": 8645,
+    "medicare_tax": 125
+   }
+  ],
+  "itemized": {
+   "state_local_income_tax": 1045,
+   "real_estate_tax": 8955,
+   "mortgage_interest_1098": 11150,
+   "points_not_on_1098": 260,
+   "mortgage_insurance_premiums": 2316,
+   "charity_cash": 250,
+   "charity_noncash": 730
+  },
+  "businesses": [
+   {
+    "owner": "taxpayer",
+    "expenses": {
+     "advertising": 865,
+     "car_truck": 470,
+     "pension_profit_sharing": 560,
+     "supplies": 600,
+     "taxes_licenses": 60
+    },
+    "name": "Landscaper",
+    "principal_business_code": "541320",
+    "gross_receipts": 0
+   }
+  ],
+  "payments": {
+   "prior_year_overpayment_applied": 300
+  }
+ },
+ "provenance": [
+  {
+   "path": "taxpayer.dob",
+   "page": 1,
+   "source": "cover: Primary Taxpayer's Date of Birth"
+  },
+  {
+   "path": "spouse.dob",
+   "page": 1,
+   "source": "cover: Secondary Taxpayer's Date of Birth"
+  },
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "dependents[0]",
+   "page": 2,
+   "source": "Form 1040 dependents table, columns (1)-(4)"
+  },
+  {
+   "path": "dependents[0].dob",
+   "page": 1,
+   "source": "cover: Dependent's Date of Birth"
+  },
+  {
+   "path": "dependents[0].full_time_student",
+   "page": 1,
+   "source": "cover: full time high school student"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 4,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 4,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 4,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 4,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 4,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 4,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 4,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 4,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "w2s[1].employer_name",
+   "page": 5,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[1].employer_ein",
+   "page": 5,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[1].wages",
+   "page": 5,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[1].federal_withholding",
+   "page": 5,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[1].ss_wages",
+   "page": 5,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[1].ss_tax",
+   "page": 5,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[1].medicare_wages",
+   "page": 5,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[1].medicare_tax",
+   "page": 5,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "itemized.state_local_income_tax",
+   "page": 8,
+   "source": "sch_a line 5a"
+  },
+  {
+   "path": "itemized.real_estate_tax",
+   "page": 8,
+   "source": "sch_a line 5b"
+  },
+  {
+   "path": "itemized.mortgage_interest_1098",
+   "page": 8,
+   "source": "sch_a line 8a"
+  },
+  {
+   "path": "itemized.points_not_on_1098",
+   "page": 8,
+   "source": "sch_a line 8c"
+  },
+  {
+   "path": "itemized.mortgage_insurance_premiums",
+   "page": 8,
+   "source": "sch_a line 8d"
+  },
+  {
+   "path": "itemized.charity_cash",
+   "page": 9,
+   "source": "sch_a line 11"
+  },
+  {
+   "path": "itemized.charity_noncash",
+   "page": 12,
+   "source": "Form 8283 Section A line 1, column (h) fair market value"
+  },
+  {
+   "path": "businesses[0].name",
+   "page": 10,
+   "source": "Schedule C line A, principal business or profession (line C, the business name, is blank)"
+  },
+  {
+   "path": "businesses[0].principal_business_code",
+   "page": 10,
+   "source": "Schedule C line B"
+  },
+  {
+   "path": "businesses[0].expenses.advertising",
+   "page": 10,
+   "source": "sch_c line 8"
+  },
+  {
+   "path": "businesses[0].expenses.car_truck",
+   "page": 10,
+   "source": "sch_c line 9"
+  },
+  {
+   "path": "businesses[0].expenses.pension_profit_sharing",
+   "page": 10,
+   "source": "sch_c line 19"
+  },
+  {
+   "path": "businesses[0].expenses.supplies",
+   "page": 10,
+   "source": "sch_c line 22"
+  },
+  {
+   "path": "businesses[0].expenses.taxes_licenses",
+   "page": 10,
+   "source": "sch_c line 23"
+  },
+  {
+   "path": "businesses[0] (line 30 is 0: no business use of the home, the model's default)",
+   "page": 10,
+   "source": "sch_c line 30"
+  },
+  {
+   "path": "payments.prior_year_overpayment_applied",
+   "page": 1,
+   "source": "cover: estimated tax payment applied from the 2025 return"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "W-2 from Coca-Cola Beverages Northeast: state boxes 15-17 (CT 00-0000056 29,623 930)",
+   "page": 4,
+   "effect": "state return data: no state is computed (T1-05)"
+  },
+  {
+   "fact": "W-2 from Extra Space Storage: state boxes 15-17 (CT 00-0000056 8,645 115)",
+   "page": 5,
+   "effect": "state return data: no state is computed (T1-05)"
+  },
+  {
+   "fact": "Form 8283 Section A: donee Goodwill, clothes and toys, contributed 11/15/2026, acquired Various by Purchase, donor's cost 3,490, fair market value 730 by Thrift Store Value",
+   "page": 12,
+   "effect": "filing data: Form 8283 is not modelled; its fair market value enters Schedule A line 12 (charity_noncash)"
+  },
+  {
+   "fact": "Schedule C Part IV vehicle information (line 43 date placed in service; lines 44a-44c business, commuting and other miles): 8 23 2025 | 648 710 15,150",
+   "page": 11,
+   "effect": "the engine takes car and truck expenses as the amount on line 9; it does not figure them from miles"
+  },
+  {
+   "fact": "Assume all mileage occurred before July 1, 2026 on Schedule C, Part IV, Line 44a.",
+   "page": 1,
+   "effect": "the engine takes car and truck expenses as the amount on Schedule C line 9"
+  },
+  {
+   "fact": "The Taxpayers are patrons in a specified agricultural cooperative; therefore, they do not qualify for the Qualified Business Income Deduction",
+   "page": 1,
+   "effect": "changes the return when Schedule C has qualified business income: the engine has no input that withholds the deduction, and IRC §199A(g) is not modelled (here Schedule C is a loss, so no deduction is figured)"
+  },
+  {
+   "fact": "Spouse Identity Protection PIN is 876543.",
+   "page": 1,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Form 1040 signature area: spouse IP PIN and the paid preparer's block (8 7 6 5 4 3 | Walter Young Walter Young 4/5/2027 P00000001 | Young's Tax Service 800-123-4567 | 1111 New York Avenue New York, NY 10022 00-0000079)",
+   "page": 3,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "filing_status",
+   "value": "mfj",
+   "reason": "no filing status is checked; the spouse is named on Form 1040's joint-return line and the cover speaks of the Taxpayer and Spouse",
+   "page": 2
+  },
+  {
+   "path": "dependents[0].months_in_home",
+   "value": 12,
+   "reason": "Form 1040's column (5) (lived with you more than half of 2026) is not checked in this input-only scenario; any value over 6 months makes the son a qualifying child",
+   "alternatives": [
+    7
+   ],
+   "page": 2
+  },
+  {
+   "path": "businesses[0].gross_receipts",
+   "value": 0,
+   "reason": "Schedule C line 1 (gross receipts) is blank in this input-only scenario; no receipts are stated",
+   "page": 10
+  }
+ ],
+ "ambiguities": [
+  {
+   "page": 8,
+   "note": "Schedule A is attached, but the scenario does not say whether to itemize; the entries total less than the 2026 standard deduction for a joint return, and the engine takes the larger of the two"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 14,
+   "repaired_glyphs": 530
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 136
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 159
+  },
+  {
+   "page": 4,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 213
+  },
+  {
+   "page": 5,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 198
+  },
+  {
+   "page": 6,
+   "form": "sch_1",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 32
+  },
+  {
+   "page": 7,
+   "form": "sch_1",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 1
+  },
+  {
+   "page": 8,
+   "form": "sch_a",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 57
+  },
+  {
+   "page": 9,
+   "form": "sch_a",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 3
+  },
+  {
+   "page": 10,
+   "form": "sch_c",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 128
+  },
+  {
+   "page": 11,
+   "form": "sch_c",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 57
+  },
+  {
+   "page": 12,
+   "form": "f8283",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 183
+  },
+  {
+   "page": 13,
+   "form": "f8283",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 32
+  }
+ ],
+ "expected": [
+  {
+   "form": "sch_1",
+   "line": "26",
+   "page": 7,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_1",
+    "line": "26"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_a",
+   "line": "5a",
+   "page": 8,
+   "value": 1045,
+   "printed": "1,045",
+   "engine": {
+    "form": "sch_a",
+    "line": "5a"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_a",
+   "line": "5b",
+   "page": 8,
+   "value": 8955,
+   "printed": "8,955",
+   "engine": {
+    "form": "sch_a",
+    "line": "5b"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_a",
+   "line": "8a",
+   "page": 8,
+   "value": 11150,
+   "printed": "11,150",
+   "engine": {
+    "form": "sch_a",
+    "line": "8a"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_a",
+   "line": "8c",
+   "page": 8,
+   "value": 260,
+   "printed": "260",
+   "engine": {
+    "form": "sch_a",
+    "line": "8c"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_a",
+   "line": "8d",
+   "page": 8,
+   "value": 2316,
+   "printed": "2,316",
+   "engine": {
+    "form": "sch_a",
+    "line": "8d"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_a",
+   "line": "11",
+   "page": 9,
+   "value": 250,
+   "printed": "250",
+   "engine": {
+    "form": "sch_a",
+    "line": "11"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "8",
+   "page": 10,
+   "value": 865,
+   "printed": "865",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "8"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "19",
+   "page": 10,
+   "value": 560,
+   "printed": "560",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "19"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "22",
+   "page": 10,
+   "value": 600,
+   "printed": "600",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "22"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "23",
+   "page": 10,
+   "value": 60,
+   "printed": "60",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "23"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "9",
+   "page": 10,
+   "value": 470,
+   "printed": "470",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "9"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_c",
+   "line": "30",
+   "page": 10,
+   "value": 0,
+   "printed": "0",
+   "instance": "1",
+   "engine": {
+    "form": "sch_c[1]",
+    "line": "30"
+   },
+   "role": "input"
+  }
+ ],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [
+   "sch_1:26"
+  ],
+  "known_gaps": {},
+  "echo": [
+   "sch_c#1:19",
+   "sch_c#1:22",
+   "sch_c#1:23",
+   "sch_c#1:30",
+   "sch_c#1:8",
+   "sch_c#1:9"
+  ],
+  "input_unshown": [
+   "sch_a:11",
+   "sch_a:5a",
+   "sch_a:5b",
+   "sch_a:8a",
+   "sch_a:8c",
+   "sch_a:8d"
+  ],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {
+   "dependents[0].months_in_home": []
+  },
+  "engine_summary": {
+   "agi": "35713",
+   "taxable_income": "3263",
+   "total_tax": "0",
+   "payments": "6791",
+   "refund": "6791",
+   "amount_owed": "0"
+  }
+ }
+}

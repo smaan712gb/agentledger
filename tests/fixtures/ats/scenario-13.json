@@ -1,0 +1,2393 @@
+{
+ "scenario": 13,
+ "title": "ATS Test Scenario 13",
+ "taxpayer": "William and Nancy Birch",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form 1040 Schedule 1",
+  "Form 1040 Schedule 1-A",
+  "Form 1040 Schedule 2",
+  "Form 1040 Schedule 3",
+  "Form 1040 Schedule F",
+  "Form 1040 Schedule SE",
+  "Form 4136",
+  "Form 4136 Schedule A [2]",
+  "Form 1062",
+  "Form 1062 Schedule A",
+  "Form W-2"
+ ],
+ "source": {
+  "file": "ty26-1040-ats-scenario-13.pdf",
+  "sha256": "b5160868f1b46ad83a49c9018f5452f02b0cd3596c731ee359e958b916feafdd",
+  "page_count": 30,
+  "pages_used": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   14,
+   16,
+   19,
+   20,
+   28,
+   29,
+   30
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "mfj",
+  "taxpayer": {
+   "first_name": "William",
+   "last_name": "Birch",
+   "ssn": "400-00-1313"
+  },
+  "spouse": {
+   "first_name": "Nancy",
+   "last_name": "Birch",
+   "ssn": "400-00-1234",
+   "dob": "1962-01-01"
+  },
+  "w2s": [
+   {
+    "owner": "taxpayer",
+    "employer_name": "OAK SUPPLY CO",
+    "employer_ein": "00-0000014",
+    "wages": 125000,
+    "federal_withholding": 20000,
+    "ss_wages": 125000,
+    "ss_tax": 7738,
+    "medicare_wages": 125000,
+    "medicare_tax": 1810,
+    "box12": {
+     "TT": 5000
+    }
+   }
+  ],
+  "dividends": [
+   {
+    "payer": "not named: no Form 1099-DIV is in the scenario",
+    "ordinary": 1000,
+    "capital_gain_distributions": 500
+   }
+  ],
+  "car_loans": [
+   {
+    "vin": "5FNYF6H59TB000001",
+    "interest_paid": 5000,
+    "qualifies": true
+   }
+  ]
+ },
+ "provenance": [
+  {
+   "path": "filing_status",
+   "page": 2,
+   "source": "Form 1040 filing status checked: Married filing jointly"
+  },
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "spouse",
+   "page": 2,
+   "source": "Form 1040 page 1 spouse's name and SSN"
+  },
+  {
+   "path": "w2s[0].employer_name",
+   "page": 30,
+   "source": "W-2 box c, first line"
+  },
+  {
+   "path": "w2s[0].employer_ein",
+   "page": 30,
+   "source": "W-2 box b"
+  },
+  {
+   "path": "w2s[0].wages",
+   "page": 30,
+   "source": "W-2 box 1"
+  },
+  {
+   "path": "w2s[0].federal_withholding",
+   "page": 30,
+   "source": "W-2 box 2"
+  },
+  {
+   "path": "w2s[0].ss_wages",
+   "page": 30,
+   "source": "W-2 box 3"
+  },
+  {
+   "path": "w2s[0].ss_tax",
+   "page": 30,
+   "source": "W-2 box 4"
+  },
+  {
+   "path": "w2s[0].medicare_wages",
+   "page": 30,
+   "source": "W-2 box 5"
+  },
+  {
+   "path": "w2s[0].medicare_tax",
+   "page": 30,
+   "source": "W-2 box 6"
+  },
+  {
+   "path": "w2s[0].box12",
+   "page": 30,
+   "source": "W-2 box 12 (code and amount)"
+  },
+  {
+   "path": "dividends[0].ordinary",
+   "page": 2,
+   "source": "f1040 line 3b"
+  },
+  {
+   "path": "dividends[0].capital_gain_distributions",
+   "page": 2,
+   "source": "f1040 line 7a"
+  },
+  {
+   "path": "car_loans[0].interest_paid",
+   "page": 8,
+   "source": "sch_1a line 28a"
+  },
+  {
+   "path": "car_loans[0].vin",
+   "page": 8,
+   "source": "Schedule 1-A line 28a, column (i) vehicle identification number"
+  },
+  {
+   "path": "car_loans[0].qualifies",
+   "page": 8,
+   "source": "Schedule 1-A Part IV questions answered ['Yes No', 'Yes No']"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "Form 1040 digital asset question: No",
+   "page": 2,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Form 1040 lines 35b-35d direct deposit: routing and account numbers masked with X; type checked ['Checking Savings']",
+   "page": 3,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  },
+  {
+   "fact": "Schedule F (farm income, Schedule 1 line 6): pages [12, 13]",
+   "page": 12,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Form 4136 (credit for federal tax paid on fuels, Schedule 3 line 12): pages [16, 17, 18, 19]",
+   "page": 16,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Schedule A (Form 4136), two business activities: pages [20, 21, 22, 23, 24, 25, 26, 27]",
+   "page": 20,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Form 1062 (deferral of tax on a qualified farmland sale: Form 1040 line 24b, Schedule 3 line 13z): pages [28]",
+   "page": 28,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Schedule A (Form 1062), the qualified farmland sale: pages [29]",
+   "page": 29,
+   "effect": "changes the return: the form is not modelled"
+  },
+  {
+   "fact": "Schedule SE: self-employment tax on the Schedule F profit",
+   "page": 14,
+   "effect": "changes the return: without Schedule F the engine has no self-employment income for Schedule SE"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "spouse.dob",
+   "value": "1962-01-01",
+   "reason": "Form 1040 line 12d says only that the spouse was born before January 2, 1962; this is the latest such date (no rule the engine applies tells the dates apart)",
+   "alternatives": [
+    "1950-07-01"
+   ],
+   "page": 3
+  },
+  {
+   "path": "dividends[0].capital_gain_distributions",
+   "value": 500,
+   "reason": "Form 1040 line 7a prints 500 with 'Schedule D not required' checked (line 7b), which the instructions allow only when the capital gains are capital gain distributions (Form 1099-DIV box 2a)",
+   "page": 2
+  },
+  {
+   "path": "dividends[0]",
+   "value": "one Form 1099-DIV",
+   "reason": "the scenario prints ordinary dividends (line 3b) and capital gain distributions (line 7a) on Form 1040 but includes no Form 1099-DIV; they enter as one payer's amounts, with no qualified dividends (line 3a is blank)",
+   "page": 2
+  }
+ ],
+ "ambiguities": [
+  {
+   "page": 3,
+   "note": "the taxpayer's date of birth is not stated (line 12d is checked for the spouse only); the engine treats him as under 65"
+  },
+  {
+   "page": 28,
+   "note": "Form 1062 line 6 (86,516, taxable income including the section 1062 gain) and line 7 (56,516 of section 1062 gain) treat the farmland gain as part of taxable income, but no Form 1040 income line carries a gain of that size (line 7a is 500, line 8 is Schedule F's 10,000)"
+  },
+  {
+   "page": 3,
+   "note": "f1040 line 32a prints 1007, but its formula (27a 28 29 30 31) gives 6295 from the printed lines"
+  },
+  {
+   "page": 3,
+   "note": "f1040 line 32c prints 7302, but its formula (32a -32b) gives 1007 from the printed lines"
+  },
+  {
+   "page": 14,
+   "note": "sch_se line 12 prints 268, but its formula (10 11) gives 1145 from the printed lines"
+  },
+  {
+   "page": 28,
+   "note": "f1062: the amount 1 is typed on no numbered line (at x 538, y 639); not read"
+  }
+ ],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 4,
+   "form": "sch_1",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 5,
+   "form": "sch_1",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 6,
+   "form": "sch_1a",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 7,
+   "form": "sch_1a",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 8,
+   "form": "sch_1a",
+   "part": 3,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 9,
+   "form": "sch_2",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 10,
+   "form": "sch_2",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 11,
+   "form": "sch_3",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 12,
+   "form": "sch_f",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 13,
+   "form": "sch_f",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 1,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 14,
+   "form": "sch_se",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 15,
+   "form": "sch_se",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 16,
+   "form": "f4136",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 17,
+   "form": "f4136",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 18,
+   "form": "f4136",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 19,
+   "form": "f4136",
+   "part": 4,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 20,
+   "form": "f4136_sch_a",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 21,
+   "form": "f4136_sch_a",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 22,
+   "form": "f4136_sch_a",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 23,
+   "form": "f4136_sch_a",
+   "part": 4,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 24,
+   "form": "f4136_sch_a",
+   "part": 1,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 25,
+   "form": "f4136_sch_a",
+   "part": 2,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 26,
+   "form": "f4136_sch_a",
+   "part": 3,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 27,
+   "form": "f4136_sch_a",
+   "part": 4,
+   "read_as": "facts read by the scenario",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 28,
+   "form": "f1062",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 29,
+   "form": "f1062_sch_a",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 30,
+   "form": "w2",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  }
+ ],
+ "expected": [
+  {
+   "form": "f1040",
+   "line": "1a",
+   "page": 2,
+   "value": 125000,
+   "printed": "125,000",
+   "engine": {
+    "form": "f1040",
+    "line": "1a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "1z",
+   "page": 2,
+   "value": 125000,
+   "printed": "125,000",
+   "engine": {
+    "form": "f1040",
+    "line": "1z"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "3b",
+   "page": 2,
+   "value": 1000,
+   "printed": "1,000",
+   "engine": {
+    "form": "f1040",
+    "line": "3b"
+   },
+   "role": "input"
+  },
+  {
+   "form": "f1040",
+   "line": "7a",
+   "page": 2,
+   "value": 500,
+   "printed": "500",
+   "engine": {
+    "form": "f1040",
+    "line": "7a"
+   },
+   "role": "input"
+  },
+  {
+   "form": "f1040",
+   "line": "8",
+   "page": 2,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "f1040",
+    "line": "8"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "9",
+   "page": 2,
+   "value": 136500,
+   "printed": "136,500",
+   "engine": {
+    "form": "f1040",
+    "line": "9"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "10",
+   "page": 2,
+   "value": 134,
+   "printed": "134",
+   "engine": {
+    "form": "f1040",
+    "line": "10"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "11a",
+   "page": 2,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "f1040",
+    "line": "11a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "11b",
+   "page": 3,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "f1040",
+    "line": "11b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "12e",
+   "page": 3,
+   "value": 33850,
+   "printed": "33,850",
+   "engine": {
+    "form": "f1040",
+    "line": "12e"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "13a",
+   "page": 3,
+   "value": 16000,
+   "printed": "16,000",
+   "engine": {
+    "form": "f1040",
+    "line": "13a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "14",
+   "page": 3,
+   "value": 49850,
+   "printed": "49,850",
+   "engine": {
+    "form": "f1040",
+    "line": "14"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "15",
+   "page": 3,
+   "value": 86516,
+   "printed": "86,516",
+   "engine": {
+    "form": "f1040",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "16",
+   "page": 3,
+   "value": 9886,
+   "printed": "9,886",
+   "engine": {
+    "form": "f1040",
+    "line": "16"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "18",
+   "page": 3,
+   "value": 9886,
+   "printed": "9,886",
+   "engine": {
+    "form": "f1040",
+    "line": "18"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "22",
+   "page": 3,
+   "value": 9886,
+   "printed": "9,886",
+   "engine": {
+    "form": "f1040",
+    "line": "22"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "23",
+   "page": 3,
+   "value": 268,
+   "printed": "268",
+   "engine": {
+    "form": "f1040",
+    "line": "23"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24a",
+   "page": 3,
+   "value": 10154,
+   "printed": "10,154",
+   "engine": {
+    "form": "f1040",
+    "line": "24a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24b",
+   "page": 3,
+   "value": 1763,
+   "printed": "1,763",
+   "engine": {
+    "form": "f1040",
+    "line": "24b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "24c",
+   "page": 3,
+   "value": 11917,
+   "printed": "11,917",
+   "engine": {
+    "form": "f1040",
+    "line": "24c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "25a",
+   "page": 3,
+   "value": 20000,
+   "printed": "20,000",
+   "engine": {
+    "form": "f1040",
+    "line": "25a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "25d",
+   "page": 3,
+   "value": 20000,
+   "printed": "20,000",
+   "engine": {
+    "form": "f1040",
+    "line": "25d"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "31",
+   "page": 3,
+   "value": 6295,
+   "printed": "6,295",
+   "engine": {
+    "form": "f1040",
+    "line": "31"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "32a",
+   "page": 3,
+   "value": 1007,
+   "printed": "1,007",
+   "engine": {
+    "form": "f1040",
+    "line": "32a"
+   },
+   "role": "ambiguous",
+   "note": "the scenario's own arithmetic contradicts this line (see ambiguities)"
+  },
+  {
+   "form": "f1040",
+   "line": "32c",
+   "page": 3,
+   "value": 7302,
+   "printed": "7,302",
+   "engine": {
+    "form": "f1040",
+    "line": "32c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "33",
+   "page": 3,
+   "value": 27302,
+   "printed": "27,302",
+   "engine": {
+    "form": "f1040",
+    "line": "33"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "34",
+   "page": 3,
+   "value": 15385,
+   "printed": "15,385",
+   "engine": {
+    "form": "f1040",
+    "line": "34"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f1040",
+   "line": "35a",
+   "page": 3,
+   "value": 15385,
+   "printed": "15,385",
+   "engine": {
+    "form": "f1040",
+    "line": "35a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "6",
+   "page": 4,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "sch_1",
+    "line": "6"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "10",
+   "page": 4,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": {
+    "form": "sch_1",
+    "line": "10"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "15",
+   "page": 5,
+   "value": 134,
+   "printed": "134",
+   "engine": {
+    "form": "sch_1",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1",
+   "line": "26",
+   "page": 5,
+   "value": 134,
+   "printed": "134",
+   "engine": {
+    "form": "sch_1",
+    "line": "26"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "1",
+   "page": 6,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "sch_1a",
+    "line": "1"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "3",
+   "page": 6,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "sch_1a",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "16a",
+   "page": 7,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "17"
+   },
+   "note": "printed on sch_1a line 16a; the engine reports the overtime total (line 17), not the per-employer rows 16a-16e; one employer here",
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "17",
+   "page": 7,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "17"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "20",
+   "page": 7,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "20"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "21",
+   "page": 7,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "21"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "22",
+   "page": 7,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "sch_1a",
+    "line": "22"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "23",
+   "page": 7,
+   "value": 300000,
+   "printed": "300,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "23"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "27",
+   "page": 7,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "27"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "28a",
+   "page": 8,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "29"
+   },
+   "note": "printed on sch_1a line 28a; the engine sums the vehicles' interest on line 29 (one vehicle here)",
+   "role": "input"
+  },
+  {
+   "form": "sch_1a",
+   "line": "29",
+   "page": 8,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "29"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "30",
+   "page": 8,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "30"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "31",
+   "page": 8,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "sch_1a",
+    "line": "31"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "32",
+   "page": 8,
+   "value": 200000,
+   "printed": "200,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "32"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "36",
+   "page": 8,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "36"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "37",
+   "page": 8,
+   "value": 136366,
+   "printed": "136,366",
+   "engine": {
+    "form": "sch_1a",
+    "line": "37"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "38",
+   "page": 8,
+   "value": 150000,
+   "printed": "150,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "38"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "41",
+   "page": 8,
+   "value": 6000,
+   "printed": "6,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "41"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "42b",
+   "page": 8,
+   "value": 6000,
+   "printed": "6,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "42b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "43",
+   "page": 8,
+   "value": 6000,
+   "printed": "6,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "43"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_1a",
+   "line": "44",
+   "page": 8,
+   "value": 16000,
+   "printed": "16,000",
+   "engine": {
+    "form": "sch_1a",
+    "line": "44"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_2",
+   "line": "4",
+   "page": 9,
+   "value": 268,
+   "printed": "268",
+   "engine": {
+    "form": "sch_2",
+    "line": "4"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_2",
+   "line": "15",
+   "page": 10,
+   "value": 268,
+   "printed": "268",
+   "engine": {
+    "form": "sch_2",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_2",
+   "line": "21",
+   "page": 10,
+   "value": 268,
+   "printed": "268",
+   "engine": {
+    "form": "sch_2",
+    "line": "21"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "12",
+   "page": 11,
+   "value": 1007,
+   "printed": "1,007",
+   "engine": {
+    "form": "sch_3",
+    "line": "12"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "13z",
+   "page": 11,
+   "value": 5288,
+   "printed": "5,288",
+   "engine": {
+    "form": "sch_3",
+    "line": "13z"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "14",
+   "page": 11,
+   "value": 5288,
+   "printed": "5,288",
+   "engine": {
+    "form": "sch_3",
+    "line": "14"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_3",
+   "line": "15",
+   "page": 11,
+   "value": 6295,
+   "printed": "6,295",
+   "engine": {
+    "form": "sch_3",
+    "line": "15"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "2",
+   "page": 12,
+   "value": 450000,
+   "printed": "450,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "4a",
+   "page": 12,
+   "value": 30000,
+   "printed": "30,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "4b",
+   "page": 12,
+   "value": 30000,
+   "printed": "30,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "6a",
+   "page": 12,
+   "value": 25000,
+   "printed": "25,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "6b",
+   "page": 12,
+   "value": 25000,
+   "printed": "25,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "8",
+   "page": 12,
+   "value": 75000,
+   "printed": "75,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "9",
+   "page": 12,
+   "value": 580000,
+   "printed": "580,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "11",
+   "page": 12,
+   "value": 25000,
+   "printed": "25,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "17",
+   "page": 12,
+   "value": 100000,
+   "printed": "100,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "18",
+   "page": 12,
+   "value": 25000,
+   "printed": "25,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "19",
+   "page": 12,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "20",
+   "page": 12,
+   "value": 50000,
+   "printed": "50,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "21a",
+   "page": 12,
+   "value": 30000,
+   "printed": "30,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "24a",
+   "page": 12,
+   "value": 50000,
+   "printed": "50,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "24b",
+   "page": 12,
+   "value": 130000,
+   "printed": "130,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "25",
+   "page": 12,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "26",
+   "page": 12,
+   "value": 50000,
+   "printed": "50,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "27",
+   "page": 12,
+   "value": 20000,
+   "printed": "20,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "28",
+   "page": 12,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "29",
+   "page": 12,
+   "value": 30000,
+   "printed": "30,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "30",
+   "page": 12,
+   "value": 5000,
+   "printed": "5,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "32a",
+   "page": 12,
+   "value": 15000,
+   "printed": "15,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "32b",
+   "page": 12,
+   "value": 20000,
+   "printed": "20,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "33",
+   "page": 12,
+   "value": 570000,
+   "printed": "570,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "34",
+   "page": 12,
+   "value": 10000,
+   "printed": "10,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "1a",
+   "page": 14,
+   "value": 10000,
+   "printed": "10,000",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "1a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "3",
+   "page": 14,
+   "value": 10000,
+   "printed": "10,000",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "3"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "4a",
+   "page": 14,
+   "value": 9235,
+   "printed": "9,235",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "4a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "4c",
+   "page": 14,
+   "value": 9235,
+   "printed": "9,235",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "4c"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "6",
+   "page": 14,
+   "value": 9235,
+   "printed": "9,235",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "6"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "8a",
+   "page": 14,
+   "value": 125000,
+   "printed": "125,000",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "8a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "8d",
+   "page": 14,
+   "value": 125000,
+   "printed": "125,000",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "8d"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "9",
+   "page": 14,
+   "value": 59500,
+   "printed": "59,500",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "9"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "10",
+   "page": 14,
+   "value": 1145,
+   "printed": "1,145",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "10"
+   },
+   "role": "ambiguous",
+   "note": "the scenario's own arithmetic contradicts this line (see ambiguities)"
+  },
+  {
+   "form": "sch_se",
+   "line": "12",
+   "page": 14,
+   "value": 268,
+   "printed": "268",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "12"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "13",
+   "page": 14,
+   "value": 134,
+   "printed": "134",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "13"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f4136",
+   "line": "17",
+   "page": 19,
+   "value": 1007,
+   "printed": "1,007",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "1",
+   "page": 28,
+   "value": 9886,
+   "printed": "9,886",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "2",
+   "page": 28,
+   "value": 268,
+   "printed": "268",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "3",
+   "page": 28,
+   "value": 10154,
+   "printed": "10,154",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "5",
+   "page": 28,
+   "value": 10154,
+   "printed": "10,154",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "6",
+   "page": 28,
+   "value": 86516,
+   "printed": "86,516",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "7",
+   "page": 28,
+   "value": 56516,
+   "printed": "56,516",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "8",
+   "page": 28,
+   "value": 30000,
+   "printed": "30,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "9",
+   "page": 28,
+   "value": 3104,
+   "printed": "3,104",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "11",
+   "page": 28,
+   "value": 3104,
+   "printed": "3,104",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "13",
+   "page": 28,
+   "value": 3104,
+   "printed": "3,104",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "14",
+   "page": 28,
+   "value": 7050,
+   "printed": "7,050",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062",
+   "line": "15",
+   "page": 28,
+   "value": 1763,
+   "printed": "1,763",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062_sch_a",
+   "line": "9",
+   "page": 29,
+   "value": 500000,
+   "printed": "500,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062_sch_a",
+   "line": "10",
+   "page": 29,
+   "value": 500000,
+   "printed": "500,000",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062_sch_a",
+   "line": "11",
+   "page": 29,
+   "value": 443484,
+   "printed": "443,484",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062_sch_a",
+   "line": "12",
+   "page": 29,
+   "value": 443484,
+   "printed": "443,484",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f1062_sch_a",
+   "line": "13",
+   "page": 29,
+   "value": 56516,
+   "printed": "56,516",
+   "engine": null,
+   "role": "result"
+  }
+ ],
+ "gap_causes": [
+  {
+   "lines": "f1040:(16|18|22|24a|24c)",
+   "cause": "Taxable income differs (Schedule F, below). Besides, the scenario's tax of 9,886 is the rate schedule's exact amount on all of its taxable income of 86,516: it neither uses the Tax Table nor taxes line 7a's 500 (capital gain distributions, 'Schedule D not required') at 0% through the Qualified Dividends and Capital Gain Tax Worksheet, as the engine does (8,645 = the Tax Table amount on 76,150 plus 0% on 500)."
+  },
+  {
+   "lines": "sch_1:(10|15|26)|f1040:(8|9|10|11a|11b|15|23)|sch_1a:(1|3|22|31|37)|sch_2:(4|15|21)|sch_se#taxpayer:.*",
+   "cause": "Schedule F is not supported, so the farm profit of 10,000 (Schedule 1 line 6) and the self-employment tax on it (Schedule SE line 12 and Schedule 2 line 4: 268 in the scenario; its deductible half, 134, on Schedule 1 line 15) are missing from the engine's return: adjusted gross income 126,500 against 136,366, and the lines figured from it follow."
+  },
+  {
+   "lines": "sch_3:(14|15)|f1040:(31|32c|33|34|35a)",
+   "cause": "Form 4136 (the 1,007 fuel tax credit, Schedule 3 line 12) and Form 1062 (5,288 entered as an other payment, Schedule 3 line 13z) are not modelled, so Schedule 3 lines 14-15 and Form 1040 lines 31-35a lack them; lines 34-35a also follow from the tax (the scenario besides counts the 1,007 again on line 32a, see the ambiguities)."
+  }
+ ],
+ "recorded": {
+  "matched": [
+   "f1040:12e",
+   "f1040:13a",
+   "f1040:14",
+   "f1040:1a",
+   "f1040:1z",
+   "f1040:25a",
+   "f1040:25d",
+   "sch_1a:16a",
+   "sch_1a:17",
+   "sch_1a:20",
+   "sch_1a:21",
+   "sch_1a:23",
+   "sch_1a:27",
+   "sch_1a:29",
+   "sch_1a:30",
+   "sch_1a:32",
+   "sch_1a:36",
+   "sch_1a:38",
+   "sch_1a:41",
+   "sch_1a:42b",
+   "sch_1a:43",
+   "sch_1a:44"
+  ],
+  "known_gaps": {
+   "f1040:10": {
+    "status": "differs",
+    "expected": 134,
+    "engine": 0
+   },
+   "f1040:11a": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "f1040:11b": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "f1040:15": {
+    "status": "differs",
+    "expected": 86516,
+    "engine": 76650
+   },
+   "f1040:16": {
+    "status": "differs",
+    "expected": 9886,
+    "engine": 8645
+   },
+   "f1040:18": {
+    "status": "differs",
+    "expected": 9886,
+    "engine": 8645
+   },
+   "f1040:22": {
+    "status": "differs",
+    "expected": 9886,
+    "engine": 8645
+   },
+   "f1040:23": {
+    "status": "differs",
+    "expected": 268,
+    "engine": 0
+   },
+   "f1040:24a": {
+    "status": "differs",
+    "expected": 10154,
+    "engine": 8645
+   },
+   "f1040:24b": {
+    "status": "blocked",
+    "expected": 1763,
+    "engine": null,
+    "reason": "line_not_computed",
+    "detail": "Form 1062 (IRC §1062 deferral) is not modelled"
+   },
+   "f1040:24c": {
+    "status": "differs",
+    "expected": 11917,
+    "engine": 8645
+   },
+   "f1040:31": {
+    "status": "differs",
+    "expected": 6295,
+    "engine": 0
+   },
+   "f1040:32c": {
+    "status": "differs",
+    "expected": 7302,
+    "engine": 0
+   },
+   "f1040:33": {
+    "status": "differs",
+    "expected": 27302,
+    "engine": 20000
+   },
+   "f1040:34": {
+    "status": "differs",
+    "expected": 15385,
+    "engine": 11355
+   },
+   "f1040:35a": {
+    "status": "differs",
+    "expected": 15385,
+    "engine": 11355
+   },
+   "f1040:8": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "f1040:9": {
+    "status": "differs",
+    "expected": 136500,
+    "engine": 126500
+   },
+   "f1062:1": {
+    "status": "blocked",
+    "expected": 9886,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:11": {
+    "status": "blocked",
+    "expected": 3104,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:13": {
+    "status": "blocked",
+    "expected": 3104,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:14": {
+    "status": "blocked",
+    "expected": 7050,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:15": {
+    "status": "blocked",
+    "expected": 1763,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:2": {
+    "status": "blocked",
+    "expected": 268,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:3": {
+    "status": "blocked",
+    "expected": 10154,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:5": {
+    "status": "blocked",
+    "expected": 10154,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:6": {
+    "status": "blocked",
+    "expected": 86516,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:7": {
+    "status": "blocked",
+    "expected": 56516,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:8": {
+    "status": "blocked",
+    "expected": 30000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062:9": {
+    "status": "blocked",
+    "expected": 3104,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 1062 (deferral of tax on the sale of qualified farmland, IRC §1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062_sch_a:10": {
+    "status": "blocked",
+    "expected": 500000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule A (Form 1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062_sch_a:11": {
+    "status": "blocked",
+    "expected": 443484,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule A (Form 1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062_sch_a:12": {
+    "status": "blocked",
+    "expected": 443484,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule A (Form 1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062_sch_a:13": {
+    "status": "blocked",
+    "expected": 56516,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule A (Form 1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f1062_sch_a:9": {
+    "status": "blocked",
+    "expected": 500000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule A (Form 1062) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4136:17": {
+    "status": "blocked",
+    "expected": 1007,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4136 (credit for federal tax paid on fuels) is not modelled (coverage: not in the coverage registry)"
+   },
+   "sch_1:10": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "sch_1:15": {
+    "status": "differs",
+    "expected": 134,
+    "engine": 0
+   },
+   "sch_1:26": {
+    "status": "differs",
+    "expected": 134,
+    "engine": 0
+   },
+   "sch_1:6": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "line_not_computed",
+    "detail": "Schedule F (farm income) is not supported"
+   },
+   "sch_1a:1": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "sch_1a:22": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "sch_1a:3": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "sch_1a:31": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "sch_1a:37": {
+    "status": "differs",
+    "expected": 136366,
+    "engine": 126500
+   },
+   "sch_2:15": {
+    "status": "differs",
+    "expected": 268,
+    "engine": 0
+   },
+   "sch_2:21": {
+    "status": "differs",
+    "expected": 268,
+    "engine": 0
+   },
+   "sch_2:4": {
+    "status": "differs",
+    "expected": 268,
+    "engine": 0
+   },
+   "sch_3:12": {
+    "status": "blocked",
+    "expected": 1007,
+    "engine": null,
+    "reason": "line_not_computed",
+    "detail": "Form 4136 (fuel tax credit) is not modelled"
+   },
+   "sch_3:13z": {
+    "status": "blocked",
+    "expected": 5288,
+    "engine": null,
+    "reason": "line_not_computed",
+    "detail": "other payments and refundable credits are not modelled"
+   },
+   "sch_3:14": {
+    "status": "differs",
+    "expected": 5288,
+    "engine": 0
+   },
+   "sch_3:15": {
+    "status": "differs",
+    "expected": 6295,
+    "engine": 0
+   },
+   "sch_f:11": {
+    "status": "blocked",
+    "expected": 25000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:17": {
+    "status": "blocked",
+    "expected": 100000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:18": {
+    "status": "blocked",
+    "expected": 25000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:19": {
+    "status": "blocked",
+    "expected": 5000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:2": {
+    "status": "blocked",
+    "expected": 450000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:20": {
+    "status": "blocked",
+    "expected": 50000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:21a": {
+    "status": "blocked",
+    "expected": 30000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:24a": {
+    "status": "blocked",
+    "expected": 50000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:24b": {
+    "status": "blocked",
+    "expected": 130000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:25": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:26": {
+    "status": "blocked",
+    "expected": 50000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:27": {
+    "status": "blocked",
+    "expected": 20000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:28": {
+    "status": "blocked",
+    "expected": 5000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:29": {
+    "status": "blocked",
+    "expected": 30000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:30": {
+    "status": "blocked",
+    "expected": 5000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:32a": {
+    "status": "blocked",
+    "expected": 15000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:32b": {
+    "status": "blocked",
+    "expected": 20000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:33": {
+    "status": "blocked",
+    "expected": 570000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:34": {
+    "status": "blocked",
+    "expected": 10000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:4a": {
+    "status": "blocked",
+    "expected": 30000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:4b": {
+    "status": "blocked",
+    "expected": 30000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:6a": {
+    "status": "blocked",
+    "expected": 25000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:6b": {
+    "status": "blocked",
+    "expected": 25000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:8": {
+    "status": "blocked",
+    "expected": 75000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:9": {
+    "status": "blocked",
+    "expected": 580000,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_se#taxpayer:12": {
+    "status": "differs",
+    "expected": 268,
+    "engine": 0
+   },
+   "sch_se#taxpayer:13": {
+    "status": "differs",
+    "expected": 134,
+    "engine": 0
+   },
+   "sch_se#taxpayer:1a": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "sch_se#taxpayer:3": {
+    "status": "differs",
+    "expected": 10000,
+    "engine": 0
+   },
+   "sch_se#taxpayer:4a": {
+    "status": "differs",
+    "expected": 9235,
+    "engine": 0
+   },
+   "sch_se#taxpayer:4c": {
+    "status": "differs",
+    "expected": 9235,
+    "engine": 0
+   },
+   "sch_se#taxpayer:6": {
+    "status": "differs",
+    "expected": 9235,
+    "engine": 0
+   },
+   "sch_se#taxpayer:8a": {
+    "status": "differs",
+    "expected": 125000,
+    "engine": 0
+   },
+   "sch_se#taxpayer:8d": {
+    "status": "differs",
+    "expected": 125000,
+    "engine": 0
+   },
+   "sch_se#taxpayer:9": {
+    "status": "differs",
+    "expected": 59500,
+    "engine": 0
+   }
+  },
+  "echo": [
+   "f1040:3b",
+   "f1040:7a",
+   "sch_1a:28a"
+  ],
+  "input_unshown": [],
+  "ambiguous": [
+   "f1040:32a",
+   "sch_se#taxpayer:10"
+  ],
+  "blocking": [],
+  "sensitivity": {
+   "spouse.dob": []
+  },
+  "engine_summary": {
+   "agi": "126500",
+   "taxable_income": "76650",
+   "total_tax": "8645",
+   "payments": "20000",
+   "refund": "11355",
+   "amount_owed": "0"
+  }
+ }
+}

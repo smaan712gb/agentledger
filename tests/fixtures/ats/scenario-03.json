@@ -1,0 +1,834 @@
+{
+ "scenario": 3,
+ "title": "ATS Test Scenario 3",
+ "taxpayer": "Lynette Heather",
+ "identities": "IRS test identities (names, SSNs, EINs and addresses invented by the IRS for ATS), not real people",
+ "forms_listed": [
+  "Form 1040",
+  "Form 1099-R",
+  "Schedule 1",
+  "Schedule 2",
+  "Schedule D",
+  "Schedule E",
+  "Schedule F",
+  "Schedule SE",
+  "Form 4835"
+ ],
+ "source": {
+  "file": "1040-mef-ats-scenario-3-09222026.pdf",
+  "sha256": "c52160656064f83aed27b72683d3247b654f3c81b30f02a4c50ac76041c1bc79",
+  "page_count": 18,
+  "pages_used": [
+   1,
+   2,
+   4,
+   9,
+   10,
+   14,
+   16,
+   18
+  ],
+  "extracted_on": "2026-10-09",
+  "extractor": "pypdf 6.19.0",
+  "publisher": "Internal Revenue Service, TY2026 Form 1040 MeF ATS scenarios (Publication 1436), marked draft"
+ },
+ "return": {
+  "tax_year": 2026,
+  "filing_status": "single",
+  "taxpayer": {
+   "first_name": "Lynette",
+   "last_name": "Heather",
+   "ssn": "400-00-1035",
+   "dob": "1968-10-02"
+  },
+  "citizen_or_qualified_alien": true,
+  "retirement": [
+   {
+    "payer": "Primrose Retirement Fund",
+    "gross_distribution": 57766,
+    "taxable_amount": 49568,
+    "federal_withholding": 4980,
+    "distribution_code": "7",
+    "ira_sep_simple": false
+   }
+  ],
+  "state_refund_taxable": 4089,
+  "capital_transactions": [
+   {
+    "description": "Schedule D line 1a totals (Form 1099-B, basis reported to the IRS, no adjustments)",
+    "term": "short",
+    "proceeds": 15234,
+    "cost_basis": 12768,
+    "basis_reported_to_irs": true,
+    "form_1099_received": true,
+    "sold": "2026-12-31"
+   },
+   {
+    "description": "Schedule D line 8a totals (Form 1099-B, basis reported to the IRS, no adjustments)",
+    "term": "long",
+    "proceeds": 16321,
+    "cost_basis": 4900,
+    "basis_reported_to_irs": true,
+    "form_1099_received": true,
+    "sold": "2026-12-31"
+   }
+  ]
+ },
+ "provenance": [
+  {
+   "path": "taxpayer",
+   "page": 2,
+   "source": "Form 1040 page 1 name and SSN"
+  },
+  {
+   "path": "taxpayer.dob",
+   "page": 1,
+   "source": "cover: Taxpayer's Date of Birth"
+  },
+  {
+   "path": "retirement[0].gross_distribution",
+   "page": 4,
+   "source": "Form 1099-R box 1"
+  },
+  {
+   "path": "retirement[0].taxable_amount",
+   "page": 4,
+   "source": "Form 1099-R box 2a"
+  },
+  {
+   "path": "retirement[0].federal_withholding",
+   "page": 4,
+   "source": "Form 1099-R box 4"
+  },
+  {
+   "path": "retirement[0].distribution_code",
+   "page": 4,
+   "source": "Form 1099-R box 7"
+  },
+  {
+   "path": "retirement[0].ira_sep_simple",
+   "page": 4,
+   "source": "Form 1099-R: the IRA/SEP/SIMPLE box is not checked"
+  },
+  {
+   "path": "state_refund_taxable",
+   "page": 1,
+   "source": "cover: Taxable refund amount"
+  },
+  {
+   "path": "capital_transactions[0].proceeds",
+   "page": 9,
+   "source": "sch_d line 1a.d"
+  },
+  {
+   "path": "capital_transactions[0].cost_basis",
+   "page": 9,
+   "source": "sch_d line 1a.e"
+  },
+  {
+   "path": "capital_transactions[1].proceeds",
+   "page": 9,
+   "source": "sch_d line 8a.d"
+  },
+  {
+   "path": "capital_transactions[1].cost_basis",
+   "page": 9,
+   "source": "sch_d line 8a.e"
+  }
+ ],
+ "unmodelled": [
+  {
+   "fact": "Schedule F: principal crop or activity (line A) 'Floral Plants', code (line B) 111400; line 1a 9233, line 1b 0, line 11 876, line 16 675, line 17 1488, line 26 1222, line 28 765",
+   "page": 14,
+   "effect": "changes the return: Schedule F is not modelled, so its income and expenses (and any self-employment tax on them) are missing from the engine's return"
+  },
+  {
+   "fact": "Form 4835: line 2a 0, line 3a 0, line 4b 0, line 5a 0, line 1 19233, line 4a 0, line 6 0, line 9 900, line 22a 3222, line 26 2038, line 14 465, line 15 700",
+   "page": 18,
+   "effect": "changes the return: Form 4835 is not modelled, so its income and expenses (and any self-employment tax on them) are missing from the engine's return"
+  },
+  {
+   "fact": "Taxpayer elects the Farm Optional Method on Schedule SE.",
+   "page": 1,
+   "effect": "changes the return: Schedule SE's optional methods are not modelled"
+  },
+  {
+   "fact": "Taxpayer is a patron in a specified agricultural cooperative.",
+   "page": 1,
+   "effect": "changes the return when there is qualified business income: IRC §199A(g) is not modelled"
+  },
+  {
+   "fact": "Taxpayer elects not to income average.",
+   "page": 1,
+   "effect": "none: the engine already assumes it (Schedule J is not modelled)"
+  },
+  {
+   "fact": "Taxpayer did not invest in a Qualified Opportunity Fund (QOF).",
+   "page": 1,
+   "effect": "none: the engine already assumes it"
+  },
+  {
+   "fact": "Identity Protection PIN: 876534",
+   "page": 1,
+   "effect": "filing data, not part of the computation (the MeF return, T2-01, and its signatures, T2-03)"
+  }
+ ],
+ "assumptions": [
+  {
+   "path": "filing_status",
+   "value": "single",
+   "reason": "no filing status is checked on Form 1040; the return names no spouse and no dependent, which leaves Single (married filing separately would name the spouse, head of household and qualifying surviving spouse need a qualifying person)",
+   "page": 2
+  },
+  {
+   "path": "capital_transactions[0].sold",
+   "value": "2026-12-31",
+   "reason": "Schedule D line 1a prints totals without sale dates; the model needs a date, and with the term stated (short-term) the date does not enter the computation",
+   "alternatives": [
+    "2026-01-02"
+   ],
+   "page": 9
+  },
+  {
+   "path": "capital_transactions[1].sold",
+   "value": "2026-12-31",
+   "reason": "Schedule D line 8a prints totals without sale dates; the model needs a date, and with the term stated (long-term) the date does not enter the computation",
+   "alternatives": [
+    "2026-01-02"
+   ],
+   "page": 9
+  }
+ ],
+ "ambiguities": [],
+ "pages": [
+  {
+   "page": 1,
+   "form": "cover",
+   "part": 1,
+   "read_as": "cover",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 100
+  },
+  {
+   "page": 2,
+   "form": "f1040",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 261
+  },
+  {
+   "page": 3,
+   "form": "f1040",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 14
+  },
+  {
+   "page": 4,
+   "form": "f1099r",
+   "part": 1,
+   "read_as": "boxes",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 5,
+   "form": "sch_1",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 6,
+   "form": "sch_1",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 7,
+   "form": "sch_2",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  },
+  {
+   "page": 8,
+   "form": "sch_2",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 9,
+   "form": "sch_d",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 10,
+   "form": "sch_d",
+   "part": 2,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 11,
+   "form": "sch_e",
+   "part": 1,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  },
+  {
+   "page": 12,
+   "form": "sch_e",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  },
+  {
+   "page": 13,
+   "form": "sch_e",
+   "part": 3,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 28
+  },
+  {
+   "page": 14,
+   "form": "sch_f",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 81
+  },
+  {
+   "page": 15,
+   "form": "sch_f",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 1
+  },
+  {
+   "page": 16,
+   "form": "sch_se",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 34
+  },
+  {
+   "page": 17,
+   "form": "sch_se",
+   "part": 2,
+   "read_as": "lines",
+   "used": false,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 0
+  },
+  {
+   "page": 18,
+   "form": "f4835",
+   "part": 1,
+   "read_as": "lines",
+   "used": true,
+   "unmapped_glyphs": 0,
+   "repaired_glyphs": 69
+  }
+ ],
+ "expected": [
+  {
+   "form": "f1040",
+   "line": "1z",
+   "page": 2,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "f1040",
+    "line": "1z"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_d",
+   "line": "1a",
+   "page": 9,
+   "value": 15234,
+   "printed": "15,234",
+   "column": "d",
+   "engine": {
+    "form": "sch_d",
+    "line": "1ad"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_d",
+   "line": "1a",
+   "page": 9,
+   "value": 12768,
+   "printed": "12,768",
+   "column": "e",
+   "engine": {
+    "form": "sch_d",
+    "line": "1ae"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_d",
+   "line": "8a",
+   "page": 9,
+   "value": 16321,
+   "printed": "16,321",
+   "column": "d",
+   "engine": {
+    "form": "sch_d",
+    "line": "8ad"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_d",
+   "line": "8a",
+   "page": 9,
+   "value": 4900,
+   "printed": "4,900",
+   "column": "e",
+   "engine": {
+    "form": "sch_d",
+    "line": "8ae"
+   },
+   "role": "input"
+  },
+  {
+   "form": "sch_d",
+   "line": "18",
+   "page": 10,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_d",
+    "line": "18"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_d",
+   "line": "19",
+   "page": 10,
+   "value": 0,
+   "printed": "0",
+   "engine": {
+    "form": "sch_d",
+    "line": "19"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "1a",
+   "page": 14,
+   "value": 9233,
+   "printed": "9,233",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "1b",
+   "page": 14,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "11",
+   "page": 14,
+   "value": 876,
+   "printed": "876",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "16",
+   "page": 14,
+   "value": 675,
+   "printed": "675",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "17",
+   "page": 14,
+   "value": 1488,
+   "printed": "1,488",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "26",
+   "page": 14,
+   "value": 1222,
+   "printed": "1,222",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_f",
+   "line": "28",
+   "page": 14,
+   "value": 765,
+   "printed": "765",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "4a",
+   "page": 16,
+   "value": 0,
+   "printed": "0",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "4a"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "5b",
+   "page": 16,
+   "value": 0,
+   "printed": "0",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "5b"
+   },
+   "role": "result"
+  },
+  {
+   "form": "sch_se",
+   "line": "8d",
+   "page": 16,
+   "value": 0,
+   "printed": "0",
+   "instance": "taxpayer",
+   "engine": {
+    "form": "sch_se[taxpayer]",
+    "line": "8d"
+   },
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "2a",
+   "page": 18,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "3a",
+   "page": 18,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "4b",
+   "page": 18,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "5a",
+   "page": 18,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "1",
+   "page": 18,
+   "value": 19233,
+   "printed": "19,233",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "4a",
+   "page": 18,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "6",
+   "page": 18,
+   "value": 0,
+   "printed": "0",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "9",
+   "page": 18,
+   "value": 900,
+   "printed": "900",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "22a",
+   "page": 18,
+   "value": 3222,
+   "printed": "3,222",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "26",
+   "page": 18,
+   "value": 2038,
+   "printed": "2,038.",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "14",
+   "page": 18,
+   "value": 465,
+   "printed": "465",
+   "engine": null,
+   "role": "result"
+  },
+  {
+   "form": "f4835",
+   "line": "15",
+   "page": 18,
+   "value": 700,
+   "printed": "700",
+   "engine": null,
+   "role": "result"
+  }
+ ],
+ "gap_causes": [],
+ "recorded": {
+  "matched": [
+   "f1040:1z",
+   "sch_d:18",
+   "sch_d:19",
+   "sch_se#taxpayer:4a",
+   "sch_se#taxpayer:5b",
+   "sch_se#taxpayer:8d"
+  ],
+  "known_gaps": {
+   "f4835:1": {
+    "status": "blocked",
+    "expected": 19233,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:14": {
+    "status": "blocked",
+    "expected": 465,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:15": {
+    "status": "blocked",
+    "expected": 700,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:22a": {
+    "status": "blocked",
+    "expected": 3222,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:26": {
+    "status": "blocked",
+    "expected": 2038,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:2a": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:3a": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:4a": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:4b": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:5a": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:6": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "f4835:9": {
+    "status": "blocked",
+    "expected": 900,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Form 4835 (farm rental income) is not modelled (coverage: not in the coverage registry)"
+   },
+   "sch_f:11": {
+    "status": "blocked",
+    "expected": 876,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:16": {
+    "status": "blocked",
+    "expected": 675,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:17": {
+    "status": "blocked",
+    "expected": 1488,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:1a": {
+    "status": "blocked",
+    "expected": 9233,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:1b": {
+    "status": "blocked",
+    "expected": 0,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:26": {
+    "status": "blocked",
+    "expected": 1222,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   },
+   "sch_f:28": {
+    "status": "blocked",
+    "expected": 765,
+    "engine": null,
+    "reason": "form_not_modelled",
+    "detail": "Schedule F (profit or loss from farming) is not supported (coverage: unsupported)"
+   }
+  },
+  "echo": [
+   "sch_d:1a.d",
+   "sch_d:1a.e",
+   "sch_d:8a.d",
+   "sch_d:8a.e"
+  ],
+  "input_unshown": [],
+  "ambiguous": [],
+  "blocking": [],
+  "sensitivity": {
+   "capital_transactions[0].sold": [],
+   "capital_transactions[1].sold": []
+  },
+  "engine_summary": {
+   "agi": "67544",
+   "taxable_income": "51444",
+   "total_tax": "4854",
+   "payments": "4980",
+   "refund": "126",
+   "amount_owed": "0"
+  }
+ }
+}
