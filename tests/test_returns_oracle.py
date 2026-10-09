@@ -9,8 +9,9 @@ pytest.importorskip("policyengine_us")
 from test_returns_1040 import ctx, kid, spouse, you  # noqa: E402
 
 from agentledger.returns.individual import compute_individual  # noqa: E402
-from agentledger.returns.model import (Business, CapitalTransaction, CarLoan, Disposition, Dividends, HSAContribution, HSAFacts,  # noqa: E402
-                                   IndividualReturn, Interest, IRAAccount, Person, PriorYear, Rental, Retirement, RetirementSavings,
+from agentledger.returns.model import (Business, CapitalTransaction, CarLoan, Disposition, Dividends, Form8615Facts, HSAContribution,  # noqa: E402
+                                   HSAFacts, IndividualReturn, Interest, IRAAccount, ParentFacts, Person, PriorYear, Rental, Retirement,
+                                   RetirementSavings,
                                    SocialSecurity, W2)
 from agentledger.returns.oracle import crosscheck  # noqa: E402
 
@@ -86,6 +87,15 @@ CASES = {
                                                              property_class="section_1250", additional_depreciation=0, rental=1),
                                                  Disposition(description="Land", acquired=date(2015, 1, 10), sold=date(2026, 7, 1), gross_sales_price=120000,
                                                              cost_or_basis=100000, depreciation_allowed=0, property_class="land", rental=1)]),
+    # Form 8615: a 12-year-old dependent with 8,000 of interest, the custodial parent single with taxable income 60,000 and tax
+    # 7,918: the tax at the parent's rate is 1,302 (PolicyEngine has no §1(g) tax; AGI 8,000 and taxable income 6,650 are compared).
+    "kiddie_tax": dict(filing_status="single",
+                       taxpayer=Person(first_name="Casey", last_name="Rivera", ssn="400-00-0100", dob=date(2014, 3, 15), can_be_claimed_as_dependent=True,
+                                       has_living_parent=True),
+                       interest=[Interest(payer="Trust Bank", interest=8000)],
+                       form_8615=Form8615Facts(which_parent="custodial_parent",
+                                               parent=ParentFacts(name="Alex Rivera", ssn="400-00-0001", filing_status="single", taxable_income=60000,
+                                                                  tax=7918))),
 }
 # What the engine must show for the new items before the cross-check counts as evidence (hand-worked, see
 # tests/test_returns_capital_loss_carryover.py, tests/test_returns_8880.py, tests/test_returns_8889.py,
@@ -93,11 +103,13 @@ CASES = {
 EXPECTED = {"capital_loss_carryover": ("sch_d", "21", -3000), "savers_credit": ("sch_3", "4", 200), "savers_credit_joint_roth": ("sch_3", "4", 400),
             "hsa_self_only": ("sch_1", "13", 2400), "ira_deduction_not_covered": ("sch_1", "20", 6000),
             "foreign_tax_credit": ("sch_3", "1", 939), "foreign_tax_credit_de_minimis": ("sch_3", "1", 85),
-            "section_1245_recapture": ("sch_1", "4", 12000), "unrecaptured_1250_gain": ("sch_d", "19", 150000)}
+            "section_1245_recapture": ("sch_1", "4", 12000), "unrecaptured_1250_gain": ("sch_d", "19", 150000),
+            "kiddie_tax": ("f8615", "18", 1302)}
 LABELS = {"capital_loss_carryover": "capital loss deduction", "savers_credit": "saver's credit", "savers_credit_joint_roth": "saver's credit",
           "hsa_self_only": "adjusted gross income", "ira_deduction_not_covered": "IRA deduction",
           "foreign_tax_credit": "foreign tax credit (upper bound)", "foreign_tax_credit_de_minimis": "foreign tax credit (upper bound)",
-          "section_1245_recapture": "tax before credits incl. AMT", "unrecaptured_1250_gain": "tax before credits incl. AMT"}
+          "section_1245_recapture": "tax before credits incl. AMT", "unrecaptured_1250_gain": "tax before credits incl. AMT",
+          "kiddie_tax": "adjusted gross income"}
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
@@ -127,3 +139,6 @@ def test_agrees_with_policyengine(name):
     if name == "unrecaptured_1250_gain":
         assert cc.compared["adjusted gross income"] == (470000, 470000) and cc.compared["tax before credits incl. AMT"][0] == 87055
         assert cc.compared["net investment income tax"] == (10260, 10260) and any(u.startswith("Form 4797") for u in cc.unmodelled)
+    if name == "kiddie_tax":
+        assert cc.compared["adjusted gross income"] == (8000, 8000) and cc.compared["taxable income"] == (6650, 6650)
+        assert "tax before credits incl. AMT" not in cc.compared and any(u.startswith("Form 8615 tax at the parent's rate") for u in cc.unmodelled)

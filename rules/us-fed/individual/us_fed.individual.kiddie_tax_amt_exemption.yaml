@@ -1,0 +1,35 @@
+id: us_fed.individual.kiddie_tax_amt_exemption
+title: AMT exemption limit for a child subject to the kiddie tax, the amount added to the child's earned income
+jurisdiction: US-FED
+category: individual
+value_type: money
+unit: USD
+citation: IRC §59(j)(1)(B), (2)
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual inflation-adjustment Revenue Procedure
+  search_hint: Revenue Procedure inflation adjusted items tax year {year} alternative minimum tax exemption child kiddie tax
+bounds:
+  min: 0
+  max: 50000
+  max_change_pct: 0.1
+tags:
+- AMT
+- alternative minimum tax
+- kiddie tax
+- '8615'
+- '6251'
+notes: >-
+  For a child to whom IRC §1(g) applies (Form 8615: under 18, or 18 or a full-time student of 19 to 23 whose earned
+  income is not more than half of their support, with a living parent and not filing jointly), the §55(d) exemption
+  for the alternative minimum tax may not exceed the child's earned income (§911(d)(2)) plus this amount (§59(j)).
+  Form 6251 line 5. A year without a value blocks (kiddie_tax_amt_exemption_rule_missing); nothing is guessed.
+values:
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value: 9750
+  provenance:
+    source: Rev. Proc. 2025-32 §4.11 ("Alternative Minimum Tax Exemption for a Child Subject to the 'Kiddie Tax'", the sum of the child's earned income plus $9,750)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf
+    verified_on: '2026-10-09'

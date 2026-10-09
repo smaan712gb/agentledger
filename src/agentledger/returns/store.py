@@ -26,7 +26,7 @@ from ..kb.store import KnowledgeBase
 from ..workflow.engine import Definition, Engine, State, Transition, TransitionError
 from . import documents as docs
 from .individual import PER_OWNER_CARRYFORWARDS, PER_YEAR_CARRYFORWARDS, compute_individual
-from .model import IndividualReturn
+from .model import IndividualReturn, ParentFacts
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tax_returns (
@@ -980,12 +980,48 @@ class Returns:
             from ..ledger.store import assets as registered_assets
 
             assets = [a for a, _ in registered_assets(self.conn, self.get(rid)["client_id"])]
-        res = compute_individual(Ctx(self.kb), ret, assets)
+        res = compute_individual(Ctx(self.kb), ret, assets, linked=self._linked_parent(rid, ret))
         result = res.to_dict()
         forms = list(result["forms"]) + (["f1040x"] if self.get(rid)["form"] == "1040-X" else [])
         result["coverage"] = self._coverage(forms, ret.tax_year)
         result["pinned"] = {"kb_version": self.kb.version(), "engine": ENGINE_VERSION}
         return ret, res, result
+
+    def _linked_parent(self, rid: str, ret: IndividualReturn) -> dict[str, Any] | None:
+        """Form 8615 from the parent's own return of this firm (form_8615.parent_return_id): the lines the form takes from
+        the parent's Form 1040 (line 15, line 16, line 3a, the net capital gain and Schedule D lines 18 and 19), read from
+        that return's latest computed result, with the version and status so the child's return records what it relied on.
+        The connection is the firm's store, so another firm's return is not reachable. Anything that cannot be read is
+        returned as an error the engine raises as a blocking diagnostic (form_8615_parent_return_unresolved)."""
+        pid = ret.form_8615.parent_return_id
+        if not pid:
+            return None
+        if pid == rid:
+            return {"parent": {"return_id": pid, "error": "it is the child's own return"}}
+        try:
+            pr, pv = self.get(pid), self.latest(pid)
+        except KeyError:
+            return {"parent": {"return_id": pid, "error": "no return with that id exists in this firm"}}
+        if pr["tax_year"] != ret.tax_year:
+            return {"parent": {"return_id": pid, "error": f"it is a {pr['tax_year']} return; Form 8615 uses the parent's return for the tax "
+                                                          f"year ending in the child's {ret.tax_year} tax year, and a different parent tax year is not supported"}}
+        result = pv["result"] or {}
+        forms = result.get("forms") or {}
+        f1040 = forms.get("f1040") or {}
+        if not result or "15" not in f1040:
+            return {"parent": {"return_id": pid, "error": "it has not been computed yet (compute the parent's return first)"}}
+        sch_d = forms.get("sch_d") or {}
+        if "15" in sch_d and "16" in sch_d:
+            ncg = max(Decimal(0), min(Decimal(sch_d["15"]), Decimal(sch_d["16"])))
+        else:
+            ncg = max(Decimal(0), Decimal(f1040.get("7a", "0")))
+        taxpayer = pv["inputs"].get("taxpayer") or {}
+        facts = ParentFacts(name=" ".join(x for x in (taxpayer.get("first_name"), taxpayer.get("last_name")) if x), ssn=taxpayer.get("ssn"),
+                            filing_status=result.get("filing_status") or pv["inputs"].get("filing_status"),
+                            taxable_income=Decimal(f1040["15"]), tax=Decimal(f1040.get("16", "0")), qualified_dividends=Decimal(f1040.get("3a", "0")),
+                            net_capital_gain=ncg, rate_28_gain=Decimal(sch_d.get("18", "0")), unrecaptured_1250_gain=Decimal(sch_d.get("19", "0")))
+        blocking = sum(1 for d in result.get("diagnostics", []) if d.get("severity") == "error")
+        return {"parent": {"return_id": pid, "version": int(pv["version"]), "status": self.wf.state(pid).status, "blocking": blocking, "facts": facts}}
 
     def recalculation_preview(self, rid: str) -> dict[str, Any]:
         """What the return would be under today's rules and engine. Nothing is stored; a filed return stays as filed."""

@@ -17,7 +17,7 @@ from ..calc.engine import D, Ctx
 from ..calc.federal import Asset, tax_depreciation
 from . import tax as T
 from .model import (SCHEDULE_C_LINES, Business, CapitalTransaction, Dependent, Disposition, HSAFacts, IndividualReturn, IRAAccount,
-                    IRAFacts, Owner, Person, Retirement)
+                    IRAFacts, Owner, ParentFacts, Person, Retirement)
 from .sheet import Sheets, pos, whole
 
 SUPPORTED_YEARS = {2026}
@@ -211,19 +211,25 @@ class Result:
         }
 
 
-def compute_individual(ctx: Ctx, r: IndividualReturn, assets: list[Asset] | None = None) -> Result:
+def compute_individual(ctx: Ctx, r: IndividualReturn, assets: list[Asset] | None = None, *,
+                       linked: dict[str, Any] | None = None) -> Result:
     """`assets` is the client's asset register (calc/federal.py Asset, from the ledger): a Form 4797 disposition that names
-    an `asset_id` takes its cost and tax depreciation from it instead of stated amounts."""
-    return _Individual(ctx, r, assets).compute()
+    an `asset_id` takes its cost and tax depreciation from it instead of stated amounts. `linked` is what the store
+    resolved from other returns of the firm before computing: {"parent": {...}} for Form 8615 when
+    form_8615.parent_return_id names the parent's return (store.Returns._linked_parent). The engine itself never reads
+    the store; without it a parent_return_id blocks."""
+    return _Individual(ctx, r, assets, linked).compute()
 
 
 class _Individual:
     _ftc: Decimal
 
-    def __init__(self, ctx: Ctx, r: IndividualReturn, assets: list[Asset] | None = None):
+    def __init__(self, ctx: Ctx, r: IndividualReturn, assets: list[Asset] | None = None, linked: dict[str, Any] | None = None):
         self.ctx, self.r = ctx, r
         self.assets: dict[str, Asset] = {a.id: a for a in assets or []}
         self._f4797 = _F4797()                  # Form 4797 results (Schedule D line 11, Schedule 1 line 4, Form 8960 line 5b, ...)
+        self.linked = linked or {}
+        self._f8615: dict[str, Any] = {}        # Form 8615: whether IRC §1(g) applies, the child's earned income, deferred questions
         self.y = r.tax_year
         self.on = date(r.tax_year, 12, 31)
         self.fs = r.filing_status
@@ -293,6 +299,7 @@ class _Individual:
         self._deductions()
         self._capital_loss_carryover()
         self._tax()
+        self._form_8615()
         self._form_1116()
         self._amt()
         self._credits()
@@ -2260,6 +2267,446 @@ class _Individual:
         self.set("sch_2", "1a", self.r.excess_aptc_repayment, "Form 8962")
         self.set("sch_2", "1z", self.g("sch_2", "1a"))
 
+    # ----------------------------------------------------------------- Form 8615, tax for certain children who have unearned income
+    def _child_earned_income(self) -> Decimal:
+        """Earned income as Form 8615 and IRC §59(j) use it (Form 8615 (2026) instructions, line 1, Earned income; IRC
+        §911(d)(2)): Form 1040 line 1z plus the net profit on Schedule 1 lines 3 and 6 (a loss counts as zero), the
+        instructions' general rule for a trade or business whose income the child's personal services produced. The 30%
+        allowance for a business in which capital is a material income-producing factor is not modelled (a warning)."""
+        return self.g("f1040", "1z") + pos(self.g("sch_1", "3"))
+
+    def _kiddie_status(self) -> tuple[str, str, list[tuple[str, str]]]:
+        """Whether IRC §1(g) applies to the taxpayer (Form 8615 (2026) instructions, Who Must File, conditions 3-5, and the
+        January 1 birthday chart: a child born on January 1 is treated as a year older at the end of the year, so one born
+        on January 1, 2009 is 18, not under 18, at the end of 2026). Returns ("subject" | "not_subject" | "unknown", the
+        reason, and the unknown facts as (code, message) diagnostics to raise when the answer changes the tax)."""
+        p, y = self.r.taxpayer, self.y
+        if self.joint:
+            return "not_subject", f"the child files a joint return for {y} (condition 5)", []
+        problems: list[tuple[str, str]] = []
+        if p.dob is None:
+            problems.append(("form_8615_age_unknown",
+                             f"Form 8615: the taxpayer's date of birth decides whether the tax on unearned income at the parent's rate and the "
+                             f"IRC §59(j) AMT exemption limit apply (under 18, or 18 or a full-time student of 19 to 23 at the end of {y}); "
+                             "it is not stated (taxpayer.dob)."))
+            return "unknown", "", problems
+        # Born after January 1 of year - 17: under 18 at the end of the year (the chart: January 1, 2009 is 18 for 2026);
+        # born after January 1 of year - 23 and not after January 1 of year - 18: 19 to 23 (January 1, 2003 is 24).
+        under_18 = p.dob > date(y - 17, 1, 1)
+        is_18 = date(y - 18, 1, 1) < p.dob <= date(y - 17, 1, 1)
+        student_age = date(y - 23, 1, 1) < p.dob <= date(y - 18, 1, 1)
+        if under_18:
+            age = f"under 18 at the end of {y}"
+        elif is_18:
+            age = f"18 at the end of {y}"
+        elif student_age:
+            if p.full_time_student is None:
+                problems.append(("form_8615_student_status_unknown",
+                                 f"Form 8615: the taxpayer was 19 to 23 at the end of {y}; whether they were a full-time student decides whether "
+                                 "the tax on unearned income at the parent's rate and the IRC §59(j) AMT exemption limit apply (condition 3c). "
+                                 "State taxpayer.full_time_student."))
+                return "unknown", "", problems
+            if not p.full_time_student:
+                return "not_subject", f"19 to 23 at the end of {y} and not a full-time student (condition 3)", []
+            age = f"a full-time student of 19 to 23 at the end of {y}"
+        else:
+            return "not_subject", f"24 or older at the end of {y} (condition 3)", []
+        if not under_18:
+            if p.support_from_earned_income_over_half is None:
+                problems.append(("form_8615_support_unknown",
+                                 f"Form 8615: the taxpayer was {age}; whether their earned income was more than half of their support decides "
+                                 "whether the tax on unearned income at the parent's rate and the IRC §59(j) AMT exemption limit apply "
+                                 "(condition 3; Pub. 501, support). State taxpayer.support_from_earned_income_over_half."))
+            elif p.support_from_earned_income_over_half:
+                return "not_subject", f"{age} with earned income over half of their support (condition 3)", []
+        if p.has_living_parent is None:
+            problems.append(("form_8615_living_parent_unknown",
+                             f"Form 8615: the taxpayer was {age}; whether at least one parent was alive at the end of {y} decides whether the "
+                             "tax on unearned income at the parent's rate and the IRC §59(j) AMT exemption limit apply (condition 4). State "
+                             "taxpayer.has_living_parent."))
+        elif not p.has_living_parent:
+            return "not_subject", f"neither parent was alive at the end of {y} (condition 4)", []
+        if problems:
+            return "unknown", "", problems
+        return "subject", age, []
+
+    def _parent_facts(self, f: str) -> ParentFacts | None:
+        """Form 8615 lines A-C, 6 and 10: the parent's return as the preparer transcribed it (form_8615.parent) or as the
+        store read it from the parent's own return of the firm (form_8615.parent_return_id, resolved into `linked`). None
+        when anything the form needs is missing or inconsistent (a blocking diagnostic says what)."""
+        k = self.r.form_8615
+        linked = self.linked.get("parent")
+        if k.parent is not None and k.parent_return_id:
+            self.s.diag("error", "form_8615_parent_facts_conflict",
+                        "Form 8615: the parent's return is both transcribed (form_8615.parent) and linked (form_8615.parent_return_id). "
+                        "Keep one: the linked return's latest computed result, or the hand-entered lines.", f, "6")
+            return None
+        if k.parent_return_id:
+            if linked is None or linked.get("error"):
+                why = (linked or {}).get("error") or "the return's result was not read (the engine ran outside the firm's store)"
+                self.s.diag("error", "form_8615_parent_return_unresolved",
+                            f"Form 8615: form_8615.parent_return_id names return {k.parent_return_id}, but {why}. The parent's taxable income "
+                            "and tax (lines 6 and 10) are not known while it is unresolved.", f, "6")
+                return None
+            parent = linked["facts"]
+            self.s.fact(f, "parent_source", {"source": "return", "return_id": linked["return_id"], "version": linked.get("version"),
+                                             "status": linked.get("status")})
+            if linked.get("blocking"):
+                self.s.diag("warning", "form_8615_parent_return_blocked",
+                            f"Form 8615: the parent's return {linked['return_id']} (version {linked.get('version')}) has {linked['blocking']} blocking "
+                            "diagnostic(s); its taxable income and tax may change. Recompute this return once the parent's return is resolved.", f, "6")
+            elif linked.get("status") not in ("accepted", "paper_filed", "transmitted", "approved", "signed", "release_approved"):
+                self.s.diag("info", "form_8615_parent_return_linked",
+                            f"Form 8615 lines 6 and 10 come from the parent's return {linked['return_id']}, version {linked.get('version')} "
+                            f"({linked.get('status')}); the parent's return may still change, so recompute this return after it is filed.", f, "6")
+        elif k.parent is None:
+            self.s.diag("error", "form_8615_parent_facts_unknown",
+                        "Form 8615 needs the parent's return: the parent's name, SSN and filing status (lines A-C), taxable income (Form 1040 "
+                        "line 15, line 6), tax (line 16, line 10) and any qualified dividends, net capital gain, 28% rate gain and unrecaptured "
+                        "§1250 gain. Enter them in form_8615.parent, or name the parent's return of this firm in form_8615.parent_return_id.", f, "6")
+            return None
+        else:
+            parent = k.parent
+            self.s.fact(f, "parent_source", {"source": "preparer"})
+        missing = [name for name, v in (("filing_status", parent.filing_status), ("taxable_income", parent.taxable_income), ("tax", parent.tax))
+                   if v is None]
+        if missing:
+            self.s.diag("error", "form_8615_parent_facts_unknown",
+                        f"Form 8615: the parent's {', '.join(missing)} is not stated (form_8615.parent). Line 6 is the parent's Form 1040 line 15, "
+                        "line 10 the parent's line 16 (without any tax from Form 4972 or 8814 or an education credit recapture); the tax at the "
+                        "parent's rate is not figured while they are unknown.", f, "6")
+            return None
+        if parent.rate_28_gain + parent.unrecaptured_1250_gain > parent.net_capital_gain:
+            self.s.diag("error", "form_8615_facts_inconsistent",
+                        f"Form 8615: the parent's 28% rate gain ({whole(parent.rate_28_gain)}) and unrecaptured §1250 gain "
+                        f"({whole(parent.unrecaptured_1250_gain)}) exceed the parent's net capital gain ({whole(parent.net_capital_gain)}); "
+                        "Schedule D lines 18 and 19 are parts of the gain on line 15.", f, "8")
+            return None
+        if parent.filing_status == "mfj":
+            basis = "joint_return"
+        elif k.which_parent is None or k.which_parent == "joint_return":
+            self.s.diag("error", "form_8615_parent_filing_status_unsupported",
+                        f"Form 8615: the parent's return is not a joint return (filing status {parent.filing_status}). Which parent's return the form "
+                        "uses depends on facts the return does not carry (Form 8615 instructions, Which Parent's Return To Use: married filing "
+                        "separately or never married and living together, the parent with the greater taxable income; divorced, separated or "
+                        "considered unmarried, the custodial parent; a remarried custodial parent, the stepparent's return). State the basis in "
+                        "form_8615.which_parent (greater_taxable_income or custodial_parent); the tax at the parent's rate is not figured while "
+                        "it is unknown.", f, "C")
+            return None
+        else:
+            basis = k.which_parent
+        self.s.fact(f, "which_parent", basis)
+        self.s.fact(f, "A", parent.name)
+        self.s.fact(f, "B", parent.ssn)
+        self.s.fact(f, "C", parent.filing_status)
+        return parent
+
+    def _line_5_worksheet(self, l1: Decimal, l2: Decimal, l3: Decimal, l5: Decimal, qd: Decimal, ncg: Decimal, base: Decimal,
+                          threshold: Decimal, inv: Decimal) -> tuple[Decimal, Decimal, dict[str, Any]]:
+        """The qualified dividends and the net capital gain included on Form 8615 line 5 (instructions, line 8, Net capital
+        gain or qualified dividends on line 5): Worksheet #1 when line 2 is the threshold and lines 3 and 5 agree, #2 when
+        line 2 is more than the threshold and they agree, #3 when taxable income limited line 5. Ratios are rounded to three
+        places and capped at 1.000 as each worksheet says; `inv` is the itemized deductions directly connected with the
+        dividends and gains (#2 and #3, line 5)."""
+        w: dict[str, Any] = {}
+        ratios = {"4", "5", "11", "12", "14"}                 # the lines that hold a decimal, not dollars
+
+        def put(line: str, value: Any) -> Any:
+            w[line] = value
+            return value
+
+        if l5 < l3:
+            w["worksheet"] = "#3"
+            ratios = {"4", "14"}
+            put("1", qd)
+            put("2", ncg)
+            w3 = put("3", qd + ncg)
+            w4 = put("4", ratio3(qd, w3))
+            w5 = put("5", inv)
+            w6 = put("6", whole(w4 * w5))
+            w7 = put("7", w5 - w6)
+            w8 = put("8", ncg - w7)
+            w9 = put("9", qd - w6)
+            w10 = put("10", Z)
+            w11 = put("11", self.g("f1040", "12e") - (w5 if self.itemizing else Z))
+            w12 = put("12", w10 + w11)
+            w13 = put("13", self.agi)
+            w14 = put("14", ratio3(w3, w13))
+            w15 = put("15", whole(w12 * w14))
+            w16 = put("16", whole(w15 * w4))
+            w17 = put("17", w15 - w16)
+            qd5 = put("18", min(pos(w9 - w16), l5))
+            ncg5 = put("19", min(pos(w8 - w17), pos(l5 - qd5)))
+        elif l2 == threshold:
+            w["worksheet"] = "#1"
+            ratios = {"4", "5"}
+            put("1", qd)
+            put("2", ncg)
+            put("3", l1)
+            w4 = put("4", ratio3(qd, l1))
+            w5 = put("5", ratio3(ncg, l1))
+            w6 = put("6", whole(threshold * w4))
+            w7 = put("7", whole(threshold * w5))
+            qd5 = put("8", min(pos(qd - w6), l5))
+            ncg5 = put("9", min(pos(ncg - w7), pos(l5 - qd5)))
+        else:
+            w["worksheet"] = "#2"
+            ratios = {"4", "11", "12"}
+            put("1", qd)
+            put("2", ncg)
+            w3 = put("3", qd + ncg)
+            w4 = put("4", ratio3(qd, w3))
+            w5 = put("5", inv)
+            w6 = put("6", whole(w4 * w5))
+            w7 = put("7", w5 - w6)
+            w8 = put("8", ncg - w7)
+            w9 = put("9", qd - w6)
+            put("10", l1)
+            w11 = put("11", ratio3(qd, l1))
+            w12 = put("12", min(ratio3(ncg, l1), Decimal(1) - w11))
+            w13 = put("13", whole(base * w11))
+            w14 = put("14", whole(base * w12))
+            qd5 = put("15", min(pos(w9 - w13), l5))
+            ncg5 = put("16", min(pos(w8 - w14), pos(l5 - qd5)))
+        out = {key: (v if isinstance(v, str) else str(v if key in ratios else whole(v))) for key, v in w.items()}
+        return qd5, ncg5, out
+
+    def _form_8615(self) -> None:
+        """Form 8615, tax for certain children who have unearned income (IRC §1(g)). Lines follow the 2026 draft form of
+        May 7, 2026 and its draft instructions of June 11, 2026 (the 2025 form and instructions carry the same lines,
+        worksheets and examples; the $1,350 and $2,700 are the §1(g)(4)(A)(ii)(I) amount and twice it, Rev. Proc. 2025-32
+        §4.02, the same amount as us_fed.individual.dependent_standard_deduction's minimum).
+
+        Who Must File: unearned income (line 1) over the threshold; under 18, or 18 or a full-time student of 19 to 23
+        whose earned income was not more than half of their support, at the end of the year; a living parent; not a joint
+        return. The child's facts are asked only when they change the tax (here, or the IRC §59(j) AMT exemption limit in
+        _amt). Part I: line 1 is adjusted gross income, or with earned income the Child's Unearned Income Worksheet (total
+        income less earned income and the early withdrawal penalty), or the Alternate Worksheet with a self-employment
+        loss or a net operating loss deduction; line 2 the threshold, or for an itemizer the larger of the base amount plus
+        the directly connected itemized deductions and the threshold. Part II: the tax on the parent's taxable income plus
+        the net unearned income of this child and the parent's other children, at the parent's rates (the Qualified
+        Dividends and Capital Gain Tax Worksheet or the Schedule D Tax Worksheet with the dividends and gains included on
+        line 8, the Line 5 Worksheets and the Worksheets for Line 11 allocating the child's), less the parent's tax, shared
+        by net unearned income. Part III: that share plus the tax at the child's rate on the rest of taxable income, against
+        the tax figured the usual way; the larger goes to Form 1040 line 16. Not modelled (no inputs exist): Form 2555,
+        Schedule J, Form 4952 amounts, qualified disability trust distributions, a parent with a different tax year."""
+        r, y = self.r, self.y
+        f = "f8615"
+        k = r.form_8615
+        earned = self._child_earned_income()
+        status, reason, problems = self._kiddie_status()
+        self._f8615 = {"status": status, "earned": earned, "problems": problems, "asked": False}
+        base = D(self.p("us_fed.individual.dependent_standard_deduction")["minimum"])  # §1(g)(4)(A)(ii)(I): $1,350 for 2026
+        threshold = 2 * base                                                           # Who Must File, condition 1: $2,700
+        # Line 1: the child's unearned income.
+        penalty = self.g("sch_1", "18")
+        se_loss = pos(-self.g("sch_1", "3"))
+        nol = sum((abs(v) for key, v in r.other_income.items() if str(key).lower() in ("8a", "a")), Z)
+        worksheet: dict[str, str] = {}
+        if se_loss > 0 or nol > 0:
+            a = self.g("f1040", "9")
+            b = se_loss + nol
+            c = a + b
+            d = earned + penalty
+            l1 = c - d
+            worksheet = {"name": "Alternate Worksheet for Form 8615, Line 1", "A": str(whole(a)), "B": str(whole(b)), "C": str(whole(c)),
+                         "D": str(whole(d)), "E": str(whole(l1))}
+        elif earned > 0:
+            w1 = self.g("f1040", "9")
+            w2 = earned + penalty
+            l1 = w1 - w2
+            worksheet = {"name": "Child's Unearned Income Worksheet", "1": str(whole(w1)), "2": str(whole(w2)), "3": str(whole(l1))}
+        else:
+            l1 = self.agi
+        if l1 <= threshold:
+            return                                                   # condition 1 fails: no Form 8615 (the §59(j) limit may still apply)
+        if status == "unknown":
+            for code, message in problems:
+                self.s.diag("error", code, message, f)
+            self._f8615["asked"] = True
+            return
+        if status == "not_subject":
+            self.s.fact("f1040", "form_8615_not_required", reason)
+            return
+        if k.form_8814_election:
+            self.s.diag("error", "form_8814_election",
+                        "The parent elected to report the child's interest and dividends on the parent's return (Form 8814), so the child "
+                        "files no return for that income; a child's return stating the election is contradictory. Remove the election "
+                        "(form_8615.form_8814_election) or do not prepare the child's return.", f)
+            return
+        parent = self._parent_facts(f)
+        if parent is None:
+            return
+        if k.other_children_qualified_dividends + k.other_children_net_capital_gain > k.other_children_net_unearned_income or (
+                k.other_children_rate_28_gain + k.other_children_unrecaptured_1250_gain > k.other_children_net_capital_gain):
+            self.s.diag("error", "form_8615_facts_inconsistent",
+                        "Form 8615 line 7: the other children's qualified dividends and net capital gain exceed their net unearned income, or "
+                        "their 28% rate and unrecaptured §1250 gains exceed their net capital gain (form_8615.other_children_*).", f, "7")
+            return
+        if any(n > 0 for _, n in self.biz_net):
+            self.s.diag("warning", "form_8615_business_income_as_earned",
+                        "Form 8615 line 1 treats the whole Schedule C net profit as earned income (instructions, Earned income, the general "
+                        "rule). If capital is a material income-producing factor in the business, earned income is limited to a reasonable "
+                        "allowance for personal services of at most 30% of the net profit: adjust by hand.", f, "1")
+        qd_child, ncg_child = self.g("f1040", "3a"), self._net_cg_for_rates
+        child_18, child_19 = self._sch_d_18, self._sch_d_19
+        # Line 2: the threshold, or for an itemizer the larger of the base amount plus the directly connected deductions.
+        dc = inv = Z
+        if self.itemizing:
+            l17z = self.g("sch_a", "17z")
+            if l17z > 0:
+                if k.directly_connected_deductions is None:
+                    self.s.diag("error", "form_8615_directly_connected_unknown",
+                                f"Form 8615 line 2: the child itemizes and Schedule A line 17z is {whole(l17z)}; the part of it directly connected with "
+                                "the production of the unearned income is not stated (form_8615.directly_connected_deductions; enter 0 if none).", f, "2")
+                    return
+                if k.directly_connected_deductions > l17z:
+                    self.s.diag("error", "form_8615_facts_inconsistent",
+                                f"Form 8615 line 2: directly connected deductions of {whole(k.directly_connected_deductions)} exceed Schedule A line 17z "
+                                f"({whole(l17z)}).", f, "2")
+                    return
+                dc = k.directly_connected_deductions
+            l2 = max(base + dc, threshold)
+            self.s.fact(f, "line_2", {"itemizes": True, "base_plus_directly_connected": str(whole(base + dc)), "threshold": str(whole(threshold))})
+        else:
+            l2 = threshold
+        l3 = l1 - l2
+        self.set(f, "1", l1, "Unearned income" + (f" ({worksheet['name']})" if worksheet else " (adjusted gross income, no earned income)"))
+        if worksheet:
+            self.s.fact(f, "line_1_worksheet", worksheet)
+        self.set(f, "2", l2)
+        self.set(f, "3", l3)
+        self.s.fact(f, "who_must_file", {"applies": True, "age": reason, "earned_income": str(whole(earned))})
+        if l3 <= 0:
+            self.s.fact(f, "stop", "line 3 is zero or less: the tax is figured in the normal manner; the form is attached")
+            self._f8615["filed"] = True
+            return
+        l4 = self.set(f, "4", self.g("f1040", "15"), "Form 1040 line 15")
+        l5 = self.set(f, "5", min(l3, l4), "Net unearned income")
+        if l5 <= 0:
+            self.s.fact(f, "stop", "line 5 is zero: the tax is figured in the normal manner; the form is attached")
+            self._f8615["filed"] = True
+            return
+        # The qualified dividends and net capital gain included on line 5 (Line 5 Worksheets).
+        qd5 = ncg5 = Z
+        if qd_child > 0 or ncg_child > 0:
+            if self.itemizing and dc > 0 and (l5 < l3 or l2 > threshold):
+                if k.directly_connected_to_dividends_and_gains is None:
+                    self.s.diag("error", "form_8615_directly_connected_unknown",
+                                f"Form 8615, Line 5 Worksheet line 5: of the {whole(dc)} directly connected deductions, the part connected with the "
+                                "production of the child's qualified dividends and net capital gain is not stated "
+                                "(form_8615.directly_connected_to_dividends_and_gains; enter 0 if none).", f, "5")
+                    return
+                if k.directly_connected_to_dividends_and_gains > dc:
+                    self.s.diag("error", "form_8615_facts_inconsistent",
+                                f"Form 8615: deductions connected with the dividends and gains ({whole(k.directly_connected_to_dividends_and_gains)}) "
+                                f"exceed the directly connected deductions ({whole(dc)}).", f, "5")
+                    return
+                inv = k.directly_connected_to_dividends_and_gains
+            qd5, ncg5, ws5 = self._line_5_worksheet(l1, l2, l3, l5, qd_child, ncg_child, base, threshold, inv)
+            self.s.fact(f, "line_5_worksheet", ws5)
+        # Worksheets 1 and 2 for Line 11 of the Schedule D Tax Worksheet: the child's 28% rate and unrecaptured §1250 gains
+        # included on line 5 follow the share of the child's net capital gain that is (line 4 of each, a decimal).
+        share = ratio3(ncg5, ncg_child) if ncg_child > 0 else Z
+        child_28_in_5 = whole(child_18 * share) if child_18 > 0 else Z
+        child_1250_in_5 = whole(child_19 * share) if child_19 > 0 else Z
+        rate28_8 = child_28_in_5 + k.other_children_rate_28_gain + parent.rate_28_gain
+        unrecap_8 = child_1250_in_5 + k.other_children_unrecaptured_1250_gain + parent.unrecaptured_1250_gain
+        special = any(x > 0 for x in (child_18, child_19, parent.rate_28_gain, parent.unrecaptured_1250_gain, k.other_children_rate_28_gain,
+                                      k.other_children_unrecaptured_1250_gain))
+        if child_18 > 0 or child_19 > 0:
+            self.s.fact(f, "line_11_worksheets", {"share_of_child_net_capital_gain_on_line_5": str(share), "rate_28_on_line_5": str(child_28_in_5),
+                                                  "unrecaptured_1250_on_line_5": str(child_1250_in_5)})
+        # Part II: the tentative tax at the parent's rate.
+        pfs = str(parent.filing_status)
+        l6 = self.set(f, "6", pos(parent.taxable_income or Z), "The parent's Form 1040 line 15")
+        l7 = self.set(f, "7", k.other_children_net_unearned_income, "Line 5 of the other children's Forms 8615")
+        l8 = self.set(f, "8", l5 + l6 + l7)
+        qd8 = qd5 + parent.qualified_dividends + k.other_children_qualified_dividends
+        ncg8 = ncg5 + parent.net_capital_gain + k.other_children_net_capital_gain
+        self.s.fact(f, "line_8", {"qualified_dividends": str(whole(qd8)), "net_capital_gain": str(whole(ncg8)), "rate_28_gain": str(whole(rate28_8)),
+                                  "unrecaptured_1250_gain": str(whole(unrecap_8))})
+        ceiling = self.dec("us_fed.individual.tax_table_ceiling")
+        if special:
+            l9, w9 = T.schedule_d_tax(self.ctx, y, pfs, l8, qd8, ncg8, ncg8, rate28_8, unrecap_8,
+                                      unrecaptured_total=child_19 + parent.unrecaptured_1250_gain + k.other_children_unrecaptured_1250_gain)
+            m9 = "Schedule D Tax Worksheet"
+        elif qd8 > 0 or ncg8 > 0:
+            l9, w9 = T.qdcg_tax(self.ctx, y, pfs, l8, qd8, ncg8)
+            m9 = "Qualified Dividends and Capital Gain Tax Worksheet"
+        else:
+            l9, w9 = T.regular_tax(self.ctx, l8, y, pfs), {}
+            m9 = "Tax Table" if l8 < ceiling else "Tax Computation Worksheet"
+        l9 = self.set(f, "9", l9, f"{m9}, the parent's filing status ({pfs})")
+        if w9:
+            self.s.fact(f, "line_9_worksheet", {"method": m9, "lines": {kk: str(whole(v)) for kk, v in w9.items()}})
+        l10 = self.set(f, "10", parent.tax or Z, "The parent's Form 1040 line 16")
+        l11 = self.set(f, "11", l9 - l10, "Tentative tax")
+        if l7 > 0:
+            l12a = self.set(f, "12a", l5 + l7)
+            l12b = ratio3(l5, l12a)
+            self.s.fact(f, "12b", str(l12b))
+            l13 = self.set(f, "13", whole(l11 * l12b), "The child's share of the tentative tax")
+        else:
+            l13 = self.set(f, "13", l11)
+        # Part III: the child's tax.
+        l14 = self.set(f, "14", l4 - l5)
+        if l14 <= 0:
+            l15 = self.set(f, "15", Z)
+        else:
+            qd14, ncg14 = qd_child - qd5, ncg_child - ncg5
+            if child_18 > 0 or child_19 > 0:
+                l15, w15 = T.schedule_d_tax(self.ctx, y, self.fs, l14, qd14, ncg14, ncg14, child_18 - child_28_in_5, child_19 - child_1250_in_5,
+                                            unrecaptured_total=child_19)
+                m15 = "Schedule D Tax Worksheet"
+            elif qd14 > 0 or ncg14 > 0:
+                l15, w15 = T.qdcg_tax(self.ctx, y, self.fs, l14, qd14, ncg14)
+                m15 = "Qualified Dividends and Capital Gain Tax Worksheet"
+            else:
+                l15, w15 = T.regular_tax(self.ctx, l14, y, self.fs), {}
+                m15 = "Tax Table" if l14 < ceiling else "Tax Computation Worksheet"
+            l15 = self.set(f, "15", l15, f"{m15}, the child's filing status")
+            if w15:
+                self.s.fact(f, "line_15_worksheet", {"method": m15, "qualified_dividends": str(whole(qd14)), "net_capital_gain": str(whole(ncg14)),
+                                                     "lines": {kk: str(whole(v)) for kk, v in w15.items()}})
+        l16 = self.set(f, "16", l13 + l15)
+        l17 = self.set(f, "17", self.g("f1040", "16"), self.s.notes.get("f1040", {}).get("16", "Tax on line 4 at the child's rate"))
+        l18 = self.set(f, "18", max(l16, l17), "The child's tax: the larger of line 16 or line 17")
+        self.set("f1040", "16", l18, "Form 8615, line 18")
+        self._f8615["filed"] = True
+
+    def _child_exemption_limit(self, amti: Decimal, exemption: Decimal, flat) -> Decimal:
+        """Form 6251 line 5 for a child to whom IRC §1(g) applies: the exemption may not exceed the child's earned income
+        plus the indexed amount (§59(j); us_fed.individual.kiddie_tax_amt_exemption, $9,750 for 2026, Rev. Proc. 2025-32
+        §4.11). The limit applies whether or not Form 8615 is filed, so the child's status is asked here when it is unknown
+        and the limit could create an alternative minimum tax (the 26%/28% tax on AMTI less the limit, a ceiling on
+        Form 6251 line 7, over Form 6251 line 10); a missing figure blocks instead of being guessed."""
+        k = self._f8615
+        status = k.get("status")
+        if status in (None, "not_subject"):
+            return exemption
+        earned = k["earned"]
+        regular = pos(self.g("f1040", "16") + self.g("sch_2", "1z") - self._ftc)          # Form 6251 line 10
+        rule = self.ctx.try_param("us_fed.individual.kiddie_tax_amt_exemption", self.on)
+        if rule is None:
+            if flat(pos(amti - earned)) > regular:
+                self.s.diag("error", "kiddie_tax_amt_exemption_rule_missing",
+                            f"No published IRC §59(j) amount covers {self.on.isoformat()} (us_fed.individual.kiddie_tax_amt_exemption): the AMT "
+                            "exemption of a child to whom §1(g) applies (earned income plus that amount) cannot be figured.", "f6251", "5")
+            return exemption
+        cap = earned + D(rule)
+        if cap >= exemption:
+            return exemption
+        if status == "unknown":
+            if not k.get("asked") and flat(pos(amti - cap)) > regular:
+                for code, message in k["problems"]:
+                    self.s.diag("error", code, message, "f6251", "5")
+                k["asked"] = True
+            return exemption
+        self.s.fact("f6251", "exemption_59j", {"earned_income": str(whole(earned)), "addition": str(whole(D(rule))), "limit": str(whole(cap)),
+                                                "unlimited_exemption": str(whole(exemption))})
+        return cap
+
     def _amt(self) -> None:
         amt = self.p("us_fed.individual.amt")
         r = self.r
@@ -2293,14 +2740,17 @@ class _Individual:
                 l4 = self.set(f, "4", l4 + min((l4 - zero_at) * D(amt["phaseout_rate"]), exemption),
                               "AMTI increased for married filing separately (IRC §55(d)(2))")
                 self.s.diag("warning", "amt_mfs_increase", "MFS AMTI adjustment applied; verify against the final 2026 Form 6251 instructions.", f, "4")
-        l5 = self.set(f, "5", pos(exemption - pos(l4 - threshold) * D(amt["phaseout_rate"])), "Exemption")
-        l6 = self.set(f, "6", pos(l4 - l5))
         breakpoint_ = D(amt["rate_breakpoint_mfs"] if self.mfs else amt["rate_breakpoint"])
         low, high = D(amt["low_rate"]), D(amt["high_rate"])
 
         def flat(x: Decimal) -> Decimal:
             return x * low if x <= breakpoint_ else x * high - breakpoint_ * (high - low)
 
+        regular_exemption = pos(exemption - pos(l4 - threshold) * D(amt["phaseout_rate"]))
+        l5 = self._child_exemption_limit(l4, regular_exemption, flat)
+        l5 = self.set(f, "5", l5, "Exemption" if l5 == regular_exemption
+                      else "Exemption limited to earned income plus the IRC §59(j) amount (a child to whom §1(g) applies, Form 8615)")
+        l6 = self.set(f, "6", pos(l4 - l5))
         if l6 <= 0:
             self.set(f, "7", Z)
             tmt = Z
@@ -2315,6 +2765,7 @@ class _Individual:
         l11 = self.set(f, "11", pos(l9 - l10), "Alternative minimum tax")
         if l11 <= 0 and l4 <= exemption:
             self.s.forms.pop(f, None)
+            self.s.facts.pop(f, None)
         self.set("sch_2", "2", l11, "Form 6251")
         self.set("sch_2", "3", self.g("sch_2", "1z") + l11)
         self.set("f1040", "17", self.g("sch_2", "3"))
@@ -3274,10 +3725,5 @@ class _Individual:
     # ----------------------------------------------------------------- coverage checks
     def _unsupported_checks(self) -> None:
         r = self.r
-        unearned = self.g("f1040", "2b") + self.g("f1040", "3b") + pos(self.g("f1040", "7a"))
-        kiddie = 2 * D(self.p("us_fed.individual.dependent_standard_deduction")["minimum"])
-        if r.taxpayer.can_be_claimed_as_dependent and unearned > kiddie:
-            self.s.diag("error", "form_8615_required", "Unearned income of a dependent child may be taxed at the parent's rate "
-                                                       "(Form 8615): not yet supported.")
         if any(not p.active_participation and not p.real_estate_professional for p in r.rentals):
             self.s.diag("warning", "passive_rental", "Rentals without active participation need Form 8582.")

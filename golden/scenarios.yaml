@@ -206,3 +206,21 @@
                              depreciation_allowed: 12000, property_class: section_1245}]}
   expect: 12000
   source: Form 4797 (2025) lines 20-25b, 30-32, 6-7 and 13-18b and its instructions; Pub. 544 (2025) chapter 3, Section 1245 Property; IRC §1245(a)(1), §1231(a), (c)
+# Form 8615 worked by hand (Form 8615 (2026 draft, May 7, 2026) lines 1-18 and its draft instructions (June 11, 2026); Rev. Proc. 2025-32
+# §4.02 and §4.14(2) for the 1,350 / 2,700 amounts): a 12-year-old claimable as a dependent with 8,000 of interest and no earned
+# income: AGI 8,000, taxable income 6,650; line 1 = 8,000, 2 = 2,700, 3 = 5 = 5,300. The custodial parent files single with taxable
+# income 60,000 and tax 7,918: line 8 = 65,300, 9 = tax at the parent's rates (Tax Table midpoint 65,325: 5,800 + 22% x 14,925 =
+# 9,083.50) = 9,084, 11 = 13 = 1,166; line 14 = 1,350 at the child's rate (midpoint 1,362.50 x 10%) = 136; 16 = 1,302 against 17 =
+# 668 (the tax on 6,650): line 18 = 1,302 to Form 1040 line 16.
+- id: f1040-2026-kiddie-tax
+  calc: form_1040_line
+  inputs:
+    form: f8615
+    line: "18"
+    return: {tax_year: 2026, filing_status: single,
+             taxpayer: {ssn: "400-00-0100", dob: "2014-03-15", can_be_claimed_as_dependent: true, has_living_parent: true},
+             interest: [{payer: Trust Bank, interest: 8000}],
+             form_8615: {which_parent: custodial_parent,
+                         parent: {name: Alex Rivera, ssn: "400-00-0001", filing_status: single, taxable_income: 60000, tax: 7918}}}
+  expect: 1302
+  source: Form 8615 (2026 draft) lines 1-18 and its instructions (Who Must File, lines 1-18); IRC §1(g); Rev. Proc. 2025-32 §4.01, §4.02, §4.14(2)

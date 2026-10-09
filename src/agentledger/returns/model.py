@@ -31,8 +31,15 @@ class Person(BaseModel):
     blind: bool = False
     can_be_claimed_as_dependent: bool = False
     # Enrolled full time for some part of 5 calendar months of the year (Form 8880 instructions, "student"). None: not
-    # stated; the saver's credit is never claimed for a person whose student status is unknown.
+    # stated; the saver's credit is never claimed for a person whose student status is unknown, and Form 8615's age test
+    # for a child of 19 to 23 (IRC §1(g)(2)(A)(ii), §152(c)(3)(A)(ii)) is not decided.
     full_time_student: bool | None = None
+    # Form 8615 (IRC §1(g)(2)(A)(ii)(II)): whether the person's earned income was more than half of their own support for
+    # the year. Asked of a child who was 18, or a full-time student of 19 to 23, at the end of the year when the tax at the
+    # parent's rate or the IRC §59(j) AMT exemption limit could apply. None: not stated; the return blocks while it is unknown.
+    support_from_earned_income_over_half: bool | None = None
+    # Form 8615 (IRC §1(g)(2)(B)): at least one of the person's parents was alive at the end of the year. None: not stated.
+    has_living_parent: bool | None = None
     occupation: str = ""
 
 
@@ -530,6 +537,56 @@ class ForeignTaxCredit(BaseModel):
     amt_simplified_limitation: bool | None = None
 
 
+# Which Parent's Return To Use (Form 8615 instructions): the parents' joint return (or the custodial parent's joint return
+# with a stepparent); the return of the parent with the greater taxable income (married filing separately, never married
+# and living together all year, the custodial parent and a stepparent filing separately); the custodial parent's return
+# (divorced or separated, or married but not living together and considered unmarried).
+ParentSelection = Literal["joint_return", "greater_taxable_income", "custodial_parent"]
+
+
+class ParentFacts(BaseModel):
+    """Form 8615 lines A-C, 6 and 10 and the capital gain items of the parent whose return the form uses, transcribed
+    from that parent's Form 1040 by the preparer (hand-entered, with the preparer's provenance). A parent's return kept
+    by the same firm is read instead through Form8615Facts.parent_return_id. None means not stated, never zero."""
+    name: str = ""                                   # line A, the parent (or the person listed first on a joint return)
+    ssn: str | None = None                           # line B, SSN or ITIN
+    filing_status: FilingStatus | None = None        # line C
+    taxable_income: Money | None = None              # line 6: the parent's Form 1040 line 15 (zero or less is entered as 0)
+    tax: Money | None = None                         # line 10: the parent's Form 1040 line 16, without any tax from Form 4972 or 8814
+    #                                                  or the recapture of an education credit
+    qualified_dividends: Money = Z                   # the parent's Form 1040 line 3a, the qualified dividends included on line 6
+    net_capital_gain: Money = Z                      # the smaller of the gains on the parent's Schedule D lines 15 and 16, or Form 1040 line 7a
+    rate_28_gain: Money = Z                          # the parent's Schedule D line 18 (28% rate gain)
+    unrecaptured_1250_gain: Money = Z                # the parent's Schedule D line 19
+
+
+class Form8615Facts(BaseModel):
+    """Form 8615 (tax for certain children who have unearned income, IRC §1(g)) facts that no document carries. The
+    child's own facts (age, student status, support, a living parent) are on the taxpayer's Person."""
+    parent: ParentFacts | None = None                # hand-entered from the parent's return
+    parent_return_id: str | None = None              # or: a return of the same firm, whose latest computed result supplies the parent's lines
+    # Which Parent's Return To Use: required when the parent's return is not a joint return (a joint return is used as
+    # such); recorded on the form as the basis of the choice. None: not stated.
+    which_parent: ParentSelection | None = None
+    # The parent elected to report the child's interest and dividends on their own return (Form 8814): the child then
+    # files no return for that income, so a child's return stating it is contradictory and blocks.
+    form_8814_election: bool = False
+    # Line 7: the total of line 5 of the Forms 8615 of the parent's other children, and the qualified dividends, net
+    # capital gain, 28% rate gain and unrecaptured §1250 gain included in those amounts (from their Line 5 Worksheets and
+    # the Worksheets for Line 11 of the Schedule D Tax Worksheet).
+    other_children_net_unearned_income: Money = Z
+    other_children_qualified_dividends: Money = Z
+    other_children_net_capital_gain: Money = Z
+    other_children_rate_28_gain: Money = Z
+    other_children_unrecaptured_1250_gain: Money = Z
+    # Line 2 when the child itemizes: the part of Schedule A line 17z directly connected with the production of the
+    # unearned income on line 1 (custodian fees, investment counsel fees), and the part of that connected with the child's
+    # qualified dividends and net capital gain (Line 5 Worksheets #2 and #3, line 5). None: not stated; asked only when
+    # the child itemizes and Schedule A line 17z is not zero (enter 0 when nothing on it is directly connected).
+    directly_connected_deductions: Money | None = None
+    directly_connected_to_dividends_and_gains: Money | None = None
+
+
 class CarLoan(BaseModel):
     vin: str
     interest_paid: Money
@@ -640,6 +697,7 @@ class IndividualReturn(BaseModel):
     retirement_savings_contributions: dict[Owner, Money] = {}
     amt_adjustments: dict[str, Money] = {}  # Form 6251 preference items, e.g. "iso": bargain element
     foreign_tax_credit: ForeignTaxCredit = ForeignTaxCredit()  # Form 1116 elections
+    form_8615: Form8615Facts = Form8615Facts()  # Form 8615 facts: the parent's return items, other children, the Form 8814 election
     excess_aptc_repayment: Money = Z     # from Form 8962
     net_premium_tax_credit: Money = Z    # from Form 8962
     household_employment_taxes: Money = Z
