@@ -1,0 +1,33 @@
+.wrap {
+  overflow-x: auto;
+}
+
+.scroll {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.table {
+  width: 100%;
+}
+
+/* At least 24 by 24 CSS pixels (WCAG 2.2 target size), inside the header cell's padding. */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  min-width: 24px;
+  background: transparent;
+  border: 0;
+  padding: 0 var(--space-1);
+  margin: 0 calc(-1 * var(--space-1));
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+}
+
+.sortMark {
+  font-size: 10px;
+  min-width: 10px;
+}

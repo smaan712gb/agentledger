@@ -29,3 +29,10 @@ node_modules/
 
 # wrangler state and dry-run output
 .wrangler/
+
+# web app (apps/web) and API contracts (packages/contracts): build and test output
+apps/web/dist/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/e2e/.state/
+packages/contracts/dist/

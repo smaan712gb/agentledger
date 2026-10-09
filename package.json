@@ -1,4 +1,18 @@
 {
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "web:dev": "npm run -w apps/web dev",
+    "web:check": "npm run -w apps/web check",
+    "web:build": "npm run -w apps/web build",
+    "web:e2e": "npm run -w apps/web e2e"
+  },
   "dependencies": {
     "@neon/config": "^1.8.5",
     "@neon/env": "^1.5.2"
@@ -6,7 +20,7 @@
   "devDependencies": {
     "@cloudflare/containers": "^0.3.7",
     "@cloudflare/workers-types": "^5.20261009.1",
-    "typescript": "^7.0.2",
+    "typescript": "~5.9.3",
     "wrangler": "^4.149.0"
   }
 }

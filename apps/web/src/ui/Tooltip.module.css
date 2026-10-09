@@ -1,0 +1,15 @@
+.content {
+  max-width: 320px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+  z-index: 50;
+}
+
+.arrow {
+  fill: var(--ink);
+}

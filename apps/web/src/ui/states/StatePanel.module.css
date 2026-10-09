@@ -1,0 +1,128 @@
+.panel {
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  margin: var(--space-3) 0;
+}
+
+.compact {
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.compact .title {
+  margin-bottom: var(--space-1);
+}
+
+.body {
+  color: var(--ink-2);
+}
+
+.body p:last-child {
+  margin-bottom: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.warn {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.bad {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.info {
+  border-color: var(--info);
+  background: var(--info-soft);
+}
+
+.skeleton {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.bone {
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--panel-2), var(--line), var(--panel-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bone {
+    animation: none;
+    background: var(--panel-2);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.meta {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  margin-top: var(--space-2);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.banner {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.banner.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.banner.info {
+  background: var(--info-soft);
+  color: var(--info);
+  border-color: var(--info);
+}
+
+.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--warn);
+}

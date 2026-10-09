@@ -1,0 +1,32 @@
+{
+  "name": "@agentledger/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The API contract for the web app: the OpenAPI snapshot, the (for now hand-maintained) TypeScript types for every JSON shape the app reads, and the fetch client that applies the session, step-up and sign-out rules.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "snapshot": "node ./scripts/snapshot.mjs",
+    "generate": "node ./scripts/generate.mjs",
+    "check": "node ./scripts/check.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0",
+    "openapi-react-query": "^0.5.4"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.80.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.104.1",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

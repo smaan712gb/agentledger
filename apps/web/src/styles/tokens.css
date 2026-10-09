@@ -1,0 +1,124 @@
+/* Design tokens. Colours continue the palette of the previous interface (src/agentledger/web/styles.css) so the two
+   can coexist during the screen-by-screen retirement. Everything downstream reads these custom properties; nothing
+   hard-codes a colour, a radius or a duration. */
+:root {
+  --bg: #f6f7fb;
+  --panel: #ffffff;
+  --panel-2: #f1f3f9;
+  --ink: #141826;
+  --ink-2: #4a5168;
+  /* Text colours keep at least 4.5:1 on every surface they appear on (checked with the WCAG formula):
+     ink-3 on bg 5.6, good/warn/bad/info on their soft tints 5.9 / 5.4 / 5.5 / 5.8, accent on accent-soft 5.6. */
+  --ink-3: #5c637a;
+  --line: #e3e6ef;
+  --line-strong: #c9ceda;
+  --accent: #4f46e5;
+  --accent-2: #7c3aed;
+  --accent-ink: #ffffff;
+  --accent-soft: #eef0ff;
+  --good: #0b6a49;
+  --good-soft: #e3f6ee;
+  --warn: #8a5a12;
+  --warn-soft: #fdf3dc;
+  --bad: #b3283a;
+  --bad-soft: #fde8ea;
+  --info: #1d4ed8;
+  --info-soft: #e6efff;
+  --focus: #4f46e5;
+  --shadow: 0 1px 2px rgba(20, 24, 38, 0.06), 0 8px 24px rgba(20, 24, 38, 0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  --text-sm: 12.5px;
+  --text-md: 14px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --duration: 160ms;
+  --nav-width: 232px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0f18;
+    --panel: #141927;
+    --panel-2: #1b2133;
+    --ink: #e8ebf5;
+    --ink-2: #aab1c7;
+    --ink-3: #8a92ab;
+    --line: #262d42;
+    --line-strong: #3a4360;
+    --accent: #8b85ff;
+    --accent-2: #b28cff;
+    --accent-ink: #0c0f18;
+    --accent-soft: #23264a;
+    --good: #3ccf91;
+    --good-soft: #10291f;
+    --warn: #f0b44c;
+    --warn-soft: #2d2412;
+    --bad: #ff6b7a;
+    --bad-soft: #2f1519;
+    --info: #6aa1ff;
+    --info-soft: #14213d;
+    --focus: #b28cff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c0f18;
+  --panel: #141927;
+  --panel-2: #1b2133;
+  --ink: #e8ebf5;
+  --ink-2: #aab1c7;
+  --ink-3: #8a92ab;
+  --line: #262d42;
+  --line-strong: #3a4360;
+  --accent: #8b85ff;
+  --accent-2: #b28cff;
+  --accent-ink: #0c0f18;
+  --accent-soft: #23264a;
+  --good: #3ccf91;
+  --good-soft: #10291f;
+  --warn: #f0b44c;
+  --warn-soft: #2d2412;
+  --bad: #ff6b7a;
+  --bad-soft: #2f1519;
+  --info: #6aa1ff;
+  --info-soft: #14213d;
+  --focus: #b28cff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+/* High contrast: stronger lines and text, no soft tints behind text. */
+@media (prefers-contrast: more) {
+  :root {
+    --line: #6b7390;
+    --line-strong: #141826;
+    --ink-2: #141826;
+    --ink-3: #2a3047;
+    --accent-soft: transparent;
+    --good-soft: transparent;
+    --warn-soft: transparent;
+    --bad-soft: transparent;
+    --info-soft: transparent;
+    --shadow: none;
+  }
+}
+
+/* Reduced motion: transitions collapse to nothing; nothing in the app depends on an animation finishing. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration: 0ms;
+  }
+}
