@@ -64,7 +64,7 @@ def test_s3_retry_of_a_delete_that_landed_but_raised_completes(biz, tmp_path, mo
         hold = records.place_hold(biz.conn, client_id="acme", reason=EXAM, actor="maya", role="cpa")
         out = _purge(biz.conn, vault)
         [held] = out.failures
-        assert held["stage"] == "held" and held["bytes_present"] is False and "already gone" in held["error"]
+        assert held["stage"] == "held" and held["bytes_present"] is False and "no longer stored" in held["error"]
         records.release_hold(biz.conn, hold, reason="examination closed, no-change letter received", actor="maya", role="cpa")
 
         out = _purge(biz.conn, vault)                 # deleting a missing key succeeds on S3
