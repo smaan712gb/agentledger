@@ -137,7 +137,7 @@ def test_rotation_keeps_old_ciphertext_readable(plat):
 def test_deleting_firm_crypto_shreds_and_revokes(plat):
     admin, session = onboard(plat)
     blob = plat.keys.encrypt("rivera-cpa", b"secret", "doc")
-    plat.delete_firm("rivera-cpa", by=admin["id"])
+    plat.delete_firm("rivera-cpa", by=admin["id"], reason="signed offboarding request on file")
     assert plat.session_user(session) is None
     fresh = Keyring(plat.conn, plat.keys.master)
     with pytest.raises(CryptoError):

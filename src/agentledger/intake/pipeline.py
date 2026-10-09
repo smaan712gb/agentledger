@@ -19,11 +19,11 @@ from typing import Any
 from .. import audit
 from ..ai.router import Router, Unavailable
 from ..calc.engine import D
-from ..db import one, rows
+from ..db import is_pg, one, rows, unit_of_work
 from ..evidence import records
 from ..ledger import store
 from ..security.vault import Vault, as_vault
-from .classify import FOLDERS, SYSTEM, Classification, detect, ground_fields
+from .classify import FOLDERS, SYSTEM, Classification, detect, ground_fields, ungrounded
 from .extract import Part, explode
 
 AUTO_FILE_CONFIDENCE = 0.75
@@ -51,6 +51,7 @@ def _ingest_part(conn, router, vault: Vault, part: Part, channel: str, client_hi
 
     det = detect(part.text) if part.text else None
     cls: Classification | None = None
+    dropped: list[Any] = []
     by = "deterministic"
     is_cover_note = part.parent is not None and part.name.endswith("-body.txt") and not (det and det.doc_type)
     if is_cover_note:
@@ -77,6 +78,7 @@ def _ingest_part(conn, router, vault: Vault, part: Part, channel: str, client_hi
     if cls is not None:
         if cls.confidence > 1:  # some local models answer in percent
             cls.confidence = min(cls.confidence / 100, 1.0)
+        dropped = ungrounded(cls, part.text or "")
         cls = ground_fields(cls, part.text or "")
         if det and det.doc_type and det.doc_type != cls.doc_type:
             cls.confidence = min(cls.confidence, 0.6)  # disagreement between tiers -> human review
@@ -88,20 +90,24 @@ def _ingest_part(conn, router, vault: Vault, part: Part, channel: str, client_hi
 
     status = "filed" if client_id and confidence >= AUTO_FILE_CONFIDENCE else "needs_review"
     doc_id = "doc_" + secrets.token_hex(6)
-    # The original bytes are always stored first, content addressed, whatever the classification says.
-    loc = vault.put(part.data)
+    # The original bytes are always stored first, whatever the classification says, as this document's own object
+    # (addressed by the document and its bytes): no other document's deletion can ever reach them.
+    loc = vault.put(part.data, owner=doc_id)
     received = audit.now()
     retention_class, retain_until = records.retention_for(records.policy(), doc_type, tax_year, received)
-    fields = {kv.name: kv.value for kv in cls.fields} if cls else {}
-    conn.execute(
-        "INSERT INTO documents (id, client_id, sha256, original_name, media_type, channel, received_at, sender, parent_id, doc_type, "
-        "tax_year, confidence, status, vault_path, fields, summary, classified_by, text_excerpt, retention_class, retain_until) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (doc_id, client_id if status == "filed" else None, sha, part.name, part.media_type, channel, received, part.sender,
-         part.parent, doc_type, tax_year, confidence, status, loc, json.dumps(fields),
-         cls.summary if cls else part.note, by, (part.text or "")[:4000], retention_class, retain_until),
-    )
-    records.add_version(conn, doc_id, loc, sha, len(part.data), actor)
+    fields: dict[str, Any] = {kv.name: kv.value for kv in cls.fields} if cls else {}
+    if cls is not None and dropped:
+        fields["_unverified"] = {kv.name: kv.value for kv in dropped}
+    with unit_of_work(conn):
+        conn.execute(
+            "INSERT INTO documents (id, client_id, sha256, original_name, media_type, channel, received_at, sender, parent_id, "
+            "doc_type, tax_year, confidence, status, vault_path, fields, summary, classified_by, text_excerpt, retention_class, "
+            "retain_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (doc_id, client_id if status == "filed" else None, sha, part.name, part.media_type, channel, received, part.sender,
+             part.parent, doc_type, tax_year, confidence, status, loc, json.dumps(fields),
+             cls.summary if cls else part.note, by, (part.text or "")[:4000], retention_class, retain_until),
+        )
+        records.add_version(conn, doc_id, loc, sha, len(part.data), actor)
     audit.record(conn, actor, "agent", "document.received",
                  {"document_id": doc_id, "name": part.name, "doc_type": doc_type, "status": status, "match": match_reason,
                   "classified_by": by, "channel": channel}, client_id=client_id if status == "filed" else None)
@@ -228,18 +234,79 @@ def link_receipt(conn, client_id: str, doc_id: str, total: Decimal, when: str | 
     return candidates[0]["id"]
 
 
-def assign(conn, vault: "Vault | Path", doc_id: str, client_id: str, actor: str, role: str = "cpa") -> dict[str, Any]:
-    """A human resolves a review-queue document to a client (moves it into that client's vault)."""
-    d = one(conn, "SELECT * FROM documents WHERE id = ?", doc_id)
-    if not d:
+def assign(conn, vault: "Vault | Path", doc_id: str, client_id: str, actor: str, role: str = "cpa", *,
+           move_reason: str | None = None) -> dict[str, Any]:
+    """A human resolves a review-queue document to a client. A document already filed to another client is moved only
+    explicitly, with a reason on record, and never while a legal hold covers it or once a filed return relied on it
+    (file a copy instead): the move and every decision about deleting the document serialize on all the clients
+    involved (re-checked once locked). Returns that relied on it see it leave (every review gate re-checks the
+    documents as they are now); the move is recorded (holds on the client it left keep covering it) and its retention
+    must be confirmed again. A document filed before content addressing is copied to the new client's folder; the copy
+    is removed if the move fails, and the old file after it commits (if it cannot be, it stays part of the document)."""
+    first = one(conn, "SELECT client_id, status FROM documents WHERE id = ?", doc_id)
+    if not first:
         raise KeyError(doc_id)
     store.get_client(conn, client_id)
-    if str(d["vault_path"]).startswith("blob:"):
-        new_loc = d["vault_path"]          # content-addressed: the bytes stay where they are; only the record changes
-    else:                                  # filed before content addressing: moved into the client's folder
-        new_loc = str(_vault_path(client_id, d["tax_year"], d["doc_type"], d["original_name"], d["sha256"])).replace("\\", "/")
-        as_vault(vault).move(d["vault_path"], new_loc)
-    conn.execute("UPDATE documents SET client_id = ?, status = 'filed', vault_path = ? WHERE id = ?", (client_id, new_loc, doc_id))
-    audit.record(conn, actor, role, "document.assigned", {"document_id": doc_id, "name": d["original_name"]}, client_id=client_id)
-    _effects(conn, client_id, doc_id, d["doc_type"], d["tax_year"], json.loads(d["fields"]), d["text_excerpt"] or "")
-    return one(conn, "SELECT * FROM documents WHERE id = ?", doc_id)
+    locked = {c for c in (client_id, first["client_id"], *records.former_clients(conn, doc_id)) if c}
+    copied: list[str] = []
+    legacy_move: tuple[str, str] | None = None
+    try:
+        with unit_of_work(conn):
+            records.evidence_lock(conn, *locked)
+            d = one(conn, "SELECT * FROM documents WHERE id = ?" + (" FOR UPDATE" if is_pg(conn) else ""), doc_id)
+            if not d:
+                raise KeyError(doc_id)
+            if d.get("deleted_at"):
+                raise ValueError("this document was deleted under the retention policy; only its receipt remains")
+            if d["client_id"] != first["client_id"] or not {c for c in (d["client_id"], *records.former_clients(conn, doc_id))
+                                                         if c} <= locked:
+                raise ValueError("this document was just moved by someone else; reload it and try again")
+            previous = d["client_id"] if d["status"] == "filed" else None
+            if previous == client_id:
+                return d                           # already filed here: nothing to do, no repeated side effects
+            if previous and len((move_reason or "").strip()) < 10:
+                raise ValueError(f"this document is filed to {previous}; moving it to {client_id} needs a reason")
+            if previous and records.on_hold(conn, d):
+                raise ValueError(f"a legal hold covers this document at {previous}: it cannot be moved until a CPA releases the hold")
+            if previous and records._has_table(conn, "return_document_uses"):
+                filed = [r["id"] for r in rows(conn, "SELECT return_id AS id FROM return_document_uses WHERE document_id = ?", doc_id)
+                         if records._return_filed(conn, r["id"])]
+                if filed:
+                    raise ValueError(f"filed return {filed[0]} relied on this document: it stays that return's evidence (file a "
+                                     f"copy to {client_id} instead, or amend that return first)")
+            new_loc = d["vault_path"]
+            if not str(d["vault_path"]).startswith("blob:"):   # filed before content addressing: copied to the new folder
+                new_loc = str(_vault_path(client_id, d["tax_year"], d["doc_type"], d["original_name"], d["sha256"])).replace("\\", "/")
+                if new_loc != d["vault_path"]:
+                    as_vault(vault).copy(d["vault_path"], new_loc)
+                    copied.append(new_loc)
+                    legacy_move = (d["vault_path"], new_loc)
+            cur = conn.execute("UPDATE documents SET client_id = ?, status = 'filed', vault_path = ?, "
+                               "retention_confirmed_by = CASE WHEN ? THEN NULL ELSE retention_confirmed_by END, "
+                               "retention_confirmed_at = CASE WHEN ? THEN NULL ELSE retention_confirmed_at END "
+                               "WHERE id = ? AND deleted_at IS NULL AND client_id " + ("IS NOT DISTINCT FROM ?" if is_pg(conn) else "IS ?"),
+                               (client_id, new_loc, bool(previous), bool(previous), doc_id, d["client_id"]))
+            if cur.rowcount != 1:
+                raise ValueError("this document changed while it was being moved; reload it and try again")
+            if previous:
+                conn.execute("INSERT INTO document_moves (document_id, from_client, to_client, reason, moved_by, moved_at) "
+                             "VALUES (?, ?, ?, ?, ?, ?)", (doc_id, previous, client_id, (move_reason or "").strip(), actor, audit.now()))
+                audit.record(conn, actor, role, "document.moved", {"document_id": doc_id, "name": d["original_name"],
+                                                                  "from_client": previous, "tax_year": d["tax_year"],
+                                                                  "reason": (move_reason or "").strip()}, client_id=previous)
+            audit.record(conn, actor, role, "document.assigned", {"document_id": doc_id, "name": d["original_name"],
+                                                                 "from_client": previous}, client_id=client_id)
+            _effects(conn, client_id, doc_id, d["doc_type"], d["tax_year"], json.loads(d["fields"]), d["text_excerpt"] or "")
+    except BaseException:
+        for path in copied:                    # the move did not happen: no copy is left in the other client's folder
+            try:
+                as_vault(vault).delete(path)
+            except OSError:
+                pass
+        raise
+    if legacy_move:                            # committed: the record names the copy, so the old file can go
+        try:
+            as_vault(vault).delete(legacy_move[0])
+        except OSError:                        # still there: part of the document, so its deletion removes it too
+            records.add_version(conn, doc_id, legacy_move[0], d["sha256"], 0, actor, reason="previous path, not yet removed")
+    return one(conn, "SELECT * FROM documents WHERE id = ?", doc_id) or {}

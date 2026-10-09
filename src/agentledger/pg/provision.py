@@ -24,7 +24,7 @@ from typing import Any, Callable, Protocol
 from urllib.parse import urlparse
 
 from .. import db
-from . import connect, drop_role, migration_url, runtime_base_url, runtime_role, with_database
+from . import connect, database_of, drop_role, migration_url, runtime_base_url, runtime_role, with_database
 
 NEON_API = "https://console.neon.tech/api/v2"
 FIRM_SCHEMA = "agentledger"           # the schema inside a firm's own database
@@ -44,6 +44,14 @@ def tenancy() -> str:
     if mode not in ("schema", "database"):
         raise ProvisioningError(f"AGENTLEDGER_PG_TENANCY must be 'schema' or 'database', not {mode!r}")
     return mode
+
+
+def server_of(url: str) -> str:
+    """The database server a URL names, the same for its pooled and direct endpoints (Neon: ep-x-pooler vs ep-x)."""
+    u = urlparse(url)
+    host = (u.hostname or "").lower()
+    first, _, rest = host.partition(".")
+    return (first.removesuffix("-pooler") + ("." + rest if rest else "")) + (f":{u.port}" if u.port else "")
 
 
 def firm_database(firm_id: str) -> str:
@@ -175,7 +183,8 @@ def _provision(firm_id: str, journal: Journal, neon: Neon | None, migrate_store:
         if state is None:
             if exists:   # not ours: no record that we ever started creating it
                 raise ProvisioningError(f"database {name} exists without a provisioning record; refusing to adopt it")
-            journal.put(firm_id, resource=resource, name=name, state="creating", error=None)
+            journal.put(firm_id, resource=resource, name=name, database=name, server=server_of(base), state="creating",
+                        error=None)
             state = "creating"
         if state == "creating":
             if not exists:   # a timeout after Neon accepted the request leaves it existing; then it is ours
@@ -183,7 +192,15 @@ def _provision(firm_id: str, journal: Journal, neon: Neon | None, migrate_store:
             journal.put(firm_id, state="created")
             state = "created"
     elif state is None:
-        journal.put(firm_id, resource=resource, name=name, state="created", error=None)
+        owner = connect(with_database(migration_url() or "", database_of(base)))
+        try:
+            taken = owner.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (name,)).fetchone()
+        finally:
+            owner.close()
+        if taken:   # not ours: no record that we ever started creating it (another firm's, or a leftover)
+            raise ProvisioningError(f"schema {name} exists without a provisioning record; refusing to adopt it")
+        journal.put(firm_id, resource=resource, name=name, database=database_of(base), server=server_of(base),
+                    state="created", error=None)
         state = "created"
     if state == "created":
         migrate_store(url, schema, database_mode)        # idempotent: resumes from schema_migrations
@@ -231,6 +248,37 @@ def _remove(resource: str, name: str, *, neon: Neon | None = None) -> str:
     finally:
         owner.close()
     return done + f"; runtime role {role} dropped"
+
+
+def store_exists(path: Path | str) -> bool:
+    """Whether the firm's schema or database exists. Answers only from a definite catalog lookup or a definite
+    'database does not exist'; any other failure is raised (callers that protect evidence fail closed)."""
+    import psycopg
+
+    from . import runtime_role, runtime_url
+
+    url, schema = store_location(path)
+    database = urlparse(url).path.lstrip("/") or "postgres"
+    owner_url = migration_url()
+    if owner_url:
+        owner = connect(with_database(owner_url, urlparse(owner_url).path.lstrip("/") or "postgres"))
+        try:
+            if not owner.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database,)).fetchone():
+                return False
+        finally:
+            owner.close()
+        probe = connect(with_database(owner_url, database))
+    else:
+        try:
+            probe = connect(runtime_url(url, runtime_role(database, schema)))
+        except psycopg.OperationalError as exc:
+            if "does not exist" in str(exc):
+                return False
+            raise
+    try:
+        return bool(probe.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (schema,)).fetchone())
+    finally:
+        probe.close()
 
 
 def destroy(path: Path | str, *, neon: Neon | None = None) -> str:

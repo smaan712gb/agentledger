@@ -31,7 +31,9 @@ from . import connect, database_of, migrate, migration_url, runtime_base_url, ru
 IDENTITY = {"info_returns": "id", "finding_resolutions": "id", "precedents": "id", "contacts": "id", "engagements": "id",
             "tasks": "id", "messages": "id", "parties": "id", "deals": "id", "invoices": "id", "ai_usage": "id",
             "entries": "id", "outbox": "id", "audit": "seq", "legal_holds": "id", "deletion_receipts": "id",
-            "fact_assertions": "id", "fact_conflicts": "id"}
+            "fact_assertions": "id", "fact_conflicts": "id",
+            "tax_year_events": "id", "blob_deletions": "id", "blob_deletion_results": "id",
+            "return_document_dispositions": "id", "document_moves": "id", "basis_releases": "id"}
 _INSERT = re.compile(r"^\s*INSERT\s+INTO\s+\"?(\w+)\"?", re.I)
 _DDL = re.compile(r"^\s*(INSERT|UPDATE|DELETE)\b", re.I | re.M)
 
@@ -247,7 +249,9 @@ class PgStore:
             raise db.DatabaseError("this firm store has been closed")
         c = getattr(self._local, "conn", None)
         if c is None or c.raw.closed:
-            c = PgConnection(connect(self._runtime), self.schema, self.scope)
+            # A reconnect keeps the scope this thread's request set: a dropped connection never widens a client-scoped
+            # request to the whole firm.
+            c = PgConnection(connect(self._runtime), self.schema, getattr(self._local, "scope", self.scope))
             self._local.conn = c
             self._all.append(c)
         return c
@@ -257,7 +261,9 @@ class PgStore:
 
     def set_scope(self, clients: Sequence[str]) -> None:
         """Scope this thread's connection (one request) to `clients`; ["*"] is firm-wide."""
-        self._get().set_scope(",".join(clients) or "-")
+        scope = ",".join(clients) or "-"
+        self._local.scope = scope
+        self._get().set_scope(scope)
 
     def close(self) -> None:
         """Close every thread's connection; the store cannot be used afterwards."""

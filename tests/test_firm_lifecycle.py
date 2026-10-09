@@ -39,7 +39,7 @@ def test_deleting_a_firm_removes_its_store_and_files(tmp_path):
 
     with pytest.raises(AuthError):
         plat.destroy_firm_data("short-lived", by="ops")       # an active firm's data is never destroyed
-    plat.delete_firm("short-lived", by="ops")
+    plat.delete_firm("short-lived", by="ops", reason="test firm offboarding request")
 
     assert not tenant.exists()
     with pytest.raises(db.DatabaseError, match="closed"):
@@ -159,7 +159,7 @@ def test_neon_database_per_firm_live(tmp_path, monkeypatch):
         assert owner.execute("SELECT has_database_privilege('public', %s, 'CONNECT')", (name,)).fetchone()[0] is False
         owner.close()
         assert plat.get("live-check")["state"] == "ready"
-        plat.delete_firm("live-check", by="ops")
+        plat.delete_firm("live-check", by="ops", reason="live check firm removed after the test")
         assert name not in neon.databases()
     finally:
         if name in neon.databases():

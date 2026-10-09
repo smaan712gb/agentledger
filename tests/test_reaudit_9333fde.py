@@ -201,6 +201,21 @@ def test_receipt_links_to_expense_with_cents(biz, amount):
 
 
 # --------------------------------------------------------------------------- 4. durable provisioning
+class _Catalog:
+    """A connection that answers the catalog lookups made before a firm's evidence is destroyed: the databases of the
+    fake Neon project exist; no schema does, since the fake never runs migrations."""
+
+    def __init__(self, dbs):
+        self.dbs = dbs
+
+    def execute(self, sql, params=()):
+        found = "pg_database" in sql and bool(params) and params[0] in self.dbs
+        return type("Result", (), {"fetchone": lambda self: (1,) if found else None})()
+
+    def close(self):
+        pass
+
+
 @pytest.fixture
 def neon_env(tmp_path, monkeypatch):
     from test_firm_lifecycle import FakeNeon
@@ -231,7 +246,7 @@ def neon_env(tmp_path, monkeypatch):
     monkeypatch.setattr(provision, "_migrate_store", migrate_store)
     removed_roles = []
     monkeypatch.setattr(provision, "drop_role", lambda owner, role: removed_roles.append(role))
-    monkeypatch.setattr(provision, "connect", lambda url: type("C", (), {"execute": lambda *a: None, "close": lambda self: None})())
+    monkeypatch.setattr(provision, "connect", lambda url: _Catalog(fake.dbs))
     return Platform(tmp_path, dev=True), fake, neon, migrations, removed_roles
 
 

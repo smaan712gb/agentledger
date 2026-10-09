@@ -82,7 +82,7 @@ class S3Blobs:
                 # Checksums only when an operation requires them: R2 does not document support for the CRC headers
                 # boto3 >= 1.36 adds by default. Integrity is ours anyway: objects are AES-GCM sealed and content addressed.
                 config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"},
-                              request_checksum_calculation="when_required", response_checksum_validation="when_required"))
+                              connect_timeout=10, read_timeout=30, **_checksum_settings()))
         self.s3 = client
 
     def _k(self, key: str) -> str:
@@ -122,11 +122,31 @@ class S3Blobs:
             token = page.get("NextContinuationToken")
 
 
+def _checksum_settings() -> dict[str, str]:
+    """Checksums only when an operation requires them (botocore >= 1.36 adds CRC headers R2 does not document by
+    default; older botocore sends none and does not know these settings)."""
+    import botocore
+
+    major, minor = (int(x) for x in botocore.__version__.split(".")[:2])
+    if (major, minor) < (1, 36):
+        return {}
+    return {"request_checksum_calculation": "when_required", "response_checksum_validation": "when_required"}
+
+
 def for_firm(root: Path, firm_id: str | None) -> BlobStore:
     """The configured store for one firm: AGENTLEDGER_BLOBS=s3 uses the bucket under the prefix firms/<firm>/."""
     if os.environ.get("AGENTLEDGER_BLOBS", "file").strip().lower() == "s3":
         return S3Blobs(prefix=f"{os.environ.get('AGENTLEDGER_BLOB_PREFIX', '')}firms/{firm_id or 'dev'}")
     return FileBlobs(root)
+
+
+def location_of(firm_id: str) -> str:
+    """Where a firm's objects live under the current settings: 'file' (inside the tenant directory) or
+    's3:<bucket>/<prefix>'. Recorded when the firm is created; offboarding refuses to run under other settings."""
+    if os.environ.get("AGENTLEDGER_BLOBS", "file").strip().lower() == "s3":
+        store = for_firm(Path("."), firm_id)
+        return f"s3:{getattr(store, 'bucket', '')}/{getattr(store, 'prefix', '')}"
+    return "file"
 
 
 def destroy_firm(firm_id: str) -> str:

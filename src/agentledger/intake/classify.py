@@ -16,6 +16,7 @@ DocType = Literal[
     "IRS notice", "State tax notice", "Bank statement", "Credit card statement", "Brokerage statement", "Invoice",
     "Receipt", "Bill", "Payroll report", "835 remittance", "Bill of lading", "Fuel tank report", "Commission statement",
     "Capital call notice", "Distribution notice", "Capital account statement", "Trade confirmation", "Contract",
+    "Closing disclosure", "Settlement statement",
     "Organizational document", "Correspondence", "Other",
 ]
 
@@ -29,6 +30,7 @@ FOLDERS = {
     "835 remittance": "insurance-remittances", "Bill of lading": "inventory", "Fuel tank report": "inventory",
     "Commission statement": "commissions", "Capital call notice": "fund-investor", "Distribution notice": "fund-investor",
     "Capital account statement": "fund-investor", "Contract": "legal", "Organizational document": "legal",
+    "Closing disclosure": "property", "Settlement statement": "property",
     "Correspondence": "correspondence", "Other": "other",
 }
 
@@ -95,6 +97,13 @@ def detect(text: str) -> Detected:
     years = [int(y) for y in YEAR.findall(text[:5000])]
     year = max(set(years), key=years.count) if years else None
     return Detected(dt, year, MONEY.findall(text[:20000])[:20])
+
+
+def ungrounded(c: Classification, text: str) -> list[KV]:
+    """The numeric fields ground_fields would drop: kept by intake as unverified, so a box whose value cannot be confirmed
+    against the document text is never silently zero on a return (documents.populate reports it as unreadable)."""
+    have = numbers_in(text)
+    return [kv for kv in c.fields if numbers_in(kv.value) and not (numbers_in(kv.value) & have)]
 
 
 def ground_fields(c: Classification, text: str) -> Classification:

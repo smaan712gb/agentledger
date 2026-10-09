@@ -14,12 +14,13 @@ import secrets
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 from .. import audit
 from . import facts
-from ..db import is_pg
+from ..db import is_pg, lock, unit_of_work
 from ..calc.engine import Ctx
 from ..kb.store import KnowledgeBase
 from ..workflow.engine import Definition, Engine, State, Transition, TransitionError
@@ -90,6 +91,52 @@ CREATE TRIGGER IF NOT EXISTS fact_conflicts_no_delete BEFORE DELETE ON fact_conf
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS fact_conflicts_resolve_once BEFORE UPDATE ON fact_conflicts WHEN OLD.resolved_at IS NOT NULL
 BEGIN SELECT RAISE(ABORT, 'a fact conflict is resolved once (append-only)'); END;
+-- One open conflict per field, decided by the database when two populations overlap (created in Returns.__init__
+-- on SQLite, after older duplicates are retired; migration 0005 on PostgreSQL).
+-- A filed document a return does not use is accounted for by a person (entered by hand, or not applicable), with
+-- a reason; until then it blocks review (re-audit of 952ee96, finding 1 path f).
+CREATE TABLE IF NOT EXISTS return_document_dispositions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    document_id TEXT NOT NULL,
+    disposition TEXT NOT NULL CHECK (disposition IN ('entered_by_hand', 'not_applicable')),
+    note TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS return_document_dispositions_no_update BEFORE UPDATE ON return_document_dispositions
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS return_document_dispositions_no_delete BEFORE DELETE ON return_document_dispositions
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+-- Every document any version of a return relied on, in clear (versions are sealed): evidence retention counts the
+-- return's year for each of them (evidence/records.py: supported_years).
+CREATE TABLE IF NOT EXISTS return_document_uses (
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    document_id TEXT NOT NULL,
+    first_version INTEGER NOT NULL,
+    at TEXT NOT NULL,
+    PRIMARY KEY (return_id, document_id)
+);
+CREATE INDEX IF NOT EXISTS return_document_uses_document ON return_document_uses (document_id);
+-- What retention needs to know about a return version, in clear (versions are sealed; evidence/records.py): it uses
+-- a carryover (the years it comes from stay open until this year is closed), or it shows foreign tax (a credit can be
+-- claimed for 10 years).
+CREATE TABLE IF NOT EXISTS return_retention_facts (
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    version INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('carryover', 'foreign_tax')),
+    detail TEXT NOT NULL,
+    at TEXT NOT NULL,
+    PRIMARY KEY (return_id, version, kind)
+);
+CREATE TRIGGER IF NOT EXISTS return_retention_facts_no_update BEFORE UPDATE ON return_retention_facts
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS return_retention_facts_no_delete BEFORE DELETE ON return_retention_facts
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS return_document_uses_no_update BEFORE UPDATE ON return_document_uses
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS return_document_uses_no_delete BEFORE DELETE ON return_document_uses
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS tax_return_versions_no_update BEFORE UPDATE ON tax_return_versions
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS tax_return_versions_no_delete BEFORE DELETE ON tax_return_versions
@@ -98,18 +145,52 @@ BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 
 CPA = ("cpa",)
 ENGINE_VERSION = "1040-2026.1"
+USES_INDEXED = "return_document_uses_indexed"
 
 
-def _g_review(st: State, c: dict[str, Any]) -> list[str]:
+# The filed documents that feed an individual return: each one must be on the return or accounted for by a person.
+TAX_FORMS = ("W-2", "1099-NEC", "1099-MISC", "1099-K", "1099-INT", "1099-DIV", "1099-B", "1099-R", "1098", "1095", "K-1",
+             "SSA-1099", "1099-G", "1098-E", "1098-T")
+
+
+def _blockers(c: dict[str, Any]) -> list[str]:
+    """What stops a return from moving on: checked at review, approval, signature request and transmission alike,
+    so nothing that appeared after one step slips through the next."""
     out = []
     if not c.get("computed"):
         out.append("compute the return first")
     if c.get("blocking"):
         out.append(f"{c['blocking']} blocking diagnostic(s) must be resolved")
+    if c.get("missing"):
+        out.append(f"{c['missing']} item(s) lack a required amount (for example a W-2 without wages): enter it from the "
+                   "document; a missing amount is never taken as zero")
     if c.get("unconfirmed"):
         out.append(f"{c['unconfirmed']} document-sourced amount(s) are not confirmed by the preparer")
+    if c.get("orphaned"):
+        out.append(f"{c['orphaned']} item(s) whose document left the return (moved, re-dated or deleted): remove each one "
+                   "or keep it with a reason")
     if c.get("conflicts"):
-        out.append(f"{c['conflicts']} fact conflict(s) between documents and entered values must be resolved")
+        out.append(f"{c['conflicts']} fact conflict(s) between documents and the return must be resolved")
+    if c.get("unaccounted"):
+        names = ", ".join(c["unaccounted"][:5])
+        out.append(f"{len(c['unaccounted'])} filed document(s) for the year are not on the return ({names}): populate, or "
+                   "account for each one (entered by hand, or not applicable) with a reason")
+    d = c.get("drift") or {}
+    if d.get("left"):
+        out.append(f"{len(d['left'])} item(s) whose document left the return (moved, re-dated or deleted): re-populate, then "
+                   "remove each one or keep it with a reason")
+    if d.get("disagreements"):
+        out.append(f"{len(d['disagreements'])} value(s) disagree with the documents and were never decided: re-populate and "
+                   "resolve each conflict")
+    if d.get("not_applied"):
+        out.append(f"the documents now provide {len(d['not_applied'])} value(s) not on the return: re-populate")
+    if d.get("duplicates"):
+        out.append("more than one item claims the same document: remove the copies")
+    return out
+
+
+def _g_review(st: State, c: dict[str, Any]) -> list[str]:
+    out = _blockers(c)
     if c.get("crosscheck") == "differ" and not c.get("explained"):
         out.append("the independent cross-check disagrees; explain each difference before review")
     return out
@@ -121,7 +202,11 @@ def _g_approve(st: State, c: dict[str, Any]) -> list[str]:
         out.append("the reviewer must be a different person from the preparer")
     if c.get("package_hash") != st.facts.get("review_hash"):
         out.append("the return changed after it was submitted for review")
-    return out
+    return out + _blockers(c)
+
+
+def _g_request_signature(st: State, c: dict[str, Any]) -> list[str]:
+    return _blockers(c)
 
 
 def _g_signed(st: State, c: dict[str, Any]) -> list[str]:
@@ -139,10 +224,33 @@ def _g_transmit(st: State, c: dict[str, Any]) -> list[str]:
     return [] if c.get("efile_ready") else ["e-file is not enabled for this firm (EFIN, ETIN and ATS approval required)"]
 
 
+def _g_void(st: State, c: dict[str, Any]) -> list[str]:
+    if len(str(c.get("note") or "").strip()) < 10:
+        return ["say why the return is void (for example 'filed with other software on 2027-04-10, transcript on file')"]
+    if c.get("transmission_started"):
+        return ["an electronic transmission of this return was started: reconcile it with the transmitter first"]
+    return []
+
+
+def _g_paper_filed(st: State, c: dict[str, Any]) -> list[str]:
+    """Marking a return filed on paper is a filing: the same checks as transmission, and how it was filed on record
+    (evidence retention counts from it)."""
+    out = []
+    if not st.facts.get("signed_hash") or st.facts.get("signed_hash") != st.facts.get("approved_hash"):
+        out.append("no valid signature is bound to the approved package")
+    if c.get("package_hash") != st.facts.get("approved_hash"):
+        out.append("the current return is not the approved and signed package")
+    if len(str(c.get("note") or "").strip()) < 10:
+        out.append("record how and when it was filed (for example 'mailed by certified mail on 2027-04-10, receipt ...')")
+    if c.get("transmission_started"):
+        out.append("an electronic transmission of this return was started: reconcile it with the transmitter first")
+    return out + _blockers(c)
+
+
 REVIEWABLE = ("in_review", "approved", "awaiting_signature", "signed")
 # A filed (or possibly filed) return is evidence of what was sent. It is never recomputed or edited in place:
 # a what-if goes through recalculation_preview, and a change goes through an amendment case.
-FROZEN = ("transmitted", "accepted", "paper_filed", "unknown", "rejected")
+FROZEN = ("transmitted", "accepted", "paper_filed", "unknown", "rejected", "void")
 RETURN_1040 = Definition(
     kind="return_1040",
     initial="preparing",
@@ -150,14 +258,18 @@ RETURN_1040 = Definition(
         Transition("submit_for_review", ("preparing",), "in_review", _g_review),
         Transition("request_changes", ("in_review",), "preparing", roles=CPA),
         Transition("approve", ("in_review",), "approved", _g_approve, roles=CPA),
-        Transition("request_signature", ("approved",), "awaiting_signature", roles=CPA),
+        Transition("request_signature", ("approved",), "awaiting_signature", _g_request_signature, roles=CPA),
         Transition("signed", ("awaiting_signature",), "signed", _g_signed),
         Transition("transmit", ("signed",), "transmitted", _g_transmit, roles=CPA),
         Transition("ack_accepted", ("transmitted",), "accepted"),
         Transition("ack_rejected", ("transmitted",), "rejected"),
         Transition("correct", ("rejected",), "preparing", roles=CPA),
-        Transition("mark_paper_filed", ("signed",), "paper_filed", roles=CPA),
+        Transition("mark_paper_filed", ("signed",), "paper_filed", _g_paper_filed, roles=CPA),
         Transition("reopen", REVIEWABLE, "preparing"),
+        # A return that will not be filed through AgentLedger: abandoned, or filed with other software (that filing is
+        # recorded as a tax-year event). Its documents stop waiting for it; the year still needs a filing on record.
+        Transition("void", ("preparing", "in_review", "approved", "awaiting_signature", "signed", "rejected"), "void",
+                   _g_void, roles=CPA),
         # A transmission whose outcome is unknown (timeout, crash after sending) is reconciled, never blindly resent.
         Transition("outcome_unknown", ("signed",), "unknown"),
         Transition("reconciled_submitted", ("unknown",), "transmitted"),
@@ -194,16 +306,110 @@ def input_hash(inputs: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(inputs, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def package_of(inputs: dict[str, Any], result: dict[str, Any] | None, provenance: dict[str, Any]) -> dict[str, Any]:
+# The input lists documents populate: only there does an item's source_document name a document the return uses.
+DOC_LISTS = frozenset(v[0] for m in docs.BOXES.values() for v in m.values())
+MODEL_FIELDS = frozenset(IndividualReturn.model_fields)
+
+
+def relied_on(inputs: dict[str, Any], provenance: dict[str, Any]) -> set[str]:
+    """Every document the return relies on: each item's document, and every document behind a summed amount."""
+    out: set[str] = set()
+    for v in (provenance or {}).values():
+        if v.get("document_id"):
+            out.add(v["document_id"])
+        out |= {x["document_id"] for x in v.get("documents", []) if x.get("document_id")}
+    for key, items in inputs.items():
+        if key in DOC_LISTS and isinstance(items, list):
+            out |= {str(i[facts.IDENTITY]) for i in items if isinstance(i, dict) and i.get(facts.IDENTITY)}
+    return out
+
+
+# Inputs that bring an amount from an earlier year (a loss, deduction, credit or payment carried forward): the years
+# it comes from stay open until this year's return is closed. tests keep this list in step with the model.
+CARRYOVER_INPUTS = frozenset({"capital_loss_carryover_short", "capital_loss_carryover_long", "charity_carryover",
+                              "qbi_loss_carryforward", "reit_ptp_loss_carryforward", "prior_year_unallowed_loss",
+                              "prior_year_overpayment_applied"})
+NOL_LINES = frozenset({"8a", "a"})        # Schedule 1 line 8a, the net operating loss deduction (other_income)
+
+
+def _nonzero(v: Any) -> bool:
+    try:
+        return Decimal(str(v).replace(",", "")) != 0
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def carryovers(inputs: dict[str, Any], prefix: str = "") -> list[str]:
+    """The carryover inputs a return uses, at any depth (CARRYOVER_INPUTS, and an NOL on Schedule 1 line 8a)."""
+    out: list[str] = []
+    for k, v in inputs.items():
+        name = f"{prefix}{k}"
+        if k == "other_income" and isinstance(v, dict):
+            out += [f"{name}.{line}" for line, amount in v.items() if str(line).lower() in NOL_LINES and _nonzero(amount)]
+        elif isinstance(v, dict):
+            out += carryovers(v, name + ".")
+        elif isinstance(v, list):
+            for i, item in enumerate(v):
+                if isinstance(item, dict):
+                    out += carryovers(item, f"{name}[{i}].")
+        elif k in CARRYOVER_INPUTS and _nonzero(v):
+            out.append(name)
+    return out
+
+
+def _unknown(model: Any, data: Any, path: str) -> list[str]:
+    """Keys the model does not know, at any depth (a list item may also carry its source_document)."""
+    import typing
+
+    from pydantic import BaseModel
+
+    out: list[str] = []
+    if not isinstance(data, dict):
+        return out
+    fields = model.model_fields
+    for k, v in data.items():
+        if k not in fields:
+            if not (k == facts.IDENTITY and path.endswith("].")):
+                out.append(f"{path}{k}")
+            continue
+        ann = fields[k].annotation
+        for arg in (ann, *typing.get_args(ann)):
+            sub = next((a for a in (arg, *typing.get_args(arg)) if isinstance(a, type) and issubclass(a, BaseModel)), None)
+            if sub is None:
+                continue
+            if isinstance(v, list):
+                for i, item in enumerate(v):
+                    out += _unknown(sub, item, f"{path}{k}[{i}].")
+            elif isinstance(v, dict):
+                out += _unknown(sub, v, f"{path}{k}.")
+            break
+    return out
+
+
+def _check_fields(inputs: dict[str, Any]) -> None:
+    """Inputs the model does not know are refused, not stored, at every depth: they would never be computed, yet could
+    carry identities or values a reader takes as part of the return (a W-2 "box10" instead of
+    dependent_care_benefits)."""
+    unknown = _unknown(IndividualReturn, inputs, "")
+    if unknown:
+        raise facts.InputRejected(f"unknown return input(s): {', '.join(unknown)}")
+
+
+def package_of(inputs: dict[str, Any], result: dict[str, Any] | None, provenance: dict[str, Any],
+               dispositions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """The immutable package a reviewer approves and a taxpayer signs: inputs, every computed form line, the
-    summary, the pinned rule and engine versions, and the source documents relied on."""
+    summary, the pinned rule and engine versions, the source documents relied on, and how each filed document the
+    return does not use was accounted for."""
     r = result or {}
     return {"inputs": inputs, "forms": r.get("forms"), "summary": r.get("summary"), "pinned": r.get("pinned"),
-            "documents": sorted({v.get("document_id") for v in (provenance or {}).values() if v.get("document_id")})}
+            "documents": sorted(relied_on(inputs, provenance)),
+            "dispositions": sorted((d["document_id"], d["disposition"], d["note"]) for d in (dispositions or []))}
 
 
-def package_hash(inputs: dict[str, Any], result: dict[str, Any] | None, provenance: dict[str, Any]) -> str:
-    return hashlib.sha256(json.dumps(package_of(inputs, result, provenance), sort_keys=True, default=str).encode()).hexdigest()
+def package_hash(inputs: dict[str, Any], result: dict[str, Any] | None, provenance: dict[str, Any],
+                 dispositions: list[dict[str, Any]] | None = None) -> str:
+    return hashlib.sha256(json.dumps(package_of(inputs, result, provenance, dispositions), sort_keys=True, default=str)
+                          .encode()).hexdigest()
 
 
 class Returns:
@@ -213,14 +419,54 @@ class Returns:
         self.sealer = sealer or Sealer()
         self.segregation = segregation
         conn.executescript(SCHEMA)
+        if not is_pg(conn):
+            # Stores from 952ee96 could hold two open conflicts on one field: the older ones are retired as superseded
+            # before the database enforces one per field.
+            conn.execute("UPDATE fact_conflicts SET resolution = 'superseded', resolved_by = 'upgrade', resolved_at = ?, "
+                         "note = 'one open conflict per field (upgrade): a newer conflict on this field is open' "
+                         "WHERE resolved_at IS NULL AND id NOT IN (SELECT MAX(id) FROM fact_conflicts WHERE resolved_at IS NULL "
+                         "GROUP BY return_id, anchor)", (audit.now(),))
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS fact_conflicts_one_open ON fact_conflicts (return_id, anchor) "
+                         "WHERE resolved_at IS NULL")
         cols = set() if is_pg(conn) else {r[1] for r in conn.execute("PRAGMA table_info(tax_returns)")}
         if not is_pg(conn) and "amends" not in cols:  # databases created before amendments existed
             conn.execute("ALTER TABLE tax_returns ADD COLUMN amends TEXT REFERENCES tax_returns(id)")
         self.wf = Engine(conn, {"return_1040": RETURN_1040})
+        self._backfill_uses()
+
+    def _backfill_uses(self) -> None:
+        """Returns saved before return_document_uses existed: index once every document any of their versions relied
+        on, so evidence retention counts their years (a filed return is never saved again). It needs the firm key and
+        a firm-wide session; until it has run, retention runs refuse to start (evidence.records)."""
+        if self.conn.execute("SELECT 1 FROM kv WHERE key = ?", (USES_INDEXED,)).fetchone():
+            return
+        if is_pg(self.conn) and self.conn.execute("SELECT current_setting('agentledger.clients', true)").fetchone()[0] != "*":
+            return                                                    # a client-scoped session sees only some returns
+        try:
+            with unit_of_work(self.conn):
+                for (client,) in sorted({(r["client_id"],) for r in self.conn.execute("SELECT client_id FROM tax_returns").fetchall()}):
+                    lock(self.conn, f"evidence:{client}")      # every lock first, in one order: never a deadlock with a move
+                for r in self.conn.execute("SELECT id FROM tax_returns ORDER BY id").fetchall():
+                    for v in self.conn.execute("SELECT version, inputs, provenance, result FROM tax_return_versions "
+                                               "WHERE return_id = ? ORDER BY version", (r["id"],)).fetchall():
+                        inputs = self.sealer.open(v["inputs"], f"return-inputs:{r['id']}")
+                        prov = self.sealer.open(v["provenance"], f"return-provenance:{r['id']}")
+                        result = self.sealer.open(v["result"], f"return-result:{r['id']}") if v["result"] else None
+                        self._record_uses(r["id"], relied_on(inputs, prov), int(v["version"]))
+                        self._record_retention_facts(r["id"], inputs, result, int(v["version"]))
+                self.conn.execute("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING",
+                                  (USES_INDEXED, audit.now()))
+        except PermissionError:
+            return                                                    # opened without the firm key: done later
 
     # ------------------------------------------------------------------ records
     def create(self, client_id: str, tax_year: int, actor: str, inputs: dict[str, Any] | None = None, *,
-               form: str = "1040", amends: str | None = None) -> str:
+               form: str = "1040", amends: str | None = None, provenance: dict[str, Any] | None = None) -> str:
+        base = {"tax_year": tax_year, "filing_status": "single", "taxpayer": {}}
+        IndividualReturn.model_validate({**base, **(inputs or {})})   # malformed input is refused before anything is stored
+        if provenance is None:      # a person's return; an amendment copies the filed return as it was stored
+            _check_fields({**base, **(inputs or {})})
+            facts.check_identities({}, {}, {**base, **(inputs or {})})
         row = self.conn.execute("SELECT id FROM tax_returns WHERE client_id = ? AND tax_year = ? AND form = ?",
                                 (client_id, tax_year, form)).fetchone()
         if row:
@@ -230,8 +476,7 @@ class Returns:
         self.conn.execute("INSERT INTO tax_returns (id, client_id, tax_year, form, created_at, created_by, amends) VALUES (?, ?, ?, ?, ?, ?, ?)",
                           (rid, client_id, tax_year, form, now, actor, amends))
         self.wf.start(rid, "return_1040", actor, {"client_id": client_id, "tax_year": tax_year})
-        base = {"tax_year": tax_year, "filing_status": "single", "taxpayer": {}}
-        self._save(rid, {**base, **(inputs or {})}, {}, actor, "created")
+        self._save(rid, {**base, **(inputs or {})}, dict(provenance or {}), actor, "created")
         audit.record(self.conn, actor, "cpa", "return.created", {"return_id": rid, "tax_year": tax_year}, client_id=client_id)
         return rid
 
@@ -262,6 +507,14 @@ class Returns:
 
     def _save(self, rid: str, inputs: dict[str, Any], provenance: dict[str, Any], actor: str, note: str,
               result: dict[str, Any] | None = None, crosscheck: dict[str, Any] | None = None) -> int:
+        """A new version, the documents it relies on and what retention needs to know about it, in one transaction
+        under the client's evidence lock (a retention run deciding for this client sees all of it, or none)."""
+        with unit_of_work(self.conn):
+            lock(self.conn, f"evidence:{self.get(rid)['client_id']}")
+            return self._save_locked(rid, inputs, provenance, actor, note, result, crosscheck)
+
+    def _save_locked(self, rid: str, inputs: dict[str, Any], provenance: dict[str, Any], actor: str, note: str,
+                     result: dict[str, Any] | None, crosscheck: dict[str, Any] | None) -> int:
         last = self.conn.execute("SELECT MAX(version) FROM tax_return_versions WHERE return_id = ?", (rid,)).fetchone()[0] or 0
         summary = result["summary"] if result else {}
         diagnostics = [{"severity": d["severity"], "code": d["code"], "form": d["form"], "line": d["line"]}
@@ -273,13 +526,45 @@ class Returns:
              self.sealer.seal(result, f"return-result:{rid}") if result is not None else None, json.dumps(summary),
              json.dumps(diagnostics), json.dumps(crosscheck) if crosscheck else None, input_hash(inputs),
              datetime.now(timezone.utc).isoformat(timespec="seconds"), actor, note))
+        self._record_uses(rid, relied_on(inputs, provenance), last + 1)
+        self._record_retention_facts(rid, inputs, result, last + 1)
         return last + 1
+
+    def _record_retention_facts(self, rid: str, inputs: dict[str, Any], result: dict[str, Any] | None, version: int) -> None:
+        facts_now = {"carryover": ",".join(carryovers(inputs))}
+        foreign = [f"{k}[{i}]" for k in ("interest", "dividends") for i, it in enumerate(inputs.get(k) or [])
+                   if isinstance(it, dict) and _nonzero(it.get("foreign_tax_paid"))]
+        if _nonzero(((result or {}).get("forms") or {}).get("sch_3", {}).get("1")):
+            foreign.append("schedule 3 line 1")
+        facts_now["foreign_tax"] = ",".join(foreign)
+        for kind, detail in facts_now.items():
+            if detail:
+                self.conn.execute("INSERT INTO return_retention_facts (return_id, version, kind, detail, at) VALUES (?, ?, ?, ?, ?) "
+                                  "ON CONFLICT (return_id, version, kind) DO NOTHING", (rid, version, kind, detail, audit.now()))
+
+    def _record_uses(self, rid: str, documents: set[str], version: int) -> None:
+        """Index the documents a version relies on, under the client's evidence lock. A document deleted under retention
+        meanwhile is not indexed: its item is then an orphan, which every gate refuses until a person decides."""
+        if not documents:
+            return
+        client = self.get(rid)["client_id"]
+        with unit_of_work(self.conn):
+            lock(self.conn, f"evidence:{client}")               # a retention run deciding for this client sees it, or finished
+            for doc in sorted(documents):
+                if self.conn.execute("SELECT 1 FROM documents WHERE id = ? AND deleted_at IS NOT NULL", (doc,)).fetchone():
+                    continue
+                self.conn.execute("INSERT INTO return_document_uses (return_id, document_id, first_version, at) VALUES (?, ?, ?, ?) "
+                                  "ON CONFLICT (return_id, document_id) DO NOTHING", (rid, doc, version, audit.now()))
 
     # ------------------------------------------------------------------ preparation
     def save_inputs(self, rid: str, inputs: dict[str, Any], actor: str, *, provenance: dict[str, Any] | None = None,
                     note: str = "edited") -> dict[str, Any]:
         IndividualReturn.model_validate(inputs)  # reject malformed input before it is stored
         cur = self.latest(rid)
+        if provenance is None:      # a person's edit: no unknown inputs, identities are the population's
+            _check_fields(inputs)
+            inputs = facts.carry_identity(cur["inputs"], cur["provenance"], inputs)
+            facts.check_identities(cur["inputs"], cur["provenance"], inputs)
         st = self.wf.state(rid)
         if st.status in REVIEWABLE:
             self.wf.send(rid, "reopen", actor, note=f"inputs changed while {st.status}")
@@ -288,7 +573,7 @@ class Returns:
         if provenance is None:      # a person's edit: changed document values become the preparer's, on record
             prov, changed = facts.mark_edits(cur["inputs"], inputs, cur["provenance"], actor)
         else:
-            prov, changed = provenance, facts.changed_paths(cur["inputs"], inputs)
+            prov, changed = provenance, facts.changed_anchors(cur["inputs"], cur["provenance"], inputs, provenance)
         self._save(rid, inputs, prov, actor, note)
         facts.record(self.conn, self.sealer, rid, inputs, prov, changed, actor=actor)
         return self.compute(rid, actor)
@@ -298,23 +583,95 @@ class Returns:
         what is already there become fact conflicts for a person to resolve."""
         r = self.get(rid)
         cur = self.latest(rid)
-        pop = docs.populate(self.conn, r["client_id"], r["tax_year"], joint=cur["inputs"].get("filing_status") == "mfj")
+        if self.wf.state(rid).status in FROZEN:
+            raise TransitionError("a filed return is frozen; start an amendment to change it")
+        pop = self._population(rid, cur)
         inputs, prov, conflicts, issues, changed = facts.merge_population(
-            cur["inputs"], cur["provenance"], pop.inputs, pop.provenance, facts.resolved_keeps(self.conn, self.sealer, rid))
-        for i in issues:   # an amount a document should carry but does not: a person decides, it is never zero
-            if i["code"] == "missing_value":
+            cur["inputs"], cur["provenance"], pop.inputs, pop.provenance, facts.resolved_keeps(self.conn, self.sealer, rid),
+            pop.unreadable)
+        kept = facts.kept_orphans(self.conn, rid)
+        for i in issues:   # a person decides these; a missing amount is never zero, an orphaned item never silent
+            if i["code"] == "missing_value" and i.get("document_id"):
                 conflicts.append({"path": i["path"], "anchor": i["anchor"], "current": None, "proposed": None,
-                                  "document_id": i["document_id"] or "", "box": "required amount", "current_source": "missing"})
-        if changed or inputs != cur["inputs"]:
+                                  "document_id": i["document_id"], "box": "required amount", "current_source": "missing"})
+            elif i["code"] == "document_no_longer_provides" and i["anchor"] not in kept:
+                conflicts.append({"path": i["path"], "anchor": i["anchor"], "current": None, "proposed": None,
+                                  "document_id": i["document_id"], "box": "document left the return", "current_source": "orphan"})
+        if inputs != cur["inputs"] or prov != cur["provenance"]:
             self.save_inputs(rid, inputs, actor, provenance=prov, note=f"populated from {len(pop.documents)} document(s)")
         else:
             self.compute(rid, actor)
-        raised = facts.raise_conflicts(self.conn, self.sealer, rid, conflicts, actor)
-        if raised:
-            audit.record(self.conn, actor, "agent", "return.fact_conflicts", {"return_id": rid, "conflicts": len(raised)},
-                         client_id=r["client_id"])
+        raised, superseded = self._reconcile_conflicts(rid, conflicts, actor)
+        if raised or superseded:
+            audit.record(self.conn, actor, "agent", "return.fact_conflicts",
+                         {"return_id": rid, "raised": len(raised), "superseded": superseded}, client_id=r["client_id"])
         return {"documents": pop.documents, "issues": pop.issues + issues, "fields": len(changed),
-                "conflicts": len(facts.open_conflicts(self.conn, self.sealer, rid))}
+                "conflicts": len(facts.open_conflicts(self.conn, self.sealer, rid)), "superseded": superseded}
+
+    def _reconcile_conflicts(self, rid: str, proposals: list[dict[str, Any]], actor: str) -> tuple[list[int], int]:
+        """One open conflict per field, always matching what the documents say now: an open conflict whose proposal
+        changed, or whose disagreement is gone, is closed as superseded before the current one is raised."""
+        by_anchor: dict[str, dict[str, Any]] = {}
+        for c in proposals:
+            by_anchor.setdefault(c["anchor"], c)
+        superseded = 0
+        for oc in facts.open_conflicts(self.conn, self.sealer, rid):
+            new = by_anchor.get(oc["anchor"])
+            if (new and new["document_id"] == oc["document_id"] and facts.same(new["proposed"], oc["proposed_value"])
+                    and facts.same(new["current"], oc["current_value"])) or (
+                    new and oc["anchor"].startswith(("missing:", "orphan:")) and new["document_id"] == oc["document_id"]):
+                by_anchor.pop(oc["anchor"])                           # the same question is already open
+                continue
+            why = (f"the documents now propose {new['proposed']} (return: {new['current']})" if new else
+                   "no longer in conflict: the documents and the return agree, or the document left the return")
+            facts.close_conflict(self.conn, oc["id"], resolution="superseded", actor=actor, note=why)
+            superseded += 1
+        return facts.raise_conflicts(self.conn, self.sealer, rid, list(by_anchor.values()), actor), superseded
+
+    def _population(self, rid: str, v: dict[str, Any]) -> docs.Populated:
+        """The return's documents as they are now, without those a person accounted for on this return."""
+        r = self.get(rid)
+        return docs.populate(self.conn, r["client_id"], r["tax_year"], joint=v["inputs"].get("filing_status") == "mfj",
+                             exclude={d["document_id"] for d in self.dispositions(rid)})
+
+    def _drift(self, rid: str, v: dict[str, Any], pop: docs.Populated) -> dict[str, list[str]]:
+        """What re-populating would change or ask right now. Every gate refuses a return that no longer matches its
+        documents: one whose document left after the last population, an edit over a document value never decided,
+        or values the documents provide that the return does not have."""
+        _, _, conflicts, issues, changed = facts.merge_population(
+            v["inputs"], v["provenance"], pop.inputs, pop.provenance, facts.resolved_keeps(self.conn, self.sealer, rid),
+            pop.unreadable)
+        open_anchors = {c["anchor"] for c in facts.open_conflicts(self.conn, self.sealer, rid)}
+        kept = facts.kept_orphans(self.conn, rid)
+        return {"disagreements": sorted({c["anchor"] for c in conflicts} - open_anchors),
+                "left": sorted({i["anchor"] for i in issues if i["code"] == "document_no_longer_provides"} - open_anchors - kept),
+                "not_applied": sorted(set(changed)),
+                "duplicates": sorted({i["anchor"] for i in issues if i["code"] == "duplicate_identity"})}
+
+    def _document_value_now(self, rid: str, c: dict[str, Any]) -> tuple[Any, dict[str, Any]] | None:
+        """What the documents say for a conflict's field at this moment: only live documents filed to this return's
+        client and year count (populate reads no deleted, moved or re-dated document). None if they say nothing."""
+        cur = self.latest(rid)
+        pop = self._population(rid, cur)
+        anchor = c["anchor"]
+        if "[" in anchor:
+            key, rest = anchor.split("[", 1)
+            doc, _, field = rest.partition("]")
+            field = field.lstrip(".")
+            for j, item in enumerate(pop.inputs.get(key) or []):
+                if item.get(facts.IDENTITY) == doc:
+                    path = f"{key}[{j}].{field}"
+                    p = pop.provenance.get(path)
+                    value = facts.get_path(pop.inputs, path)
+                    if p is None or facts.empty(value):
+                        return None
+                    return value, p
+            return None
+        key, field = anchor.split(".", 1)
+        p = pop.provenance.get(anchor)
+        if not p or c["document_id"] not in ({x["document_id"] for x in p.get("documents", [])} | {p.get("document_id")}):
+            return None
+        return (pop.inputs.get(key) or {}).get(field), p
 
     def conflicts(self, rid: str) -> list[dict[str, Any]]:
         return facts.open_conflicts(self.conn, self.sealer, rid)
@@ -327,20 +684,99 @@ class Returns:
             raise KeyError(f"no open conflict {conflict_id}")
         if choice not in ("keep", "document"):
             raise ValueError("choose 'keep' or 'document'")
-        if choice == "document" and c["anchor"].startswith("missing:"):
-            raise ValueError("the document has no value here; enter the amount, then keep it")
-        if choice == "document":
-            cur = self.latest(rid)
-            path = facts.locate(c["anchor"], cur["provenance"], cur["inputs"]) or c["path"]
-            inputs = facts.set_path(cur["inputs"], path, c["proposed_value"])
-            prov = {**cur["provenance"], path: {"source": "resolution", "document_id": c["document_id"], "box": c["box"],
-                                                "value": str(c["proposed_value"]), "resolved_by": actor, "confirmed": True}}
+        cur = self.latest(rid)
+        anchor = c["anchor"]
+        if anchor.startswith("missing:"):
+            if choice == "document":
+                raise ValueError("the document has no value here; enter the amount, then keep it")
+            path = facts.locate(anchor, cur["inputs"], cur["provenance"])
+            lst, _, rest = anchor.split(":", 1)[1].partition("[")
+            field = rest.partition("]")[2].lstrip(".")
+            if path is None or not facts.satisfied(lst, field, facts.get_path(cur["inputs"], path)):
+                raise ValueError("the amount is still missing: enter it from the document (0 only if the document shows 0; a "
+                                 "valid code where a code is required), then keep it")
+        elif anchor.startswith("orphan:"):
+            if choice == "document":
+                raise ValueError("that document no longer belongs to this return: remove the item, or keep it with a reason")
+            if len(note.strip()) < 10:
+                raise ValueError("say why the item stays although its document left the return")
+        elif choice == "document":
+            fresh = self._document_value_now(rid, c)
+            if fresh is None:
+                facts.close_conflict(self.conn, conflict_id, resolution="superseded", actor=actor,
+                                     note="the documents no longer provide this value")
+                raise ValueError("the documents no longer provide this value (re-read, moved, re-dated or deleted); "
+                                 "re-populate to see what they say now")
+            value, new_p = fresh
+            path = facts.locate(anchor, cur["inputs"], cur["provenance"])
+            if path is None:
+                facts.close_conflict(self.conn, conflict_id, resolution="superseded", actor=actor,
+                                     note="the item from that document is no longer on the return")
+                raise ValueError("the item from that document is no longer on the return")
+            if not facts.same(value, c["proposed_value"]):
+                facts.close_conflict(self.conn, conflict_id, resolution="superseded", actor=actor,
+                                     note=f"the documents now say {value}, not {c['proposed_value']}")
+                facts.raise_conflicts(self.conn, self.sealer, rid, [{
+                    "path": path, "anchor": anchor, "current": facts.get_path(cur["inputs"], path), "proposed": value,
+                    "document_id": new_p.get("document_id", ""), "box": new_p.get("box"),
+                    "current_source": (cur["provenance"].get(path) or {}).get("source", "preparer")}], actor)
+                raise ValueError(f"the documents now say {value}, not {c['proposed_value']}: a new conflict shows it")
+            inputs = facts.set_path(cur["inputs"], path, value)
+            prov = {**cur["provenance"], path: {**new_p, "source": "resolution", "resolved_by": actor, "confirmed": True}}
             self.save_inputs(rid, inputs, actor, provenance=prov, note=f"fact conflict {conflict_id}: document value taken")
         facts.close_conflict(self.conn, conflict_id, resolution="replaced" if choice == "document" else "kept", actor=actor,
                              note=note)
         audit.record(self.conn, actor, "cpa", "return.fact_conflict_resolved",
                      {"return_id": rid, "conflict_id": conflict_id, "choice": choice}, client_id=self.get(rid)["client_id"])
         return {"open": len(self.conflicts(rid))}
+
+    def dispositions(self, rid: str) -> list[dict[str, Any]]:
+        return [dict(r) for r in self.conn.execute("SELECT * FROM return_document_dispositions WHERE return_id = ? ORDER BY id", (rid,))]
+
+    def unaccounted_documents(self, rid: str, v: dict[str, Any] | None = None) -> list[str]:
+        """Filed documents of the year that the return neither uses nor has accounted for."""
+        r = self.get(rid)
+        v = v or self.latest(rid)
+        used = relied_on(v["inputs"], v["provenance"])
+        used |= {p.get("previous_document") for p in v["provenance"].values() if p.get("previous_document")}
+        used |= {d["document_id"] for d in self.dispositions(rid)}
+        out = []
+        # A filed tax form with no known year may belong to this return: it is listed until a CPA confirms its year
+        # (evidence.records.confirm_retention) or a person accounts for it here.
+        for d in self.conn.execute("SELECT id, doc_type FROM documents WHERE client_id = ? AND (tax_year = ? OR tax_year IS NULL) "
+                                   "AND status = 'filed' AND deleted_at IS NULL ORDER BY received_at, id",
+                                   (r["client_id"], r["tax_year"])):
+            if d["doc_type"] in TAX_FORMS and d["id"] not in used:
+                out.append(d["id"])
+        return out
+
+    def account_for_document(self, rid: str, document_id: str, disposition: str, note: str, actor: str) -> list[dict[str, Any]]:
+        """A person accounts for a filed document the return does not use: its amounts were entered by hand, or it
+        does not apply to this return. On record, part of the approved package."""
+        st = self.wf.state(rid)
+        if st.status in FROZEN:
+            raise TransitionError(f"this return is {st.status}: its package is frozen")
+        if disposition not in ("entered_by_hand", "not_applicable"):
+            raise ValueError("disposition is entered_by_hand or not_applicable")
+        if len(note.strip()) < 10:
+            raise ValueError("say why (for example 'entered as two Form 8949 rows from the 1099-B')")
+        r = self.get(rid)
+        d = self.conn.execute("SELECT id FROM documents WHERE id = ? AND client_id = ? AND (tax_year = ? OR tax_year IS NULL) "
+                              "AND status = 'filed' AND deleted_at IS NULL", (document_id, r["client_id"], r["tax_year"])).fetchone()
+        if not d:
+            raise KeyError(f"{document_id} is not a filed {r['tax_year']} document of this client")
+        v = self.latest(rid)
+        if document_id in relied_on(v["inputs"], v["provenance"]):
+            raise ValueError("this document is on the return; remove its item first (an entry by hand then replaces it)")
+        self.conn.execute("INSERT INTO return_document_dispositions (return_id, document_id, disposition, note, actor, at) "
+                          "VALUES (?, ?, ?, ?, ?, ?)", (rid, document_id, disposition, note.strip(), actor, audit.now()))
+        if disposition == "entered_by_hand":               # its amounts are on the return: retention counts its year
+            self._record_uses(rid, {document_id}, int(self.latest(rid, decrypt=False)["version"]))
+        audit.record(self.conn, actor, "cpa", "return.document_accounted_for",
+                     {"return_id": rid, "document_id": document_id, "disposition": disposition}, client_id=r["client_id"])
+        if st.status in REVIEWABLE:
+            self.wf.send(rid, "reopen", actor, note=f"document {document_id} accounted for while {st.status}")
+        return self.dispositions(rid)
 
     def confirm(self, rid: str, paths: list[str] | None, actor: str) -> int:
         """The preparer confirms document-sourced amounts (all of them when paths is None)."""
@@ -380,7 +816,13 @@ class Returns:
             raise TransitionError(f"only a filed return can be amended (this one is {st.status})")
         r = self.get(rid)
         cur = self.latest(rid)
-        new = self.create(r["client_id"], r["tax_year"], actor, dict(cur["inputs"]), form="1040-X", amends=rid)
+        # The amendment keeps each item's document and provenance, so re-populating it never duplicates them.
+        new = self.create(r["client_id"], r["tax_year"], actor, dict(cur["inputs"]), form="1040-X", amends=rid,
+                          provenance=cur["provenance"])
+        for d in self.dispositions(rid):        # what the filed return accounted for stays accounted for
+            self.conn.execute("INSERT INTO return_document_dispositions (return_id, document_id, disposition, note, actor, at) "
+                              "VALUES (?, ?, ?, ?, ?, ?)", (new, d["document_id"], d["disposition"],
+                                                            f"{d['note']} (carried from {rid})", actor, audit.now()))
         audit.record(self.conn, actor, "cpa", "return.amendment_started", {"return_id": new, "amends": rid}, client_id=r["client_id"])
         return new
 
@@ -405,7 +847,7 @@ class Returns:
         self._save(rid, cur["inputs"], cur["provenance"], actor, "computed", result=result, crosscheck=cc)
         st = self.wf.state(rid)
         bound = st.facts.get("approved_hash") if st.status in ("approved", "awaiting_signature", "signed") else st.facts.get("review_hash")
-        if st.status in REVIEWABLE and bound and package_hash(cur["inputs"], result, cur["provenance"]) != bound:
+        if st.status in REVIEWABLE and bound and package_hash(cur["inputs"], result, cur["provenance"], self.dispositions(rid)) != bound:
             self.wf.send(rid, "reopen", actor, note="recomputed return differs from the reviewed/approved package "
                                                     "(rules, engine or results changed); review and signature are void")
         return result
@@ -435,11 +877,17 @@ class Returns:
         result = v["result"] or {}
         cc = json.loads(v["crosscheck"]) if v["crosscheck"] else {"status": "unavailable"}
         below = len((result.get("coverage") or {}).get("below_preparation", []))
+        pop = self._population(rid, v)
+        open_now = facts.open_conflicts(self.conn, self.sealer, rid)
         return {"computed": bool(result), "blocking": below + sum(1 for d in result.get("diagnostics", []) if d["severity"] == "error"),
+                "missing": len(facts.missing_required(v["inputs"], v["provenance"], pop.unreadable)),
+                "drift": self._drift(rid, v, pop),
                 "unconfirmed": sum(1 for p in v["provenance"].values() if not p.get("confirmed")),
-                "conflicts": len(facts.open_conflicts(self.conn, self.sealer, rid)),
+                "conflicts": len([x for x in open_now if not x["anchor"].startswith("orphan:")]),
+                "orphaned": len([x for x in open_now if x["anchor"].startswith("orphan:")]),
+                "unaccounted": self.unaccounted_documents(rid, v),
                 "crosscheck": cc.get("status"), "explained": explained,
-                "package_hash": package_hash(v["inputs"], v["result"], v["provenance"])}
+                "package_hash": package_hash(v["inputs"], v["result"], v["provenance"], self.dispositions(rid))}
 
     def submit_for_review(self, rid: str, actor: str, *, explanation: str = "") -> State:
         ctx = self._review_context(rid, bool(explanation.strip()))
@@ -448,19 +896,20 @@ class Returns:
 
     def current_package_hash(self, rid: str) -> str:
         v = self.latest(rid)
-        return package_hash(v["inputs"], v["result"], v["provenance"])
+        return package_hash(v["inputs"], v["result"], v["provenance"], self.dispositions(rid))
 
     def approve(self, rid: str, actor: str, role: str) -> State:
-        h = self.current_package_hash(rid)
+        """Approval re-runs every review check: a conflict raised or a document filed during review stops it."""
+        ctx = {**self._review_context(rid, True), "segregation": self.segregation}
         v = self.latest(rid, decrypt=False)["version"]
-        return self.wf.send(rid, "approve", actor, role=role, context={"segregation": self.segregation, "package_hash": h},
-                            facts={"approved_by": actor, "approved_hash": h, "approved_version": v})
+        return self.wf.send(rid, "approve", actor, role=role, context=ctx,
+                            facts={"approved_by": actor, "approved_hash": ctx["package_hash"], "approved_version": v})
 
     def request_changes(self, rid: str, actor: str, role: str, note: str) -> State:
         return self.wf.send(rid, "request_changes", actor, role=role, note=note)
 
     def request_signature(self, rid: str, actor: str, role: str) -> State:
-        return self.wf.send(rid, "request_signature", actor, role=role,
+        return self.wf.send(rid, "request_signature", actor, role=role, context=self._review_context(rid, True),
                             facts={"signature_requested_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
 
     def record_signature(self, rid: str, actor: str, *, method: str, return_hash: str, kba_transaction_id: str = "",
@@ -489,6 +938,7 @@ class Returns:
         if not st.facts.get("signed_hash") or st.facts.get("signed_hash") != st.facts.get("approved_hash"):
             reasons.append("no valid signature is bound to the approved package")
         reasons += _g_transmit(st, {"efile_ready": efile_ready})
+        reasons += _blockers(self._review_context(rid, True))
         if self.current_package_hash(rid) != st.facts.get("approved_hash"):
             reasons.append("the current return is not the approved and signed package")
         result = self.latest(rid)["result"] or {}
@@ -508,6 +958,23 @@ class Returns:
             raise
         return self.wf.send(rid, "transmit", actor, role=role, context={"efile_ready": efile_ready},
                             facts={"submission_id": result.get("submission_id"), "idempotency_key": key})
+
+    def _transmission_started(self, rid: str) -> bool:
+        events = [h.get("event") for h in self.wf.state(rid).history]
+        started = max((i for i, e in enumerate(events) if e == "activity_started:transmit"), default=-1)
+        cleared = max((i for i, e in enumerate(events) if e == "reconciled_not_submitted"), default=-1)
+        return started > cleared
+
+    def void(self, rid: str, actor: str, role: str, note: str) -> State:
+        """A CPA voids a return that will not be filed through AgentLedger (abandoned, or filed elsewhere: record that
+        filing with evidence.records.record_tax_event). Irreversible; an amendment or a new return starts afresh."""
+        return self.wf.send(rid, "void", actor, role=role, note=note,
+                            context={"note": note, "transmission_started": self._transmission_started(rid)})
+
+    def mark_paper_filed(self, rid: str, actor: str, role: str, note: str) -> State:
+        """A CPA records that the signed return was filed on paper, how and when (every filing check runs first)."""
+        ctx = {**self._review_context(rid, True), "note": note, "transmission_started": self._transmission_started(rid)}
+        return self.wf.send(rid, "mark_paper_filed", actor, role=role, context=ctx, note=note)
 
     def reconcile_transmission(self, rid: str, actor: str, role: str, *, submitted: bool, submission_id: str = "",
                                evidence: str = "") -> State:

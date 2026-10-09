@@ -20,7 +20,7 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 | Q13 | Access revoked mid-workflow | F | partial | disable revokes sessions; queued-task re-check todo |
 | Q14 | Vendor bank change embedded in invoice | A1 | todo | |
 | Q15 | Approved action modified before execution | F | pass (returns) | approval and signature bound to the full package hash; recompute and edits reopen (`test_rule_change_after_signature_voids_it`) |
-| Q16 | OCR ambiguity needs review | A1 | partial | grounding drops unsupported numbers; re-population never overwrites (conflicts block review), a missing amount is never zero, every value keeps its source and history (`tests/test_facts.py`); date, decimal and entity OCR cases todo |
+| Q16 | OCR ambiguity needs review | A1 | partial | grounding drops unsupported numbers; re-population never overwrites (conflicts block review); a missing, implied, coded or unreadable amount blocks every gate and is never zero; a box that cannot be read is never dropped; every gate re-checks the return against its documents as they are now (`tests/test_facts.py`, `tests/test_reaudit_952ee96_missing_amounts.py`, `tests/test_reaudit_952ee96_stale_document_value.py`, `tests/test_reaudit_952ee96_review_facts*.py`); date, decimal and entity OCR cases todo |
 | Q17 | Close snapshot equals exports | A1 | todo | |
 | Q18 | Tax package regression, exact | T1 | partial | 26 hand-worked tests, 5 golden returns, 11 PolicyEngine cross-checks; needs an independent preparer's set |
 | Q19 | Unsupported form/state/election blocked | T1 | pass | blocking diagnostics plus coverage gate (`tests/test_return_workflow.py`) |
@@ -39,7 +39,7 @@ States: **pass** (a test exists and proves it) · **partial** · **todo**. Wave 
 | Q34 | Model unavailable or budget exhausted | F | partial | router falls back and pauses; visible pause UI todo |
 | Q35 | Connector schema, rate-limit or auth change | A1 | todo | |
 | Q36 | Skill or plugin update governance | F | todo | |
-| Q37 | Retention expiry with legal hold | F | pass | holds block deletion until a CPA releases them with a reason; deletion only after retention, CPA-run, with receipts; shared content-addressed bytes kept while another record retains them (`tests/test_evidence.py`) |
+| Q37 | Retention expiry with legal hold | F | pass | holds block deletion (of a document, of moved documents, of a whole firm) until a CPA releases them with a reason; retention computed per (client, tax year) from the filings on record; write-ahead deletion, CPA-run and attested, receipts before bytes; firm offboarding seals the store against holds first (`tests/test_evidence.py`, `tests/test_reaudit_952ee96_*.py`) |
 | Q38 | Browser, mobile and keyboard end-to-end | A1 | todo | needs the React UI (ADR-0005) |
 | Q39 | Rule change after filing | T1 | partial | runs pin the knowledge-base version and rule trace; recalculation candidates todo |
 | Q40 | Deadline relief, holidays and time zones | A1 | partial | §7503 weekend rollover built; holidays, relief and time zones todo |

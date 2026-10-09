@@ -5,6 +5,14 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("AGENTLEDGER_AGENTS", "0")
+# Tests never touch real services configured in a developer's .env (WorkOS sign-in, the production R2 bucket). These
+# are pinned before any test module loads .env, and .env loading never overrides a variable that is already set; a
+# test that needs one of these services sets it explicitly (monkeypatch) for itself.
+os.environ["AGENTLEDGER_IDENTITY"] = "local"
+os.environ["AGENTLEDGER_BLOBS"] = "file"
+for _var in ("AGENTLEDGER_BLOB_ENDPOINT", "AGENTLEDGER_BLOB_BUCKET", "AGENTLEDGER_BLOB_ACCESS_KEY_ID",
+             "AGENTLEDGER_BLOB_SECRET_ACCESS_KEY", "AGENTLEDGER_BLOB_PREFIX", "WORKOS_REDIRECT_URI"):
+    os.environ[_var] = ""
 # The API refuses SQLite outside dev mode; the suite exercises production mode on both backends.
 os.environ.setdefault("AGENTLEDGER_ALLOW_SQLITE", "1")
 # Tests never reach a real local model, even when Ollama is running on the machine.

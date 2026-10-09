@@ -40,8 +40,9 @@ from ..integrity.checks import integrity_score, list_findings, resolve, run_all
 from ..intake.pipeline import assign as assign_document, ingest
 from ..ledger import bankfeed, m1, store
 from ..plugins.registry import discover, run_plugin
+from ..returns.facts import InputRejected
 from ..security.platform import PLATFORM_FIRM, AuthError, Platform, client_scope
-from ..security.vault import Vault
+from ..security.vault import Vault, VaultIntegrityError
 from ..workflow.engine import TransitionError
 
 ROOT = Path(os.environ.get("AGENTLEDGER_HOME", Path.cwd())).resolve()
@@ -450,7 +451,7 @@ def platform_create_firm(body: dict[str, Any] = Body(...), user=Depends(me)) -> 
     platform_admin(user)
     fresh(user)
     try:
-        firm = PLATFORM.create_firm(str(body["id"]), str(body["name"]), by=user["id"])
+        firm = PLATFORM.create_firm(str(body["id"]).strip(), str(body["name"]).strip(), by=user["id"])
         token = PLATFORM.invite(firm["id"], str(body["admin_email"]), "firm_admin", by=_as_actor(user))
     except AuthError as e:
         raise HTTPException(400, str(e))
@@ -565,7 +566,7 @@ def client_detail(client_id: str, year: int | None = None, user=Depends(me)) -> 
                            "findings": list_findings(A(user).conn, client_id),
                            "documents": rows(A(user).conn, "SELECT id, original_name, doc_type, tax_year, status, confidence, vault_path, "
                                                        "summary, classified_by, received_at, channel FROM documents WHERE client_id = ? "
-                                                       "ORDER BY received_at DESC LIMIT 100", client_id),
+                                                       "AND deleted_at IS NULL ORDER BY received_at DESC LIMIT 100", client_id),
                            "tasks": crm.tasks(A(user).conn, client_id),
                            "deadlines": crm.deadlines(A(user).conn, ROOT / "config" / "deadlines.yaml", client_id),
                            "opportunities": A(user).brain.scan(A(user).conn, client_id),
@@ -725,8 +726,23 @@ def review_queue(user=Depends(me)) -> list[dict[str, Any]]:
 
 @app.post("/api/documents/{doc_id}/assign")
 def assign_doc(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """File a review-queue document to a client, or move a filed one (a reviewer, with a reason on record)."""
     cpa_only(user)
-    return jsonable(assign_document(A(user).conn, A(user).foundry.vault, doc_id, body["client_id"], user["id"]))
+    d = one(A(user).conn, "SELECT client_id, status FROM documents WHERE id = ?", doc_id)
+    if not d:
+        raise HTTPException(404)
+    target = str(body["client_id"])
+    scope(user, target)
+    moving = d["status"] == "filed" and d["client_id"] and d["client_id"] != target
+    if moving:
+        scope(user, d["client_id"])
+        reviewer_only(user)
+        fresh(user)
+    try:
+        return jsonable(assign_document(A(user).conn, A(user).foundry.vault, doc_id, target, user["id"], authority(user),
+                                        move_reason=body.get("move_reason")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/documents/{doc_id}/file")
@@ -741,7 +757,12 @@ def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default=""))
         cpa_only(user)
     if d.get("deleted_at"):
         raise HTTPException(410, f"deleted under the retention policy on {d['deleted_at'][:10]}; the deletion receipt remains")
-    data = A(user).foundry.vault.read(d["vault_path"])
+    try:
+        data = A(user).foundry.vault.read(d["vault_path"], sha256=d["sha256"])
+    except VaultIntegrityError as e:            # replaced, swapped or unsealed bytes are never served
+        audit.record(A(user).conn, user["id"], authority(user), "evidence.integrity_failed",
+                     {"document_id": doc_id, "error": str(e)}, client_id=d["client_id"])
+        raise HTTPException(409, f"the stored evidence failed its integrity check ({e}); it was not served")
     return Response(data, media_type="application/octet-stream",
                     headers={"Content-Disposition": f'attachment; filename="{d["original_name"]}"'})
 
@@ -777,7 +798,8 @@ def place_hold(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me
                                   role=authority(user), document_id=body.get("document_id"))
     except evidence.RetentionError as e:
         raise HTTPException(400, str(e))
-    return {"id": hid}
+    # Objects of documents already deleted under retention whose removal was under way: the hold cannot keep them.
+    return {"id": hid, "objects_being_removed": evidence.in_flight(A(user).conn, client_id, body.get("document_id"))}
 
 
 @app.post("/api/holds/{hold_id}/release")
@@ -803,8 +825,13 @@ def evidence_due(user=Depends(me)) -> list[dict[str, Any]]:
     reviewer_only(user)
     if client_scope(user) != ["*"]:
         raise HTTPException(403, "retention runs are firm-wide")
-    return [{k: d[k] for k in ("id", "client_id", "original_name", "doc_type", "tax_year", "retention_class", "retain_until")}
-            for d in evidence.due_for_deletion(A(user).conn, date.today())]
+    R(user)                                    # indexes returns saved before the relied-on index existed
+    try:
+        due = evidence.due_for_deletion(A(user).conn, date.today())
+    except evidence.RetentionError as e:
+        raise HTTPException(409, str(e))
+    return [{k: d[k] for k in ("id", "client_id", "original_name", "doc_type", "tax_year", "retention_class", "retention_end")}
+            for d in due]
 
 
 @app.post("/api/evidence/purge")
@@ -814,12 +841,98 @@ def evidence_purge(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[s
     fresh(user)
     if client_scope(user) != ["*"]:
         raise HTTPException(403, "retention runs are firm-wide")
+    ids = body.get("document_ids")
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        raise HTTPException(400, "list the documents to delete (document_ids, from GET /api/evidence/due) after reviewing them")
+    R(user)                                    # indexes returns saved before the relied-on index existed
     try:
         receipts = evidence.purge_expired(A(user).conn, A(user).foundry.vault, date.today(), actor=user["id"],
-                                          role=authority(user), reason=str(body.get("reason", "")))
+                                          role=authority(user), reason=str(body.get("reason", "")),
+                                          attested=body.get("attested") is True, document_ids=ids)
     except evidence.RetentionError as e:
         raise HTTPException(400, str(e))
-    return {"deleted": len(receipts), "receipts": receipts}
+    # Failures never destroy anything without a receipt: a document whose deletion could not be recorded is untouched,
+    # and objects not deleted yet stay listed as pending for the next run.
+    return {"deleted": len(receipts), "receipts": list(receipts), "failures": receipts.failures}
+
+
+@app.get("/api/evidence/integrity")
+def evidence_integrity(verify: bool = False, user=Depends(me)) -> dict[str, Any]:
+    """Live documents whose bytes are missing, deletions not finished, and (verify=true) every stored object read back
+    and authenticated against its recorded hash."""
+    reviewer_only(user)
+    if client_scope(user) != ["*"]:
+        raise HTTPException(403, "the evidence integrity report is firm-wide")
+    return jsonable(evidence.integrity(A(user).conn, A(user).foundry.vault, verify_contents=verify))
+
+
+@app.post("/api/clients/{client_id}/tax-year-events")
+def record_tax_year_event(client_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """Record a filing, amendment, payment or 'no return required' that retention counts from (returns filed outside
+    AgentLedger), with its evidence."""
+    reviewer_only(user)
+    fresh(user)
+    scope(user, client_id)
+    try:
+        eid = evidence.record_tax_event(A(user).conn, client_id, int(body["tax_year"]), str(body.get("kind", "")),
+                                        str(body.get("occurred_on", "")), actor=user["id"], role=authority(user),
+                                        note=str(body.get("note", "")), form=str(body.get("form", "")),
+                                        due_on=body.get("due_on") or None, period=body.get("period") or None)
+    except (evidence.RetentionError, ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    return {"id": eid}
+
+
+@app.post("/api/documents/{doc_id}/retention")
+def confirm_document_retention(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """A CPA confirms a document's tax year (or that it has none) and retention class; until then it is never deleted."""
+    reviewer_only(user)
+    fresh(user)
+    d = one(A(user).conn, "SELECT client_id FROM documents WHERE id = ? AND deleted_at IS NULL", doc_id)
+    if not d:
+        raise HTTPException(404)
+    if d["client_id"]:
+        scope(user, d["client_id"])
+    year = body.get("tax_year")
+    try:
+        evidence.confirm_retention(A(user).conn, doc_id, tax_year=int(year) if year not in (None, "") else None,
+                                   retention_class=str(body.get("retention_class", "")), actor=user["id"],
+                                   role=authority(user), note=str(body.get("note", "")))
+    except (evidence.RetentionError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    return jsonable(evidence.explain(A(user).conn, doc_id))
+
+
+@app.post("/api/documents/{doc_id}/basis-release")
+def release_document_basis(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """A CPA records that the property a basis record supports was disposed of: the record is then kept as a tax record
+    of the disposition year."""
+    reviewer_only(user)
+    fresh(user)
+    d = one(A(user).conn, "SELECT client_id FROM documents WHERE id = ? AND deleted_at IS NULL", doc_id)
+    if not d or not d["client_id"]:
+        raise HTTPException(404)
+    scope(user, d["client_id"])
+    try:
+        evidence.release_basis(A(user).conn, doc_id, disposed_tax_year=int(body["disposed_tax_year"]), actor=user["id"],
+                               role=authority(user), note=str(body.get("note", "")))
+    except (evidence.RetentionError, ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    return jsonable(evidence.explain(A(user).conn, doc_id))
+
+
+@app.get("/api/documents/{doc_id}/retention")
+def document_retention(doc_id: str, user=Depends(me)) -> dict[str, Any]:
+    """When a document may be deleted, computed now (or why it may not be yet), its hold and the years it supports."""
+    cpa_only(user)
+    d = one(A(user).conn, "SELECT client_id FROM documents WHERE id = ?", doc_id)
+    if not d:
+        raise HTTPException(404)
+    if d["client_id"]:
+        scope(user, d["client_id"])
+    elif client_scope(user) != ["*"]:
+        raise HTTPException(403, "review-inbox documents are firm-wide")
+    return jsonable(evidence.explain(A(user).conn, doc_id))
 
 
 # ------------------------------------------------------------------------------ rules & calculators
@@ -947,6 +1060,8 @@ def create_return(client_id: str, body: dict[str, Any] = Body(...), user=Depends
     scope(user, client_id)
     try:
         rid = R(user).create(client_id, int(body["tax_year"]), user["id"], body.get("inputs"))
+    except InputRejected as e:
+        raise HTTPException(400, str(e))
     except ValueError as e:
         raise HTTPException(409, str(e))
     return {"id": rid}
@@ -978,6 +1093,20 @@ def put_return_inputs(rid: str, body: dict[str, Any] = Body(...), user=Depends(m
         return jsonable(rs.save_inputs(rid, body, user["id"]))
     except ValidationError as e:
         raise HTTPException(422, e.errors(include_url=False))
+    except InputRejected as e:
+        raise HTTPException(400, str(e))
+    except TransitionError as e:
+        raise _wf_error(e)
+
+
+@app.post("/api/returns/{rid}/void")
+def void_return(rid: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+    """A CPA voids a return that will not be filed through AgentLedger (abandoned, or filed with other software)."""
+    reviewer_only(user)
+    fresh(user)
+    rs, _ = _return_for(user, rid)
+    try:
+        return {"status": rs.void(rid, user["id"], authority(user), str(body.get("note", ""))).status}
     except TransitionError as e:
         raise _wf_error(e)
 
@@ -988,6 +1117,23 @@ def populate_return(rid: str, user=Depends(me)) -> dict[str, Any]:
     rs, _ = _return_for(user, rid)
     try:
         return rs.populate_from_documents(rid, user["id"])
+    except InputRejected as e:
+        raise HTTPException(400, str(e))
+    except TransitionError as e:
+        raise _wf_error(e)
+
+
+@app.post("/api/returns/{rid}/documents/{doc_id}/disposition")
+def return_document_disposition(rid: str, doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> list[dict[str, Any]]:
+    """Account for a filed document the return does not use: entered by hand, or not applicable, with a reason."""
+    cpa_only(user)
+    rs, _ = _return_for(user, rid)
+    try:
+        return rs.account_for_document(rid, doc_id, str(body.get("disposition", "")), str(body.get("note", "")), user["id"])
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except TransitionError as e:
         raise _wf_error(e)
 

@@ -116,7 +116,7 @@ def test_firm_deletion_locks_everyone_out(api):
     assert c.post("/api/clients", json={"id": "kept-client", "name": "Kept Client"}, headers=admin).status_code == 200
     tenant = mod.PLATFORM.tenant_dir("gone-cpa")
     store_path = tenant / "state" / "agentledger.db"
-    mod.PLATFORM.delete_firm("gone-cpa", by="test")       # its store is open in the API's tenant cache
+    mod.PLATFORM.delete_firm("gone-cpa", by="test", reason="signed offboarding request on file")       # its store is open in the API's tenant cache
     assert c.get("/api/clients", headers=admin).status_code == 401
     # Not just the key: the books, client records and files are gone too.
     assert not tenant.exists()

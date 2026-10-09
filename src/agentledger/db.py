@@ -143,6 +143,62 @@ CREATE TABLE IF NOT EXISTS deletion_receipts (
     reason TEXT NOT NULL
 );
 
+-- Write-ahead deletion (re-audit of 952ee96, finding 4): one row per stored object to delete, committed with the
+-- receipt before any byte is touched, and one row per attempt's outcome. Pending = no 'deleted'/'kept_shared' outcome.
+CREATE TABLE IF NOT EXISTS blob_deletions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    receipt_id INTEGER NOT NULL REFERENCES deletion_receipts(id),
+    document_id TEXT NOT NULL,
+    locator TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS blob_deletion_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    deletion_id INTEGER NOT NULL REFERENCES blob_deletions(id),
+    outcome TEXT NOT NULL CHECK (outcome IN ('started', 'deleted', 'failed', 'kept_shared')),
+    detail TEXT NOT NULL DEFAULT '',
+    at TEXT NOT NULL
+);
+
+-- What retention is counted from (finding 5): filings, amendments, payments and confirmations that no return was
+-- required, recorded by a CPA for returns filed outside AgentLedger. Returns filed through AgentLedger are read from
+-- their workflow events.
+CREATE TABLE IF NOT EXISTS tax_year_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL REFERENCES clients(id),
+    tax_year INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('filed', 'amended', 'payment', 'not_required', 'owners_filed')),
+    occurred_on TEXT NOT NULL,
+    form TEXT NOT NULL,
+    period TEXT CHECK (period IS NULL OR period IN ('Q1', 'Q2', 'Q3', 'Q4')),
+    due_on TEXT,
+    note TEXT NOT NULL,
+    recorded_by TEXT NOT NULL,
+    recorded_at TEXT NOT NULL
+);
+
+-- A filed document moved to another client, with the reason: holds on the client it left still cover it.
+CREATE TABLE IF NOT EXISTS document_moves (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id TEXT NOT NULL REFERENCES documents(id),
+    from_client TEXT NOT NULL,
+    to_client TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    moved_by TEXT NOT NULL,
+    moved_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS document_moves_document ON document_moves (document_id);
+
+-- A basis record whose property was disposed of, released by a CPA: then kept as a record of the disposition year.
+CREATE TABLE IF NOT EXISTS basis_releases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id TEXT NOT NULL REFERENCES documents(id),
+    disposed_tax_year INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    released_by TEXT NOT NULL,
+    released_at TEXT NOT NULL
+);
+
 CREATE TRIGGER IF NOT EXISTS legal_holds_no_delete BEFORE DELETE ON legal_holds
 BEGIN SELECT RAISE(ABORT, 'legal holds are released, never deleted'); END;
 CREATE TRIGGER IF NOT EXISTS legal_holds_release_only BEFORE UPDATE ON legal_holds
@@ -340,10 +396,13 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 """
 
 APPEND_ONLY = ("commands", "entries", "postings", "audit", "finding_resolutions", "info_returns", "ai_usage", "entry_documents",
-               "precedents", "document_versions", "deletion_receipts")
+               "precedents", "document_versions", "deletion_receipts", "blob_deletions", "blob_deletion_results",
+               "tax_year_events", "document_moves", "basis_releases")
 
 # Columns added after a table first shipped: (table, column, type) for stores created before them.
-UPGRADES = (("documents", "retention_class", "TEXT"), ("documents", "retain_until", "TEXT"), ("documents", "deleted_at", "TEXT"))
+UPGRADES = (("documents", "retention_class", "TEXT"), ("documents", "retain_until", "TEXT"), ("documents", "deleted_at", "TEXT"),
+            ("documents", "retention_confirmed_by", "TEXT"), ("documents", "retention_confirmed_at", "TEXT"),
+            ("tax_year_events", "period", "TEXT"))
 
 
 def connect(path: Path | str) -> sqlite3.Connection:
@@ -427,9 +486,12 @@ def is_pg(conn: Any) -> bool:
 
 
 def firm_of(path: Path | str) -> str | None:
-    """tenants/<firm>/state/agentledger.db -> <firm>; the single-firm (development) store has none."""
+    """.../tenants/<firm>/state/agentledger.db -> <firm>; the single-firm (development) store has none. Read from the
+    end of the path, so a directory named "tenants" above the platform root can never stand in for the firm's."""
     parts = Path(path).parts
-    return parts[parts.index("tenants") + 1] if "tenants" in parts[:-1] else None
+    if len(parts) >= 4 and parts[-4] == "tenants" and parts[-2] == "state":
+        return parts[-3]
+    return None
 
 
 def pg_name(name: str) -> str:
@@ -463,6 +525,15 @@ def close_stores(location: str) -> None:
     for store in list(_OPEN):
         if getattr(store, "location", None) == location:
             store.close()
+
+
+def store_exists(path: Path | str) -> bool:
+    """Whether a firm's store exists, without creating it (opening a store creates or migrates it)."""
+    if backend() == "postgres":
+        from .pg import provision
+
+        return provision.store_exists(path)
+    return Path(path).exists()
 
 
 def destroy_store(path: Path | str) -> str:
@@ -515,6 +586,17 @@ def _raw(conn: Any) -> sqlite3.Connection:
     return conn._get() if isinstance(conn, ThreadLocalConnection) or is_pg(conn) and hasattr(conn, "_get") else conn
 
 
+def lock(conn: Any, key: str) -> None:
+    """Serialize transactions that touch the same thing (a client's legal holds, a stored object), held until the
+    enclosing unit_of_work ends. SQLite needs nothing more: every unit_of_work takes the database's write lock (BEGIN
+    IMMEDIATE). PostgreSQL takes a transaction-scoped advisory lock, keyed by schema so firms never contend."""
+    raw = _raw(conn)
+    if not raw.in_transaction:
+        raise RuntimeError("db.lock is only meaningful inside a unit_of_work")
+    if is_pg(conn):
+        raw.execute("SELECT pg_advisory_xact_lock(hashtextextended(current_schema() || ':' || ?, 0))", (key,))
+
+
 @contextmanager
 def unit_of_work(conn: Any) -> Iterator[sqlite3.Connection]:
     """One atomic transaction for a whole business operation. Nested calls become savepoints, so a ledger posting
@@ -537,7 +619,14 @@ def unit_of_work(conn: Any) -> Iterator[sqlite3.Connection]:
         except BaseException:
             raw.execute("ROLLBACK")
             raise
-        raw.execute("COMMIT")
+        try:
+            raw.execute("COMMIT")
+        except BaseException:
+            # A COMMIT can fail (a deferred constraint, a full disk, a lost connection). Nothing is durable then, and
+            # the connection must not stay inside the dead transaction holding the write lock (SQLite keeps it open).
+            if raw.in_transaction:
+                raw.execute("ROLLBACK")
+            raise
 
 
 def payload_hash(payload: Any) -> str:

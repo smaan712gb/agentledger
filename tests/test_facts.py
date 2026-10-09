@@ -93,7 +93,7 @@ def test_repopulation_raises_conflicts_blocks_review_and_records_history(fam):  
         R.submit_for_review(rid, "maya", explanation="")
     R.resolve_conflict(rid, c["id"], "keep", "maya", note="W-2c requested from the employer")
     assert R.populate_from_documents(rid, "maya")["conflicts"] == 0              # a decision is not asked again
-    hist = facts.history(fam.conn, R.sealer, rid, "w2s[0].wages")
+    hist = facts.history(fam.conn, R.sealer, rid, "w2s[d_w2a].wages")          # history follows the document, not a position
     assert [(h["source"], h["value"]) for h in hist] == [("document", "52000.00"), ("preparer", "52500.00")]
     assert hist[1]["supersedes"] == hist[0]["id"]
 
@@ -112,7 +112,7 @@ def test_taking_the_document_value_supersedes_the_entry(fam):  # noqa: F811
     R.resolve_conflict(rid, c["id"], "document", "maya", note="client confirmed the W-2 is right")
     v = R.latest(rid)
     assert v["inputs"]["w2s"][1]["wages"] == "41000" and v["provenance"]["w2s[1].wages"]["source"] == "resolution"
-    assert [h["source"] for h in facts.history(fam.conn, R.sealer, rid, "w2s[1].wages")] == ["document", "preparer", "resolution"]
+    assert [h["source"] for h in facts.history(fam.conn, R.sealer, rid, "w2s[d_w2b].wages")] == ["document", "preparer", "resolution"]
     with pytest.raises(KeyError):
         R.resolve_conflict(rid, c["id"], "keep", "maya")                         # resolved once
 

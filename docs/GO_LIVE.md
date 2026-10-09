@@ -101,3 +101,29 @@ Each milestone ends with: full test suite green, golden scenarios green, a commi
 - Evidence storage: enable R2 on the Cloudflare account (dashboard), create the bucket and an R2 API token scoped to
   it, and set `AGENTLEDGER_BLOBS=s3` with the `AGENTLEDGER_BLOB_*` values. Objects are sealed and content addressed
   before upload; bucket lock rules per prefix come with F-13.
+
+## Operator procedures for evidence retention and offboarding (re-audit of 952ee96)
+
+- Retention is a CPA's decision, never automatic. For each document a CPA confirms its tax year (or that it has none)
+  and class (`POST /api/documents/{id}/retention`); for returns filed outside AgentLedger the CPA records the filing
+  with its evidence (`POST /api/clients/{id}/tax-year-events`: the form, the quarter for each 941, the 940, owners'
+  returns of a pass-through entity as `owners_filed`, payments, "not required" years). `GET /api/documents/{id}/retention`
+  shows the computed date or why there is none.
+- A retention run: review `GET /api/evidence/due`, then `POST /api/evidence/purge` with the reviewed `document_ids`,
+  a reason and `attested: true` (the attestation in `evidence/records.py: ATTESTATION`: no examination, fraud,
+  extension agreement, unfiled foreign information return, listed transaction, pending claim, carryover, basis or
+  client request applies; where one does, place a legal hold instead). Check `GET /api/evidence/integrity` afterwards
+  (`?verify=true` reads every stored object back and authenticates it).
+- Basis records (closing statements, K-1s, brokerage statements, invoices behind capitalized costs) are kept until a CPA
+  records the property's disposition (`POST /api/documents/{id}/basis-release`); they are then kept as records of the
+  disposition year. A return that will not be filed through AgentLedger (abandoned, or filed with other software) is
+  voided (`POST /api/returns/{id}/void`), and a filing made elsewhere is recorded as a tax-year event.
+- Firm offboarding runs as an operations job with owner database credentials (`AGENTLEDGER_MIGRATION_URL`), after the
+  firm's export is delivered: `delete_firm(reason)` takes the firm out of use, seals its store against new holds and
+  destroys it in recorded stages; it is refused while a hold is active. `cancel_offboarding` stops it before the store's
+  removal begins (during a run it is a request the run honours at its next stage); the job must run with the object
+  store and database server the firm was created with. A firm created before its object store was recorded is
+  refused at that stage until an operator checks the deployment's settings and records it with
+  `record_blob_location(firm, "s3:<bucket>/<prefix>" or "file", reason)`; a recorded location never changes.
+- The R2 credentials are checked live with `AGENTLEDGER_TEST_R2=1 pytest tests/test_live_r2.py` (one sealed object under
+  a throwaway `selftest/` prefix, removed afterwards).

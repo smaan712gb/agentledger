@@ -348,7 +348,7 @@ def test_paper_filed_return_is_frozen(fam, monkeypatch):
     from agentledger.workflow.engine import TransitionError
 
     R, rid = _signed_return(fam, monkeypatch)
-    R.wf.send(rid, "mark_paper_filed", "maya", role="cpa", note="filed on paper with Form 8948")
+    R.mark_paper_filed(rid, "maya", "cpa", "filed on paper with Form 8948, mailed 2027-04-10")
     before = R.latest(rid)
     path = fam.kb._paths["us_fed.individual.standard_deduction"]
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))

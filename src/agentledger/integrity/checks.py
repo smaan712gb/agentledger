@@ -85,7 +85,11 @@ def closed_period(conn, ctx, client_id, year):
 
 @check("income.info_return_mismatch", "Income on information returns exceeds book revenue: an unreconciled difference to explain")
 def info_return_mismatch(conn, ctx, client_id, year):
-    reported = rows(conn, "SELECT * FROM info_returns WHERE client_id = ? AND tax_year = ?", client_id, year)
+    # A document later moved to another client (an explicit, audited move) no longer counts here; its append-only row
+    # stays, and the new client gets its own.
+    reported = rows(conn, "SELECT ir.* FROM info_returns ir LEFT JOIN documents d ON d.id = ir.document_id "
+                          "WHERE ir.client_id = ? AND ir.tax_year = ? AND (ir.document_id IS NULL OR d.client_id = ir.client_id)",
+                    client_id, year)
     if not reported:
         return []
     total_reported = sum((D(r["amount"]) for r in reported), Decimal(0))

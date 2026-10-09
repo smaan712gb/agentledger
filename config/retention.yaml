@@ -1,48 +1,79 @@
-# How long evidence is kept before it may be deleted (backlog F-06). Deletion is never automatic: a CPA runs it,
-# legal holds block it, and each deletion leaves a receipt in the audit chain.
+# How long evidence is kept before it may be deleted (backlog F-06; statutory rules after the re-audit of 952ee96 and
+# its adversarial review). Deletion is never automatic: a CPA runs it over the list of documents they reviewed, with
+# an attestation (evidence/records.py: ATTESTATION), legal holds block it, and each deletion leaves a receipt in the
+# audit chain, written before any byte is destroyed.
 #
-# The IRS periods are minimums for the taxpayer's records (https://www.irs.gov/businesses/small-businesses-self-employed/how-long-should-i-keep-records):
-#   3 years from filing in general (IRC §6501(a)); 6 years if income is understated by more than 25% (§6501(e));
-#   7 years for a loss from worthless securities or a bad-debt deduction (§6511(d)); no limit if no return was filed
-#   or it was fraudulent (§6501(c)); employment tax records at least 4 years after the tax is due or paid.
-# A preparer keeps a copy or list of each return for 3 years after the close of the return period (IRC §6107(b)).
+# A document becomes deletable only when (evidence/records.py: retention_end):
+#   - a person confirmed its tax year (or that it has none) and its class; heuristic years never drive deletion;
+#   - its class has a finite period (basis records, and records behind a capitalized cost, are kept until released);
+#   - `years` have passed since it was received;
+#   - no return that relied on it is still unfiled;
+#   - for every (client, tax year) it supports (its year, the year of each return and journal entry that relied on it,
+#     each later year using a carryover): the returns that year needs are on record as filed (through AgentLedger, or
+#     recorded by a CPA with its evidence) or as not required. Income tax records need the income tax return (and,
+#     for a pass-through entity, its owners' returns); payroll records also need every employment tax return of the
+#     year (an annual return or all four 941s, and the 940). With a return missing no limitation period runs
+#     (IRC 6501(c)(3)). From the later of the latest such filing and the due date (6501(b)(1), (b)(2)): max(years, 7)
+#     for income tax records, 10 from the due date when the year shows foreign tax (6511(d)(3)(A)), `years` for
+#     employment records; 2 years past an income tax payment (6511(a)), 4 past an employment tax payment
+#     (Treas. Reg. 31.6001-1(e)(2)); then a 90-day margin (7502, 7503).
 #
-# AgentLedger keeps tax evidence for 7 years after the end of the tax year (covering the 3-, 6- and 7-year rules and
-# the filing year itself). A firm may lengthen any class; shortening below these values is refused.
+# The IRS periods (https://www.irs.gov/businesses/small-businesses-self-employed/how-long-should-i-keep-records):
+#   3 years from filing (6501(a)); 6 years for an omission of more than 25% of gross income (6501(e)); 7 years from the
+#   due date for worthless securities and bad debts (6511(d)(1)); no limit when no return was filed (6501(c)(3));
+#   employment tax records at least 4 years after the tax is due or paid. A preparer keeps a copy or list of each
+#   return for 3 years after the close of the July-June return period (6107(b), 6060).
+#
+# Each class has a group: income, employment, firm (engagement and correspondence: kept `years`, or as income tax
+# records when they support a tax year) or basis (kept until a CPA releases them; a finite period is refused).
+# Floors enforced by the code (a policy below them is refused): tax_return_support 7, employment_tax 4,
+# preparer_copy 4, engagement_and_correspondence 3, any other class 7.
 
-counted_from: end_of_tax_year      # or the received date when a document has no tax year
 classes:
   tax_return_support:
+    group: income
     years: 7
-    basis: "IRC §6501(a), (e) and §6511(d): 3, 6 or 7 years; kept 7 after the tax year"
+    basis: "IRC §6501(a), (e) and §6511(d)(1): counted from the later of filing and the due date"
   employment_tax:
+    group: employment
     years: 7
-    basis: "IRS: at least 4 years after the tax is due or paid; kept 7 for consistency with the return"
+    basis: "Treas. Reg. §31.6001-1(e)(2): at least 4 years after the tax is due or paid; kept 7 for consistency with the return"
   preparer_copy:
+    group: income
     years: 7
     basis: "IRC §6107(b): 3 years after the close of the return period; kept 7"
   engagement_and_correspondence:
+    group: firm
     years: 7
     basis: "firm policy (professional standards and malpractice exposure)"
   property_basis:
-    years: null                     # kept until released by a CPA after the property's disposition year plus 7
-    basis: "records for basis are kept until the limitations period for the disposition year expires"
+    group: basis
+    years: null
+    basis: "kept until a CPA releases it after the disposition year's limitation period has run"
 default: tax_return_support
 by_doc_type:
   W-2: tax_return_support
-  W-4: employment_tax
-  "941": employment_tax
-  "940": employment_tax
   1099-NEC: tax_return_support
   1099-MISC: tax_return_support
   1099-K: tax_return_support
   1099-INT: tax_return_support
   1099-DIV: tax_return_support
-  1099-B: tax_return_support
+  1099-B: property_basis
+  1099-R: tax_return_support
   1098: tax_return_support
+  1098-E: tax_return_support
+  1098-T: tax_return_support
+  K-1: property_basis
+  Payroll report: employment_tax
   Receipt: tax_return_support
   Invoice: tax_return_support
   Bank statement: tax_return_support
-  Engagement letter: engagement_and_correspondence
+  Brokerage statement: property_basis
+  Contract: engagement_and_correspondence
+  Correspondence: engagement_and_correspondence
   Closing disclosure: property_basis
   Settlement statement: property_basis
+  Trade confirmation: property_basis
+  Capital account statement: property_basis
+  Capital call notice: property_basis
+  Distribution notice: property_basis

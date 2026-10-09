@@ -59,9 +59,11 @@ def test_workflow_gates_and_durable_states(fam, monkeypatch):
     R = Returns(fam.conn, fam.kb)
     rid = R.create("rivera", 2026, "maya", household())
     R.populate_from_documents(rid, "maya")
+    # The 1099-NEC is not on this return (no business); a person accounts for it before review.
+    R.account_for_document(rid, "d_nec", "not_applicable", "issued in error; the payer is sending a corrected 1099", "maya")
     with pytest.raises(TransitionError, match="not confirmed"):
         R.submit_for_review(rid, "maya")
-    assert R.confirm(rid, None, "maya") == 12
+    assert R.confirm(rid, None, "maya") == 15                             # 12 amounts and the 3 owners the documents name
     st = R.submit_for_review(rid, "maya")
     assert st.status == "in_review"
     with pytest.raises(TransitionError, match="different person"):
@@ -107,6 +109,7 @@ def test_editing_after_approval_reopens_and_voids_signature(fam):
     R = Returns(fam.conn, fam.kb, segregation=False)
     rid = R.create("rivera", 2026, "maya", household())
     R.populate_from_documents(rid, "maya")
+    R.account_for_document(rid, "d_nec", "not_applicable", "issued in error; the payer is sending a corrected 1099", "maya")
     R.confirm(rid, None, "maya")
     R.submit_for_review(rid, "maya")
     R.approve(rid, "maya", "cpa")

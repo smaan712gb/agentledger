@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import re
 import secrets
 import shutil
@@ -28,11 +29,21 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 from .. import db
+from ..evidence import offboarding
 from . import totp
 from .crypto import Keyring, load_master_key
 
 PLATFORM_FIRM = "_platform"
-ROLES = ("platform_admin", "firm_admin", "cpa", "staff", "client")
+# Ids no firm may take: the single-firm development store uses "dev" (its objects live under firms/dev/).
+RESERVED_FIRM_IDS = frozenset({PLATFORM_FIRM, "dev"})
+OFFBOARDING_LEASE = timedelta(hours=6)
+
+
+class _Cancelled(Exception):
+    """An offboarding run saw a cancellation before its store's removal began."""
+
+
+ROLES =("platform_admin", "firm_admin", "cpa", "staff", "client")
 FIRM_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 MAX_FAILURES = 5
 LOCKOUT = timedelta(minutes=15)
@@ -84,6 +95,25 @@ CREATE TABLE IF NOT EXISTS engagement_grants (
     granted_by TEXT NOT NULL, granted_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_by TEXT, revoked_at TEXT
 );
 CREATE INDEX IF NOT EXISTS engagement_grants_user ON engagement_grants (user_id, client_id);
+-- What a deleted firm's store held, kept after the store is destroyed (holds, counts, audit head).
+CREATE TABLE IF NOT EXISTS firm_offboarding (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, firm_id TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now')),
+    by TEXT NOT NULL, reason TEXT NOT NULL, summary TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS firm_offboarding_no_update BEFORE UPDATE ON firm_offboarding
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS firm_offboarding_no_delete BEFORE DELETE ON firm_offboarding
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+-- How far a firm's destruction got (sealed, store_removed, blobs_removed, tenant_removed, key_shredded): a retry
+-- resumes, and a store recorded as removed is never mistaken for one that cannot be found.
+-- One offboarding run at a time per firm (a lease), and a cancellation requested while one runs.
+CREATE TABLE IF NOT EXISTS offboarding_runs (
+    firm_id TEXT PRIMARY KEY, holder TEXT, lease_until TEXT, cancel_requested_at TEXT, cancel_by TEXT, cancel_reason TEXT
+);
+CREATE TABLE IF NOT EXISTS firm_destruction (
+    firm_id TEXT NOT NULL, stage TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (firm_id, stage)
+);
 CREATE TABLE IF NOT EXISTS sso_mfa_attestations (
     organization_id TEXT PRIMARY KEY, firm_id TEXT NOT NULL, evidence TEXT NOT NULL, attested_by TEXT NOT NULL,
     attested_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_at TEXT
@@ -154,6 +184,9 @@ class Enrolment:
 class Platform:
     def __init__(self, root: Path, *, dev: bool = False, identity: str = "local"):
         self.root = Path(root)
+        if "tenants" in Path(root).resolve().parts:
+            raise ValueError("the platform root must not lie inside a directory named 'tenants': firm stores are located "
+                             "by their tenants/<firm> path")
         # "workos": firm users sign in only through the identity provider; the password + TOTP stack stays for
         # platform administrators (break-glass). "local": password + TOTP for everyone (self-hosting).
         if identity not in ("local", "workos"):
@@ -176,7 +209,9 @@ class Platform:
         for table, col, ddl in (("users", "idp_subject", "TEXT"), ("users", "reviewer", "INTEGER NOT NULL DEFAULT 0"),
                                 ("users", "reviewer_credential", "TEXT"), ("sessions", "auth_method", "TEXT NOT NULL DEFAULT 'password+totp'"),
                                 ("sessions", "stepped_up_at", "TEXT"),
-                                ("sessions", "authenticated_at", "TEXT"), ("idp_states", "browser_hash", "TEXT")):
+                                ("sessions", "authenticated_at", "TEXT"), ("idp_states", "browser_hash", "TEXT"),
+                                ("firms", "offboarding_from", "TEXT"), ("provisioning", "database", "TEXT"),
+                                ("provisioning", "server", "TEXT"), ("firms", "blob_location", "TEXT")):
             if col not in {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
         self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_idp_subject ON users (idp_subject) WHERE idp_subject IS NOT NULL")
@@ -198,8 +233,8 @@ class Platform:
     def create_firm(self, firm_id: str, name: str, *, by: str) -> dict[str, Any]:
         """Create a firm, or resume one whose store provisioning did not finish. The firm stays in status
         'provisioning' (nobody can use it) until its store is ready; a failure is recorded and the same call retries."""
-        if not FIRM_ID.match(firm_id) or firm_id == PLATFORM_FIRM:
-            raise AuthError("firm id must be 2-41 lowercase letters, digits or hyphens")
+        if not FIRM_ID.fullmatch(firm_id) or firm_id in RESERVED_FIRM_IDS:
+            raise AuthError("firm id must be 2-41 lowercase letters, digits or hyphens, and not a reserved name")
         with self.lock:
             row = self.conn.execute("SELECT status FROM firms WHERE id = ?", (firm_id,)).fetchone()
             if row and row["status"] != "provisioning":
@@ -209,6 +244,12 @@ class Platform:
                 self.conn.execute("INSERT INTO firms (id, name, status) VALUES (?, ?, ?)", (firm_id, name, status))
                 self.keys.create(firm_id)
                 self.tenant_dir(firm_id).mkdir(parents=True, exist_ok=True)
+                if db.backend() != "postgres":   # the store exists from the start: a missing one is never "no holds"
+                    db.connect(self._store_path(firm_id)).close()
+                from ..evidence.blobs import location_of
+
+                # Where its objects live, recorded once: offboarding removes them from there, whatever its own settings.
+                self.conn.execute("UPDATE firms SET blob_location = ? WHERE id = ?", (location_of(firm_id), firm_id))
                 self.event("firm_created", firm_id=firm_id, user_id=by, detail=name)
         if db.backend() == "postgres":   # outside the lock: provisioning talks to the database service
             from ..pg import migration_url, provision
@@ -223,6 +264,7 @@ class Platform:
             except Exception as exc:
                 self.event("firm_store_provisioning_failed", firm_id=firm_id, user_id=by, detail=f"{type(exc).__name__}: {exc}"[:300])
                 raise
+            self._admit_store(firm_id, by=by)
             self.conn.execute("UPDATE firms SET status = 'active' WHERE id = ? AND status = 'provisioning'", (firm_id,))
             self.event("firm_store_provisioned", firm_id=firm_id, user_id=by, detail=detail)
         return self.firm(firm_id)
@@ -240,16 +282,62 @@ class Platform:
     def abandon_firm(self, firm_id: str, *, by: str) -> str:
         """Give up on a firm whose provisioning never finished: remove what provisioning recorded creating, shred its
         key and retire the id."""
+        self._not_reserved(firm_id)
         if self.firm(firm_id)["status"] != "provisioning":
             raise AuthError("only a firm that is still provisioning can be abandoned")
+        rec = self.get(firm_id)
+        if rec and rec.get("state") == "ready":
+            raise AuthError("this firm's store is provisioned: let the provisioning worker activate the firm, then delete it")
+        ref = self._store_ref(firm_id, allow_unrecorded=True)
+        if ref is not None:
+            try:
+                offboarding.seal(ref, allow_missing=True)      # a store provisioning never finished cannot hold anything
+            except offboarding.Held as e:
+                self.event("firm_abandon_refused", firm_id=firm_id, user_id=by, detail=str(e)[:300])
+                raise AuthError(f"{e}: a CPA must release each with a reason before the firm can be abandoned") from e
+            except Exception as exc:
+                self._unseal_or_record(firm_id, ref, by=by)      # the seal may have landed before the failure
+                self.event("firm_abandon_refused", firm_id=firm_id, user_id=by, detail=f"store unreadable: {exc}"[:300])
+                raise AuthError("the firm's store could not be read to check legal holds; refusing to abandon the firm") from exc
         from ..pg import provision
 
-        detail = provision.abandon(firm_id, self)
+        try:
+            detail = provision.abandon(firm_id, self)
+        except BaseException:
+            if ref is not None:                                  # the firm may yet be provisioned and used
+                self._unseal_or_record(firm_id, ref, by=by)
+            raise
         with self.lock:
             self.conn.execute("UPDATE firms SET status = 'deleted', deleted_at = datetime('now') WHERE id = ?", (firm_id,))
             self.keys.destroy(firm_id)
         self.event("firm_abandoned", firm_id=firm_id, user_id=by, detail=detail)
         return detail
+
+    def _unseal_or_record(self, firm_id: str, ref: offboarding.StoreRef, *, by: str) -> bool:
+        """Unseal a store after an abandonment stopped; when the same outage stops the unseal, record that the store is
+        left sealed (the firm's activation unseals it, or keeps the firm out of use)."""
+        try:
+            offboarding.unseal(ref)
+            return True
+        except Exception as exc:
+            self.event("firm_abandon_stuck", firm_id=firm_id, user_id=by,
+                       detail=f"store left sealed, could not unseal: {type(exc).__name__}: {exc}"[:300])
+            return False
+
+    def _admit_store(self, firm_id: str, *, by: str) -> None:
+        """Before a provisioned firm goes into use: a store left sealed against legal holds (by an abandonment the same
+        outage stopped before it could unseal) is unsealed first, or the firm stays out of use."""
+        ref = self._store_ref(firm_id, allow_unrecorded=True)
+        if ref is None or not offboarding.sealed(ref):
+            return
+        try:
+            offboarding.unseal(ref)
+        except Exception as exc:
+            self.event("firm_store_sealed", firm_id=firm_id, user_id=by,
+                       detail=f"could not unseal: {type(exc).__name__}: {exc}"[:300])
+            raise AuthError("this firm's store is sealed against legal holds (an abandonment stopped midway) and could not "
+                            "be unsealed; the firm stays out of use") from exc
+        self.event("firm_store_unsealed", firm_id=firm_id, user_id=by, detail="left sealed by an abandonment that stopped midway")
 
     # ------------------------------------------------------------------ provisioning journal (pg.provision.Journal)
     def get(self, firm_id: str) -> dict[str, Any] | None:
@@ -257,7 +345,7 @@ class Platform:
         return dict(r) if r and r["state"] else None
 
     def put(self, firm_id: str, **fields: Any) -> None:
-        allowed = {"resource", "name", "state", "error"}
+        allowed = {"resource", "name", "database", "server", "state", "error"}
         if set(fields) - allowed:
             raise ValueError(f"unknown provisioning fields {set(fields) - allowed}")
         self.conn.execute("INSERT INTO provisioning (firm_id) VALUES (?) ON CONFLICT (firm_id) DO NOTHING", (firm_id,))
@@ -285,46 +373,317 @@ class Platform:
     def firms(self) -> list[dict[str, Any]]:
         return [dict(r) for r in self.conn.execute("SELECT * FROM firms WHERE deleted_at IS NULL ORDER BY name")]
 
-    def delete_firm(self, firm_id: str, *, by: str) -> None:
-        """Offboarding: revoke access, crypto-shred the firm's data key, then remove its store and files.
-        Irreversible: the firm's export bundle (backlog A1-10) must be delivered before this is called.
+    def _store_path(self, firm_id: str) -> Path:
+        return self.tenant_dir(firm_id) / "state" / "agentledger.db"
 
-        The key is destroyed first, so documents and sealed returns are unreadable even if removing the store
-        fails; a failed removal is recorded and can be retried with destroy_firm_data."""
+    def _store_ref(self, firm_id: str, *, allow_unrecorded: bool = False) -> offboarding.StoreRef | None:
+        """Where the firm's store is, from the platform's own records: the provisioning journal (PostgreSQL) or the
+        tenant directory (SQLite), never from the environment of whoever runs the offboarding. A job connected to
+        another database server than the one recorded is refused."""
+        if db.backend() != "postgres":
+            return offboarding.StoreRef("sqlite", path=self._store_path(firm_id))
+        rec = self.get(firm_id)
+        if not rec or not rec.get("resource") or not rec.get("name"):
+            if allow_unrecorded:
+                return None
+            raise AuthError("no provisioning record says where this firm's store is; refusing to destroy anything")
+        from ..pg import database_of, migration_url, runtime_base_url
+        from ..pg.provision import FIRM_SCHEMA, server_of
+
+        here = server_of(migration_url() or runtime_base_url() or "")
+        if rec.get("server") and here and rec["server"] != here:
+            raise AuthError(f"this firm's store was provisioned on {rec['server']}, but this job connects to {here}: refusing")
+        if rec["resource"] == "database":
+            return offboarding.StoreRef("postgres", resource="database", database=rec["name"], schema=FIRM_SCHEMA)
+        return offboarding.StoreRef("postgres", resource="schema", schema=rec["name"],
+                                    database=rec.get("database") or database_of(runtime_base_url() or ""))
+
+    def _not_reserved(self, firm_id: str) -> None:
+        if firm_id in RESERVED_FIRM_IDS:
+            raise AuthError(f"{firm_id!r} is a reserved id (the single-firm store's objects share its prefix): a firm with "
+                            "this id is removed by hand after checking that store's legal holds")
+
+    def _stages(self, firm_id: str) -> set[str]:
+        return {r["stage"] for r in self.conn.execute("SELECT stage FROM firm_destruction WHERE firm_id = ?", (firm_id,))}
+
+    def _stage(self, firm_id: str, stage: str, detail: str = "") -> None:
+        self.conn.execute("INSERT INTO firm_destruction (firm_id, stage, detail) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+                          (firm_id, stage, detail[:500]))
+
+    # The offboarding run's lease: one run at a time, and a cancellation never lands in the middle of one.
+    def _claim_run(self, firm_id: str, holder: str) -> bool:
+        with self.lock:
+            self.conn.execute("INSERT INTO offboarding_runs (firm_id) VALUES (?) ON CONFLICT (firm_id) DO NOTHING", (firm_id,))
+            cur = self.conn.execute("UPDATE offboarding_runs SET holder = ?, lease_until = ? WHERE firm_id = ? "
+                                    "AND (holder IS NULL OR lease_until < ?)",
+                                    (holder, _iso(_now() + OFFBOARDING_LEASE), firm_id, _iso(_now())))
+            return cur.rowcount == 1
+
+    def _renew_run(self, firm_id: str, holder: str) -> None:
+        self.conn.execute("UPDATE offboarding_runs SET lease_until = ? WHERE firm_id = ? AND holder = ?",
+                          (_iso(_now() + OFFBOARDING_LEASE), firm_id, holder))
+
+    def _release_run(self, firm_id: str, holder: str) -> None:
+        self.conn.execute("UPDATE offboarding_runs SET holder = NULL, lease_until = NULL WHERE firm_id = ? AND holder = ?",
+                          (firm_id, holder))
+
+    def _cancel_request(self, firm_id: str) -> dict[str, Any] | None:
+        r = self.conn.execute("SELECT * FROM offboarding_runs WHERE firm_id = ? AND cancel_requested_at IS NOT NULL",
+                              (firm_id,)).fetchone()
+        return dict(r) if r else None
+
+    def _begin_removal(self, firm_id: str) -> bool:
+        """Record that the store is about to be removed, unless a cancellation was requested: one statement, so a
+        cancellation either lands first (and the run stops) or is refused (the store is going)."""
+        cur = self.conn.execute(
+            "INSERT INTO firm_destruction (firm_id, stage, detail) SELECT ?, 'store_removing', '' WHERE NOT EXISTS "
+            "(SELECT 1 FROM offboarding_runs WHERE firm_id = ? AND cancel_requested_at IS NOT NULL) "
+            "ON CONFLICT DO NOTHING", (firm_id, firm_id))
+        return cur.rowcount == 1 or "store_removing" in self._stages(firm_id)
+
+    def _destroy(self, firm_id: str, ref: offboarding.StoreRef | None, *, by: str, holder: str) -> str:
+        """Remove the sealed store, the firm's objects and tenant directory, then shred its key: each stage recorded
+        ('store_removing' before the store is touched), so a retry resumes where a failure stopped and the key goes
+        last. The seal is verified again inside the removal; the objects are removed from the store recorded for the
+        firm, never from wherever this job's settings point."""
+        details = []
+        stages = self._stages(firm_id)
+        try:
+            if "store_removed" not in stages:
+                if not self._begin_removal(firm_id):
+                    raise _Cancelled()
+                detail = offboarding.destroy(ref) if ref is not None else "no store was provisioned"
+                self._stage(firm_id, "store_removed", detail)
+                if db.backend() == "postgres" and self.get(firm_id):
+                    self.put(firm_id, state="removed")
+                details.append(detail)
+                self._renew_run(firm_id, holder)
+            if "blobs_removed" not in stages:
+                from ..evidence import blobs
+
+                recorded = self.firm(firm_id).get("blob_location")
+                here = blobs.location_of(firm_id)
+                if not recorded:                   # created before the location was recorded: never guess it
+                    raise AuthError("where this firm's objects live was never recorded (the firm predates the record): "
+                                    "check the deployment's object-store settings, record it with "
+                                    "record_blob_location, and retry")
+                if recorded != here:
+                    raise AuthError(f"this firm's objects are in {recorded}, but this job is configured for {here}: "
+                                    "configure that object store and retry")
+                detail = blobs.destroy_firm(firm_id)
+                self._stage(firm_id, "blobs_removed", detail)
+                details.append(detail)
+                self._renew_run(firm_id, holder)
+            if "tenant_removed" not in stages:
+                tenant = self.tenant_dir(firm_id)
+                if tenant.exists():
+                    shutil.rmtree(tenant)
+                self._stage(firm_id, "tenant_removed", "tenant directory removed")
+                details.append("tenant directory removed")
+        except _Cancelled:
+            raise
+        except Exception as exc:
+            self.event("firm_data_destroy_failed", firm_id=firm_id, user_id=by, detail=f"{type(exc).__name__}: {exc}"[:300])
+            raise
+        if "key_shredded" not in stages:
+            self.keys.destroy(firm_id)                 # last: nothing that could still be held is left to protect
+            self._stage(firm_id, "key_shredded")
+            details.append("data key shredded")
+        detail = "; ".join(details) or "already destroyed"
+        self.event("firm_data_destroyed", firm_id=firm_id, user_id=by, detail=detail[:300])
+        return detail
+
+    def record_blob_location(self, firm_id: str, location: str, *, by: str, reason: str) -> None:
+        """Record where the objects of a firm created before the platform recorded it live ('file', or
+        's3:<bucket>/<prefix>' as blobs.location_of names it), so offboarding removes them from there. An operator
+        records it after checking the deployment's settings; a recorded location is never changed."""
+        location = location.strip()
+        if not reason.strip():
+            raise AuthError("say why: what the location was checked against")
+        if location != "file" and not re.fullmatch(r"s3:[^/\s]+/\S*", location):
+            raise AuthError("a location is 'file' or 's3:<bucket>/<prefix>'")
+        with self.lock:
+            cur = self.conn.execute("UPDATE firms SET blob_location = ? WHERE id = ? AND blob_location IS NULL",
+                                    (location, firm_id))
+            if cur.rowcount != 1:
+                raise AuthError("unknown firm, or its location is already recorded (a recorded location never changes)")
+        self.event("firm_blob_location_recorded", firm_id=firm_id, user_id=by, detail=f"{location}: {reason}"[:300])
+
+    def _seal_or_refuse(self, firm_id: str, ref: offboarding.StoreRef, *, by: str, action: str) -> dict[str, Any] | None:
+        """Seal the store against new holds and read what it holds, or refuse (fail closed) with the reason."""
+        try:
+            return offboarding.seal(ref)
+        except offboarding.Held as e:
+            self.event(f"firm_{action}_refused", firm_id=firm_id, user_id=by, detail=f"active legal holds: {e}"[:300])
+            raise AuthError(f"{e}: a CPA must release each with a reason before the firm's evidence can be destroyed") from e
+        except offboarding.NotFound as e:
+            self.event(f"firm_{action}_refused", firm_id=firm_id, user_id=by, detail=f"store not found: {e}"[:300])
+            raise AuthError(f"the firm's store is not where the platform's records say ({e}); its legal holds cannot be "
+                            f"checked, so nothing is destroyed") from e
+        except Exception as exc:
+            self.event(f"firm_{action}_refused", firm_id=firm_id, user_id=by,
+                       detail=f"store unreadable: {type(exc).__name__}: {exc}"[:300])
+            raise AuthError(f"the firm's store could not be read to check legal holds; refusing to {action} the firm") from exc
+
+    def _back_out(self, firm_id: str, ref: offboarding.StoreRef | None, *, by: str, event: str, detail: str) -> None:
+        """An offboarding that stops before its store is removed: unseal the store (whatever the seal's outcome was:
+        a lost acknowledgement may have left it sealed), then put the firm back into use. If unsealing fails the firm
+        stays in 'offboarding', so nobody is told a hold was placed while holds are still refused."""
+        if ref is not None:
+            offboarding.unseal(ref)
+        self.conn.execute("DELETE FROM firm_destruction WHERE firm_id = ? AND stage = 'sealed'", (firm_id,))
+        self.conn.execute("UPDATE offboarding_runs SET cancel_requested_at = NULL, cancel_by = NULL, cancel_reason = NULL "
+                          "WHERE firm_id = ?", (firm_id,))
+        self._end_offboarding(firm_id)
+        self.event(event, firm_id=firm_id, user_id=by, detail=detail[:300])
+
+    def delete_firm(self, firm_id: str, *, by: str, reason: str = "") -> None:
+        """Offboarding: keep a record of what the store held, remove the store and files, crypto-shred the firm's data
+        key, then retire the firm. Irreversible: the firm's export bundle (backlog A1-10) must be delivered first.
+
+        The firm is taken out of use first ('offboarding': every request for it is refused). One run at a time holds
+        the offboarding's lease. The store, located from the platform's records, is sealed in one locked step
+        (evidence.offboarding.seal): every hold still being placed lands first and is seen; none can be added
+        afterwards. Refused, with the store unsealed and the firm back in use, while any hold is active or if the store
+        cannot be found or read. A cancellation (cancel_offboarding) stops the run at its next stage, until the store's
+        removal begins. Each stage is recorded, so a retry resumes; the firm is marked deleted and its users disabled
+        only once everything is gone. A firm still provisioning is abandoned (abandon_firm), never deleted."""
+        if len(reason.strip()) < 10:
+            raise AuthError("record why the firm is being deleted (for example the signed offboarding request)")
+        self._not_reserved(firm_id)
+        if db.backend() == "postgres":
+            from ..pg import migration_url
+
+            if not migration_url():       # sealing and removal need them; without, the firm would be left out of use
+                raise AuthError("firm offboarding runs as an operations job with owner database credentials "
+                                "(AGENTLEDGER_MIGRATION_URL)")
+        with self.lock:
+            f = self.firm(firm_id)
+            if f["status"] == "deleted":
+                raise AuthError("this firm is already deleted; use destroy_firm_data to finish removing its data")
+            if f["status"] == "provisioning":
+                raise AuthError("this firm never finished provisioning: use abandon_firm, which removes only what "
+                                "provisioning recorded creating")
+            if f["status"] != "offboarding":
+                self.conn.execute("UPDATE firms SET status = 'offboarding', offboarding_from = ? WHERE id = ?", (f["status"], firm_id))
+                # A cancellation belongs to the offboarding it was made against: a new one begins with none.
+                self.conn.execute("UPDATE offboarding_runs SET cancel_requested_at = NULL, cancel_by = NULL, "
+                                  "cancel_reason = NULL WHERE firm_id = ?", (firm_id,))
+                self.event("firm_offboarding_started", firm_id=firm_id, user_id=by, detail=reason.strip()[:300])
+        holder = f"{os.getpid()}:{secrets.token_hex(6)}"
+        if not self._claim_run(firm_id, holder):
+            raise AuthError("an offboarding run of this firm is already in progress")
+        ref: offboarding.StoreRef | None = None
+        try:
+            try:
+                ref = self._store_ref(firm_id)
+                if not ({"store_removing", "store_removed"} & self._stages(firm_id)):
+                    if self._cancel_request(firm_id):
+                        raise _Cancelled()
+                    summary = self._seal_or_refuse(firm_id, ref, by=by, action="delete") if ref is not None else None
+                    self._stage(firm_id, "sealed")
+                    from ..evidence.records import to_json
+
+                    self.conn.execute("INSERT INTO firm_offboarding (firm_id, by, reason, summary) VALUES (?, ?, ?, ?)",
+                                      (firm_id, by, reason.strip(), to_json(summary)))
+                self._destroy(firm_id, ref, by=by, holder=holder)
+            except _Cancelled:
+                req = self._cancel_request(firm_id) or {}
+                self._back_out(firm_id, ref, by=str(req.get("cancel_by") or by), event="firm_offboarding_cancelled",
+                               detail=str(req.get("cancel_reason") or "cancelled"))
+                raise AuthError("the offboarding was cancelled before the store's removal began; the firm is back in use")
+            except BaseException as exc:
+                if not ({"store_removing", "store_removed"} & self._stages(firm_id)):   # nothing removed: back into use
+                    try:
+                        self._back_out(firm_id, ref, by=by, event="firm_offboarding_stopped",
+                                       detail=f"{type(exc).__name__}: {exc}")
+                    except Exception as unseal_error:      # still sealed: the firm stays out of use
+                        self.event("firm_offboarding_stuck", firm_id=firm_id, user_id=by,
+                                   detail=f"could not unseal: {type(unseal_error).__name__}: {unseal_error}"[:300])
+                raise
+        finally:
+            self._release_run(firm_id, holder)
         with self.lock:
             self.conn.execute("UPDATE firms SET status = 'deleted', deleted_at = datetime('now') WHERE id = ?", (firm_id,))
             self.conn.execute("UPDATE users SET disabled = 1 WHERE firm_id = ?", (firm_id,))
             self.conn.execute("UPDATE sessions SET revoked_at = datetime('now') WHERE user_id IN "
                               "(SELECT id FROM users WHERE firm_id = ?)", (firm_id,))
-            self.keys.destroy(firm_id)
-            self.event("firm_deleted", firm_id=firm_id, user_id=by)
-        self.destroy_firm_data(firm_id, by=by)
+            self.event("firm_deleted", firm_id=firm_id, user_id=by, detail=reason.strip()[:300])
+
+    def _end_offboarding(self, firm_id: str) -> None:
+        with self.lock:
+            self.conn.execute("UPDATE firms SET status = coalesce(offboarding_from, 'active'), offboarding_from = NULL "
+                              "WHERE id = ? AND status = 'offboarding'", (firm_id,))
+
+    def cancel_offboarding(self, firm_id: str, *, by: str, reason: str) -> str:
+        """Stop an offboarding before its store is removed (a hold must be placed, the request was withdrawn).
+
+        With a run in progress the cancellation is recorded and the run stops at its next stage, before the store's
+        removal begins; the firm stays out of use until it has ("requested"), and a run already removing the store is
+        not interrupted (refused). With no run in progress the store is unsealed and the firm goes back into use now
+        ("cancelled"), also after a removal attempt that failed, provided the store is verifiably intact; a store
+        removed in part can only be finished."""
+        if len(reason.strip()) < 10:
+            raise AuthError("record why the offboarding is cancelled")
+        f = self.firm(firm_id)
+        if f["status"] != "offboarding":
+            raise AuthError("this firm is not being offboarded")
+        holder = f"{os.getpid()}:{secrets.token_hex(6)}"
+        if not self._claim_run(firm_id, holder):          # a run is in progress: ask it to stop at its next stage
+            with self.lock:                               # the request is made against a run still holding the lease
+                cur = self.conn.execute(
+                    "UPDATE offboarding_runs SET cancel_requested_at = ?, cancel_by = ?, cancel_reason = ? WHERE firm_id = ? "
+                    "AND holder IS NOT NULL AND lease_until >= ? "
+                    "AND NOT EXISTS (SELECT 1 FROM firm_destruction WHERE firm_id = ? AND stage IN ('store_removing', 'store_removed'))",
+                    (_iso(_now()), by, reason.strip(), firm_id, _iso(_now()), firm_id))
+            if cur.rowcount == 1:
+                self.event("firm_offboarding_cancel_requested", firm_id=firm_id, user_id=by, detail=reason.strip()[:300])
+                return "requested"
+            if not self._claim_run(firm_id, holder):      # still held: the run is removing the store
+                raise AuthError("this firm's store is being removed by a run in progress; the offboarding can only be finished")
+        try:                                              # this cancellation holds the lease
+            if self.firm(firm_id)["status"] != "offboarding":          # the run stopped on its own meanwhile
+                raise AuthError("this firm is no longer being offboarded: its run stopped and put it back in use")
+            stages = self._stages(firm_id)
+            if "store_removed" in stages:
+                raise AuthError("this firm's store is already removed; the offboarding can only be finished")
+            ref = self._store_ref(firm_id)
+            if "store_removing" in stages:                 # a removal attempt failed: only an intact store comes back
+                if ref is None or not offboarding.intact(ref):
+                    raise AuthError("this firm's store was partly removed; the offboarding can only be finished")
+                self.conn.execute("DELETE FROM firm_destruction WHERE firm_id = ? AND stage = 'store_removing'", (firm_id,))
+            self._back_out(firm_id, ref, by=by, event="firm_offboarding_cancelled", detail=reason.strip())
+        finally:
+            self._release_run(firm_id, holder)
+        return "cancelled"
+
+    def offboarding_records(self, firm_id: str) -> list[dict[str, Any]]:
+        return [dict(r) for r in self.conn.execute("SELECT * FROM firm_offboarding WHERE firm_id = ? ORDER BY id", (firm_id,))]
 
     def destroy_firm_data(self, firm_id: str, *, by: str) -> str:
-        """Remove a deleted firm's operational store (ledger, CRM, returns, workflow history, audit trail) and its
-        tenant directory (vault ciphertext, agent state). Safe to retry."""
+        """Finish removing a deleted firm's data (a firm deleted before staged destruction, or one whose removal was
+        interrupted): the store is sealed first (refused while a legal hold is active or if it cannot be found where the
+        records say, unless the records say its removal began or finished), then the stages run; the key goes last."""
+        self._not_reserved(firm_id)
         if self.firm(firm_id)["status"] != "deleted":
             raise AuthError("only a deleted firm's data can be destroyed")
-        if db.backend() == "postgres":
-            rec = self.get(firm_id)
-            if rec and rec["state"] == "removed":
-                return "store already removed"
-        tenant = self.tenant_dir(firm_id)
+        holder = f"{os.getpid()}:{secrets.token_hex(6)}"
+        if not self._claim_run(firm_id, holder):
+            raise AuthError("an offboarding run of this firm is already in progress")
         try:
-            detail = db.destroy_store(tenant / "state" / "agentledger.db")
-            from ..evidence.blobs import destroy_firm
-
-            detail += "; " + destroy_firm(firm_id)
-            if tenant.exists():
-                shutil.rmtree(tenant)
-                detail += "; tenant directory removed"
-        except Exception as exc:
-            self.event("firm_data_destroy_failed", firm_id=firm_id, user_id=by, detail=f"{type(exc).__name__}: {exc}"[:300])
-            raise
-        if self.get(firm_id):
-            self.put(firm_id, state="removed")
-        self.event("firm_data_destroyed", firm_id=firm_id, user_id=by, detail=detail)
-        return detail
+            stages = self._stages(firm_id)
+            rec = self.get(firm_id) if db.backend() == "postgres" else None
+            removed = bool({"store_removing", "store_removed"} & stages) or bool(rec and rec.get("state") == "removed")
+            ref = self._store_ref(firm_id, allow_unrecorded=bool(rec and rec.get("state") == "removed"))
+            if not removed and ref is not None:
+                self._seal_or_refuse(firm_id, ref, by=by, action="destroy")
+                self._stage(firm_id, "sealed")
+            elif rec and rec.get("state") == "removed" and "store_removed" not in stages:
+                self._stage(firm_id, "store_removing")
+                self._stage(firm_id, "store_removed", "recorded as removed by provisioning")
+            return self._destroy(firm_id, ref, by=by, holder=holder)
+        finally:
+            self._release_run(firm_id, holder)
 
     # ------------------------------------------------------------------ users and invitations
     def is_platform_admin(self, email: str) -> bool:
