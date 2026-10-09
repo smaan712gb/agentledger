@@ -71,6 +71,11 @@ agents:
     title: Automation runner
     mission: Turn events into tasks, client requests, drafts and notifications.
     every_hours: 0.05
+  - id: evidence-anchor
+    kind: evidence_anchor
+    title: Audit chain anchor
+    mission: Fix the firm's audit chain head in its object store every hour, after probing the bucket lock; report any chain that contradicts an anchor.
+    every_hours: 1
   - id: model-scout
     first_run: after_interval
     kind: model_scout

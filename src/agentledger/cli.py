@@ -438,6 +438,80 @@ def workflows_signal(instance_id: str, type: str, payload: str = typer.Option("{
     raise typer.Exit(0 if ok else 1)
 
 
+# -- evidence -------------------------------------------------------------------------------------
+
+evidence_app = typer.Typer(help="Evidence integrity: audit chain anchors in the object store, restore drills (F-13)", no_args_is_help=True)
+app.add_typer(evidence_app, name="evidence")
+
+
+def _platform():
+    """The platform with the master key (firm data keys sign the anchors), as the API opens it."""
+    from .security.platform import Platform
+
+    return Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1",
+                    identity=os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower())
+
+
+@evidence_app.command("anchor")
+def evidence_anchor(firm: str = typer.Option(None, help="firm id (tenants/<firm>); the single-firm store by default"),
+                    all_firms: bool = typer.Option(False, "--all", help="every active firm (the scheduled job)"),
+                    by: str = typer.Option("evidence-anchor", help="who runs it (the audit actor)")):
+    """Fix the audit chain head in the firm's object store (anchors/<firm>/<utc date>/<seq>.json, signed with the firm's
+    key), after probing that the anchors prefix is locked, and only when the chain moved since the last anchor. Exit 1
+    when a chain contradicts its anchor (rewritten or truncated) or a firm's run failed."""
+    from .evidence import anchors as anchoring
+    from .security.platform import AuthError
+
+    try:
+        if all_firms:
+            plat = _platform()
+            try:
+                results = anchoring.anchor_all(plat, actor=by)
+            finally:
+                plat.close()
+        elif firm:
+            plat = _platform()
+            try:
+                anchors, conn = anchoring.for_firm(plat, firm)
+                try:
+                    results = {firm: anchors.anchor(actor=by)}
+                finally:
+                    conn.close()
+            finally:
+                plat.close()
+        else:
+            results = {"dev": anchoring.Anchors.for_foundry(ctx().foundry).anchor(actor=by)}
+    except (AuthError, anchoring.AnchorError) as e:
+        con.print(f"[red]{e}[/]")
+        raise typer.Exit(2)
+    print(json.dumps(results, indent=1, default=str))
+    if any(r.get("mismatch") or r.get("error") for r in results.values()):
+        raise typer.Exit(1)
+
+
+@evidence_app.command("restore-drill")
+def evidence_restore_drill(firm: str = typer.Argument(..., help="firm id (tenants/<firm>)"),
+                           keep: bool = typer.Option(False, "--keep", help="leave the scratch copy in place for inspection"),
+                           by: str = typer.Option("restore-drill", help="who runs it (the audit actor)")):
+    """Restore drill (Q33): copy the firm's store (SQLite: the file; PostgreSQL: a fresh schema loaded from the firm's
+    with the owner connection), verify the copy's audit chain against the anchors in the object store, check that every
+    in-flight workflow instance is present and resumable, record the drill in the audit trail and write the report
+    under the firm's tenant directory. Exit 1 when anything failed."""
+    from .evidence import drill
+    from .security.platform import AuthError
+
+    plat = _platform()
+    try:
+        report = drill.run(plat, firm, keep=keep, actor=by)
+    except (AuthError, drill.DrillError) as e:
+        con.print(f"[red]{e}[/]")
+        raise typer.Exit(2)
+    finally:
+        plat.close()
+    print(json.dumps(report, indent=1, default=str))
+    raise typer.Exit(0 if report["ok"] else 1)
+
+
 # -- rules ----------------------------------------------------------------------------------------
 
 @rules_app.command("list")

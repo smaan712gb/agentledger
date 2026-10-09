@@ -119,7 +119,40 @@ before the platform store runs on PostgreSQL there (`agentledger platform migrat
   platform store on another backend than the firm stores (tests do).
 - Evidence storage: enable R2 on the Cloudflare account (dashboard), create the bucket and an R2 API token scoped to
   it, and set `AGENTLEDGER_BLOBS=s3` with the `AGENTLEDGER_BLOB_*` values. Objects are sealed and content addressed
-  before upload; bucket lock rules per prefix come with F-13.
+  before upload. The bucket lock rule on `anchors/` (F-13) is the owner's step in docs/DEPLOY.md, checklist 3b; the
+  per-retention-class prefixes for held documents remain F-06's.
+
+## Operator procedures for audit chain anchors and restore drills (F-13, 2026-10-09)
+
+- **What an anchor is.** Each firm's audit trail is a hash chain in its own store. Hourly, the `evidence-anchor` agent
+  (the API scheduler; or `agentledger evidence anchor --all` as a job, `--firm <id>` for one firm) writes the chain's
+  head to the firm's object store as `anchors/<firm>/<utc date>/<seq>.json`, signed with a key derived from the firm's
+  data key, only when the chain moved. Under the bucket lock rule those objects can be neither deleted nor overwritten,
+  so a chain that was rewritten or cut short afterwards is caught by comparing it with its anchors
+  (ADR-0006, amendment 2026-10-09).
+- **The lock is probed, never assumed.** Every run writes a probe object under `anchors/<firm>/probe/` and tries to
+  delete it; the anchors count as locked only when the delete is refused. Until the owner has created the rule
+  (DEPLOY.md 3b) every run records `evidence.anchor_lock_missing` once and every report shows
+  `anchors.lock.status == "missing"`; after the rule exists the next run records `evidence.anchor_lock_confirmed`. A
+  report that says `missing` on production is a finding for the owner, not a warning to dismiss. Locally and in CI
+  (file blobs, the SeaweedFS server) the gap is reported the same way (`unchecked` / `missing`).
+- **Reading the report.** `GET /api/evidence/integrity` (a reviewer, firm-wide) now carries `anchors`: `count`,
+  `latest`, `signed`, `signature_failures`, `chain_rewritten`, `chain_truncated`, `workflow_rewritten`,
+  `workflow_truncated`, `anchors_missing_from_store`, `anchors_replaced`, `chain` (the chain's own verification),
+  `anchor_missing` with `unanchored_since` (unanchored activity older than `AGENTLEDGER_ANCHOR_MAX_AGE_HOURS`, default
+  24: the job did not run), and `lock`. Any `chain_*`, `workflow_*`, signature or missing-anchor entry makes the
+  report's `ok` false and means the store was changed below the application: stop, preserve the store and the bucket,
+  and compare the anchors (the object store is the authority) with the chain before anyone touches either.
+  `agentledger evidence anchor` exits 1 on such a mismatch and never writes a new anchor over it.
+- **Restore drill** (Q33; run it before go-live and after every change to the database or backup setup, at a quiet
+  moment for the firm): `agentledger evidence restore-drill <firm>` with the owner connection
+  (`AGENTLEDGER_MIGRATION_URL`) and the master key in the environment. It copies the firm's store (SQLite: the file;
+  PostgreSQL: a fresh schema `drill_<token>` in the firm's database, migrated and loaded from the firm's schema),
+  verifies the copy's chain against the anchors, lists every parked workflow instance found in the copy and whether it
+  would resume, records `evidence.restore_drill` in the firm's audit trail and writes the report to
+  `tenants/<firm>/drills/<stamp>-<token>.json`; the copy is removed unless `--keep` (then drop the schema and its
+  runtime role by hand when done). Exit 1 means the copy did not verify: treat the backup path as broken until it does.
+  On Cloudflare the tenant directory is scratch, so read the report from the command's output.
 
 ## Operator procedures for evidence retention and offboarding (re-audit of 952ee96)
 

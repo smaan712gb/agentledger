@@ -520,6 +520,13 @@ class Platform:
         return offboarding.StoreRef("postgres", resource="schema", schema=rec["name"],
                                     database=rec.get("database") or database_of(runtime_base_url() or ""))
 
+    def store_ref(self, firm_id: str) -> offboarding.StoreRef:
+        """Where the firm's store is, from the platform's records, for jobs that read it in place (the restore drill,
+        backlog F-13). Refused when no record says where it is."""
+        ref = self._store_ref(firm_id)
+        assert ref is not None
+        return ref
+
     def _not_reserved(self, firm_id: str) -> None:
         if firm_id in RESERVED_FIRM_IDS:
             raise AuthError(f"{firm_id!r} is a reserved id (the single-firm store's objects share its prefix): a firm with "

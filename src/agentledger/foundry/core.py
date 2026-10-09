@@ -64,7 +64,7 @@ class Proposal(BaseModel):
 
 # Agents that work on one firm's data run inside each firm; the rest maintain the shared platform
 # (regulations, models, repositories, code) and run once.
-TENANT_KINDS = {"intake_maildrop", "intake_imap", "integrity_sweeper", "automations"}
+TENANT_KINDS = {"intake_maildrop", "intake_imap", "integrity_sweeper", "automations", "evidence_anchor"}
 
 
 @dataclass
@@ -301,6 +301,7 @@ class Foundry:
             res.log.append(traceback.format_exc(limit=3))
         record = {"agent": agent_id, "kind": spec.kind, "started_at": started, "finished_at": audit.now(), "ok": ok,
                   "error": error, "proposals": res.proposals, "alerts": res.alerts, "stats": res.stats, "log": res.log[-30:]}
+        self._runs_path().parent.mkdir(parents=True, exist_ok=True)   # a PostgreSQL tenant has no store file to create it
         with self._runs_path().open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, default=str) + "\n")
         audit.record(self.conn, agent_id, "agent", "agent.run", {"ok": ok, "error": error, "proposals": res.proposals,

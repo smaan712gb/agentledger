@@ -415,6 +415,25 @@ CREATE TABLE IF NOT EXISTS audit (
     hash TEXT NOT NULL
 );
 
+-- Audit chain anchors (backlog F-13): the index of the anchor objects written to the firm's object store
+-- (evidence/anchors.py). The object store is the authority; this table makes "did the head move since the last
+-- anchor" one lookup. A row is written once; only verified_at changes afterwards.
+CREATE TABLE IF NOT EXISTS audit_anchors (
+    object_key TEXT PRIMARY KEY,
+    seq INTEGER NOT NULL UNIQUE,
+    head_hash TEXT NOT NULL,
+    object_sha256 TEXT NOT NULL,
+    written_at TEXT NOT NULL,
+    lock_status TEXT NOT NULL CHECK (lock_status IN ('locked', 'missing', 'unchecked')),
+    verified_at TEXT
+);
+CREATE TRIGGER IF NOT EXISTS audit_anchors_no_delete BEFORE DELETE ON audit_anchors
+BEGIN SELECT RAISE(ABORT, 'audit anchors are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS audit_anchors_verify_only BEFORE UPDATE ON audit_anchors
+WHEN NEW.object_key IS NOT OLD.object_key OR NEW.seq IS NOT OLD.seq OR NEW.head_hash IS NOT OLD.head_hash
+     OR NEW.object_sha256 IS NOT OLD.object_sha256 OR NEW.written_at IS NOT OLD.written_at OR NEW.lock_status IS NOT OLD.lock_status
+BEGIN SELECT RAISE(ABORT, 'an audit anchor only records its verification'); END;
+
 CREATE TABLE IF NOT EXISTS ai_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     at TEXT NOT NULL,

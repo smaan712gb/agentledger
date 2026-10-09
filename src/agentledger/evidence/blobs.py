@@ -12,7 +12,10 @@ import re
 from pathlib import Path
 from typing import Any, Iterator, Protocol
 
-KEY = re.compile(r"^[a-z0-9][a-z0-9/_-]{0,200}$")
+# A dot is allowed inside a key (anchor objects are <seq>.json, F-13); ".." and a .tmp suffix (FileBlobs' half-written
+# object name) are refused below.
+KEY = re.compile(r"^[a-z0-9][a-z0-9/_.-]{0,200}$")
+ANCHORS = "anchors"
 
 
 class BlobStore(Protocol):
@@ -24,7 +27,7 @@ class BlobStore(Protocol):
 
 
 def _check(key: str) -> str:
-    if not KEY.match(key) or ".." in key:
+    if not KEY.match(key) or ".." in key or key.endswith(".tmp"):
         raise ValueError(f"bad blob key {key!r}")
     return key
 
@@ -138,6 +141,18 @@ def for_firm(root: Path, firm_id: str | None) -> BlobStore:
     if os.environ.get("AGENTLEDGER_BLOBS", "file").strip().lower() == "s3":
         return S3Blobs(prefix=f"{os.environ.get('AGENTLEDGER_BLOB_PREFIX', '')}firms/{firm_id or 'dev'}")
     return FileBlobs(root)
+
+
+def anchors_for_firm(root: Path, firm_id: str | None) -> tuple[BlobStore, str]:
+    """The store a firm's audit chain anchors go to (evidence/anchors.py, F-13), and its label. With
+    AGENTLEDGER_BLOBS=s3 the bucket under the top-level prefix anchors/<firm>/ (not under firms/<firm>/: one bucket
+    lock rule on anchors/ then covers every firm, and offboarding, which removes firms/<firm>/, leaves the locked
+    anchors alone; they hold hashes, never content). Otherwise `root`, a directory beside the vault, never inside it:
+    the integrity sweep treats files under the vault as documents."""
+    if os.environ.get("AGENTLEDGER_BLOBS", "file").strip().lower() == "s3":
+        store = S3Blobs(prefix=f"{os.environ.get('AGENTLEDGER_BLOB_PREFIX', '')}{ANCHORS}/{firm_id or 'dev'}")
+        return store, f"s3:{store.bucket}/{store.prefix}"
+    return FileBlobs(root), f"file:{Path(root)}"
 
 
 def location_of(firm_id: str) -> str:

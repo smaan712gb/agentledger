@@ -1040,12 +1040,15 @@ def evidence_purge(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[s
 
 @app.get("/api/evidence/integrity")
 def evidence_integrity(verify: bool = False, user=Depends(me)) -> dict[str, Any]:
-    """Live documents whose bytes are missing, deletions not finished, and (verify=true) every stored object read back
-    and authenticated against its recorded hash."""
+    """Live documents whose bytes are missing, deletions not finished, (verify=true) every stored object read back and
+    authenticated against its recorded hash, and `anchors` (F-13): the audit chain against every anchor in the object
+    store, the anchors' signatures, the lock probe's last outcome and whether an anchor is overdue."""
+    from ..evidence.anchors import Anchors
+
     reviewer_only(user)
     if client_scope(user) != ["*"]:
         raise HTTPException(403, "the evidence integrity report is firm-wide")
-    return jsonable(evidence.integrity(A(user).conn, A(user).foundry.vault, verify_contents=verify))
+    return jsonable(evidence.integrity(A(user).conn, A(user).foundry.vault, verify_contents=verify, anchors=Anchors.for_foundry(A(user).foundry)))
 
 
 @app.post("/api/clients/{client_id}/tax-year-events")

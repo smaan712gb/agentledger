@@ -856,11 +856,16 @@ def purge_expired(conn: Any, vault: Any, today: date, *, actor: str, role: str, 
     return out
 
 
-def integrity(conn: Any, vault: Any, *, sweep: bool = True, limit: int = 1000, verify_contents: bool = False) -> dict[str, Any]:
+def integrity(conn: Any, vault: Any, *, sweep: bool = True, limit: int = 1000, verify_contents: bool = False,
+              anchors: Any = None) -> dict[str, Any]:
     """Evidence that should exist but does not, deletions not finished, and (with `sweep`) stored objects that should
     be gone (recorded as deleted, still stored) or that no record references (an intake that failed half way). With
     `verify_contents` every live object is read back and authenticated against its recorded hash (replaced, swapped
-    or unsealed bytes are listed in `failed_authentication`)."""
+    or unsealed bytes are listed in `failed_authentication`). With `anchors` (evidence.anchors.Anchors, F-13) the
+    audit chain is checked against every anchor in the object store: `anchors` carries the report, and a chain that
+    contradicts an anchor, a forged anchor or a missing one makes `ok` false; a missing lock or an overdue anchor is
+    reported inside `anchors` (`lock`, `anchor_missing`) without changing `ok`, which says what the evidence is, not
+    whether the job ran."""
     live: set[str] = set()
     referenced: set[str] = set()
     missing = []
@@ -920,11 +925,17 @@ def integrity(conn: Any, vault: Any, *, sweep: bool = True, limit: int = 1000, v
             swept = True
         except Exception:                                         # the store cannot be listed: reported, not hidden
             swept = False
-    return {"ok": not missing and not pending and not survived and not tampered and not unreferenced,
-            "live_documents_missing_bytes": missing,
-            "pending_deletions": pending, "recent_failed_attempts": failed, "storage_swept": swept,
-            "deleted_but_still_stored": survived, "unreferenced_objects": unreferenced,
-            "contents_verified": verify_contents, "failed_authentication": tampered}
+    report: dict[str, Any] = {
+        "ok": not missing and not pending and not survived and not tampered and not unreferenced,
+        "live_documents_missing_bytes": missing,
+        "pending_deletions": pending, "recent_failed_attempts": failed, "storage_swept": swept,
+        "deleted_but_still_stored": survived, "unreferenced_objects": unreferenced,
+        "contents_verified": verify_contents, "failed_authentication": tampered}
+    if anchors is not None:
+        checked = anchors.check()
+        report["anchors"] = checked
+        report["ok"] = report["ok"] and bool(checked.get("ok"))
+    return report
 
 
 def to_json(summary: dict[str, Any] | None) -> str:

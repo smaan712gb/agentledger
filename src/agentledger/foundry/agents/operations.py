@@ -1,4 +1,4 @@
-"""Operational agents: email/maildrop intake and the integrity sweeper."""
+"""Operational agents: email/maildrop intake, the integrity sweeper and the audit chain anchor."""
 
 from __future__ import annotations
 
@@ -65,3 +65,23 @@ def integrity_agent(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
         res.stats[c["id"]] = len(opened)
         res.alerts += [{"type": "finding", "client_id": c["id"], "severity": x["severity"], "title": x["title"]}
                        for x in opened if x["severity"] in ("critical", "high")]
+
+
+@agent_kind("evidence_anchor")
+def evidence_anchor_agent(f: Foundry, spec: AgentSpec, res: AgentResult) -> None:
+    """Fix the firm's audit chain head in its object store (backlog F-13; evidence/anchors.py): only when the chain
+    moved since the last anchor, after probing that the anchors prefix is locked. The scheduler runs it per firm
+    (TENANT_KINDS); where no scheduler thread runs (Cloudflare containers start with AGENTLEDGER_AGENTS=0) the same
+    job is `agentledger evidence anchor --all`."""
+    from ...evidence.anchors import LOCKED, MISSING, Anchors
+
+    out = Anchors.for_foundry(f).anchor(actor=spec.id)
+    res.stats.update({"anchored": out["anchored"], "reason": out["reason"], "lock": out["lock"]["status"],
+                      "unanchored": out.get("unanchored", 0), "store": out["store"]})
+    if out["anchor"]:
+        res.stats["anchor"] = out["anchor"]["key"]
+    if out["lock"]["status"] != LOCKED:
+        res.alerts.append({"type": "anchor_lock_missing", "severity": "high" if out["lock"]["status"] == MISSING else "medium",
+                           "store": out["store"], "detail": out["lock"]["detail"]})
+    if out["mismatch"]:
+        res.alerts.append({"type": "audit_chain_tampered", "severity": "critical", **out["mismatch"]})

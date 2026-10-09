@@ -81,6 +81,7 @@ variable, or the Neon console. Every value differs between staging and productio
 | `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` | `security/workos.py` | secret | Worker secret | From the WorkOS environment (staging or production). |
 | `WORKOS_REDIRECT_URI` | `api/app.py` | setting | `wrangler.jsonc` vars | `https://<api host>/api/auth/idp/callback`, registered in the same WorkOS environment. |
 | `AGENTLEDGER_IDENTITY=workos`, `AGENTLEDGER_DATABASE=postgres`, `AGENTLEDGER_PG_TENANCY`, `AGENTLEDGER_AGENTS=0`, `ENVIRONMENT`, `API_INSTANCES` | `api/app.py`, `db.py`, `pg/provision.py`, `edge/src/index.ts` | setting | `wrangler.jsonc` vars | Tenancy is `schema` on staging and `database` on production; the GitHub jobs default to the same (`vars.AGENTLEDGER_PG_TENANCY` overrides). |
+| `AGENTLEDGER_ANCHOR_MAX_AGE_HOURS` | `evidence/anchors.py` | setting | `wrangler.jsonc` vars (optional) | Hours of unanchored audit activity after which `GET /api/evidence/integrity` reports `anchor_missing`; default 24 (F-13). |
 | `AGENTLEDGER_SMOKE_TOKEN` | `api/app.py` (`_smoke_user`) | secret | Worker secret **and** GitHub environment secret as `STAGING_SMOKE_TOKEN` / `PROD_SMOKE_TOKEN` | 32+ characters, e.g. `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Grants exactly `GET /api/coverage` and `POST /api/returns/individual`. |
 | `AGENTLEDGER_WORKFLOW_TOKEN` | `api/internal.py` (the workflow runtime's bearer for `/internal/*`) | secret | Worker secret | 32+ characters, generated like the smoke token. Presented by edge/src/workflows and edge/src/relay.ts through the `API` Durable Object; `/internal/*` is 404 from the internet. Grants the system commands only (never approve, release, reconcile). |
 | `ANTHROPIC_API_KEY` | `ai/router.py` | secret | Worker secret (optional) | Frontier tier; absent means local and deterministic tiers only. |
@@ -99,6 +100,20 @@ variable, or the Neon console. Every value differs between staging and productio
 3. **R2**: enable R2, create one bucket per environment (`agentledger-staging-evidence`,
    `agentledger-production-evidence`, or rename them in `wrangler.jsonc`), and one R2 API token per environment scoped
    to its bucket (Object Read & Write). Put the account's endpoint in `AGENTLEDGER_BLOB_ENDPOINT`.
+   - **3b. The bucket lock rule for the audit chain anchors (F-13), per environment and bucket.** Prefix `anchors/`,
+     retention indefinite (or at least 10 years: `--retention-days 3650`), for example
+     `npx wrangler r2 bucket lock add agentledger-production-evidence anchors-indefinite anchors/ --retention-indefinite`
+     and `npx wrangler r2 bucket lock list agentledger-production-evidence` to confirm (dashboard: R2, the bucket,
+     Settings, Bucket lock rules, Add rule; API: `PUT /accounts/{account_id}/r2/buckets/{bucket_name}/lock` with a
+     rule `{"id": "anchors-indefinite", "enabled": true, "prefix": "anchors/", "condition": {"type": "Indefinite"}}`).
+     Bucket locks prevent deletion and overwriting of the matching objects for the retention set; a bucket may hold up
+     to 1,000 rules, lock rules take precedence over lifecycle rules, and a bucket with lock rules cannot be emptied
+     (<https://developers.cloudflare.com/r2/buckets/bucket-locks/>,
+     <https://developers.cloudflare.com/workers/wrangler/commands/r2/>,
+     <https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/>). The anchor job
+     probes the rule at every run and reports `missing` until it exists (docs/GO_LIVE.md, operator procedures); the
+     first `anchors.lock.status == "locked"` in `GET /api/evidence/integrity` is the proof. The lock prefixes for held
+     documents (per retention class) are F-06's separate item.
 4. **Neon**: a project for production (the existing project's branch serves staging), with per environment: the owner
    role's direct URL (`AGENTLEDGER_MIGRATION_URL`), the direct URL the runtime connects to
    (`AGENTLEDGER_RUNTIME_DATABASE_URL`, same host and database), a Neon API key and the project id (production, database
@@ -235,6 +250,9 @@ The staging environment is accepted when all of these hold on a release from `ma
 - A platform administrator can sign in (break-glass password + TOTP), create a firm, and after the next
   `operations.yml` run the firm is `active`; the firm administrator accepts the invitation through WorkOS, uploads a
   document and sees it sealed in the staging bucket (`GET /api/evidence/integrity?verify=true` is clean).
+- After `agentledger evidence anchor --firm <that firm>` against the staging bucket, the report's `anchors` shows one
+  signed anchor and `lock.status == "locked"` (checklist 3b in place); `agentledger evidence restore-drill <firm>` with
+  the staging owner connection exits 0.
 - A second deploy of a trivial change reaches `build == new SHA` within `SMOKE_WAIT_SECONDS` and the cold-start time
   (first request after `sleepAfter`) is measured and recorded here.
 - Logs: Workers observability shows one line per request with method, path, status, duration and request id; the
@@ -258,7 +276,11 @@ be raised.
   instead of rebuilding from `./Dockerfile` on every deploy, so a rollback redeploys bytes that already ran.
 - **`uv.lock`** committed and installed with `uv pip sync` in the Dockerfile, so an image build is reproducible and
   dependabot's pins mean something; today the dependency layer resolves `pyproject.toml` ranges at build time.
-- R2 bucket lock rules per retention prefix (F-13) and the cold-start and p95 measurements ADR-0001 asks for.
+- R2 bucket lock rules per retention prefix for held documents (F-06; the `anchors/` rule is checklist item 3b), a
+  trigger for the audit chain anchor job inside Cloudflare (containers run without the scheduler thread: a Worker cron
+  calling an internal endpoint, or an operations job holding the master key and the R2 token; until then
+  `agentledger evidence anchor --all` runs from an operator's job with those secrets), and the cold-start and p95
+  measurements ADR-0001 asks for.
 
 ## 10. Open flags (unverified until the first real deploy)
 
