@@ -188,6 +188,7 @@ def test_d_amended_return_does_not_extend_retention(fam, monkeypatch):  # noqa: 
         am = R.start_amendment(rid, "maya")
         inputs = R.latest(am)["inputs"]
         inputs["interest"].append({"owner": "taxpayer", "payer": "Overseas Savings Bank", "interest": "40000.00"})   # the omitted income
+        inputs["amendment"] = {"explanation": "omitted 1099-INT: Overseas Savings Bank interest of 40,000", "paid_with_original_return": "0"}
         R.save_inputs(am, inputs, "maya")
         st = paper_file(R, am)
     assert R.get(am)["form"] == "1040-X" and R.get(am)["amends"] == rid and st.status == "paper_filed"
@@ -366,6 +367,7 @@ def test_amendment_and_payment_extend_retention(fam, monkeypatch):  # noqa: F811
         am = R.start_amendment(rid, "maya")
         inputs = R.latest(am)["inputs"]
         inputs["interest"].append({"owner": "taxpayer", "payer": "Overseas Savings Bank", "interest": "40000.00"})   # the omitted income
+        inputs["amendment"] = {"explanation": "omitted 1099-INT: Overseas Savings Bank interest of 40,000", "paid_with_original_return": "0"}
         R.save_inputs(am, inputs, "maya")
         paper_file(R, am)
     confirm(fam.conn, w2["id"], 2026)

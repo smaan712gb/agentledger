@@ -155,6 +155,25 @@ def _form_1040_line(c: Ctx, i: dict[str, Any]) -> Any:
 CALCULATORS["form_1040_line"] = ("One line of a computed individual return (inputs: return, form, line)", _form_1040_line)
 
 
+def _form_1040x_line(c: Ctx, i: dict[str, Any]) -> Any:
+    """A two-return case: the original as filed (computed here from `original`, filed `filed_on` with `status`) and the
+    amended return (`corrected`), the Form 1040-X facts (`amendment`) and the day the question is asked (`today`)."""
+    from ..returns.amendment import Original, compute_1040x
+    from ..returns.individual import compute_individual
+    from ..returns.model import Amendment, IndividualReturn
+
+    original = compute_individual(c, IndividualReturn.model_validate(i["original"]))
+    corrected = compute_individual(c, IndividualReturn.model_validate(i["corrected"]))
+    snapshot = Original.from_result(original.to_dict(), return_id="golden", version=1, status=i.get("status", "paper_filed"),
+                                    filed_on=_d(i["filed_on"]), package_hash="golden")
+    compute_1040x(snapshot, corrected, Amendment.model_validate(i.get("amendment") or {}), today=_d(i["today"]))
+    return corrected.line("f1040x", str(i["line"]))
+
+
+CALCULATORS["form_1040x_line"] = ("One line of a Form 1040-X computed from the original and the amended return "
+                                  "(inputs: original, corrected, amendment, filed_on, today, line)", _form_1040x_line)
+
+
 def run_calc(ctx: Ctx, name: str, inputs: dict[str, Any]) -> Any:
     if name not in CALCULATORS:
         raise KeyError(f"unknown calculator {name}; available: {sorted(CALCULATORS)}")

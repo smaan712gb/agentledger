@@ -13,7 +13,7 @@ import json
 import secrets
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -25,6 +25,7 @@ from ..calc.engine import Ctx
 from ..kb.store import KnowledgeBase
 from ..workflow.engine import Definition, Engine, State, Transition, TransitionError
 from . import documents as docs
+from .amendment import EXPLANATION_CODE, Original, compute_1040x
 from .individual import PER_OWNER_CARRYFORWARDS, compute_individual
 from .model import IndividualReturn
 
@@ -229,6 +230,8 @@ def _blockers(c: dict[str, Any]) -> list[str]:
         out.append(f"the documents now provide {len(d['not_applied'])} value(s) not on the return: re-populate")
     if d.get("duplicates"):
         out.append("more than one item claims the same document: remove the copies")
+    if c.get("unexplained"):
+        out.append("explain the changes on Form 1040-X, Part III (amendment.explanation, at least 10 characters)")
     return out
 
 
@@ -955,11 +958,98 @@ class Returns:
     def _calculate(self, rid: str, cur: dict[str, Any]) -> tuple[IndividualReturn, Any, dict[str, Any]]:
         ret = IndividualReturn.model_validate(cur["inputs"])
         res = compute_individual(Ctx(self.kb), ret)
+        amended = self.get(rid)["form"] == "1040-X"
+        if amended:
+            # Form 1040-X: column A from the original as filed (pinned, hash-verified), column C from this computation.
+            compute_1040x(self._original_as_filed(rid), res, ret.amendment, today=datetime.now(timezone.utc).date())
         result = res.to_dict()
-        forms = list(result["forms"]) + (["f1040x"] if self.get(rid)["form"] == "1040-X" else [])
-        result["coverage"] = self._coverage(forms, ret.tax_year)
+        if amended:
+            result["summary"]["amended_amount_owed"] = str(res.line("f1040x", "amount_owed"))
+            result["summary"]["amended_refund"] = str(res.line("f1040x", "refund"))
+        result["coverage"] = self._coverage(list(result["forms"]), ret.tax_year)
         result["pinned"] = {"kb_version": self.kb.version(), "engine": ENGINE_VERSION}
         return ret, res, result
+
+    def _version(self, rid: str, version: int) -> dict[str, Any] | None:
+        """One stored version, opened (None when there is no such version)."""
+        v = self.conn.execute("SELECT * FROM tax_return_versions WHERE return_id = ? AND version = ?", (rid, version)).fetchone()
+        if not v:
+            return None
+        v = dict(v)
+        v["inputs"] = self.sealer.open(v["inputs"], f"return-inputs:{rid}")
+        v["provenance"] = self.sealer.open(v["provenance"], f"return-provenance:{rid}")
+        v["result"] = self.sealer.open(v["result"], f"return-result:{rid}")
+        return v
+
+    def _version_reproducing(self, rid: str, approved_version: Any, approved_hash: str) -> dict[str, Any] | None:
+        """The version of a filed return whose package reproduces the approved hash (the one the signature and the filing
+        were bound to): the version the approval pinned first, else any version (returns approved before approved_version
+        was recorded), else None."""
+        dispositions = self.dispositions(rid)
+        candidates: list[int] = []
+        if approved_version is not None:
+            candidates.append(int(approved_version))
+        candidates += [int(r["version"]) for r in self.conn.execute("SELECT version FROM tax_return_versions WHERE return_id = ? "
+                                                                      "ORDER BY version DESC", (rid,)).fetchall()
+                       if int(r["version"]) not in candidates]
+        for n in candidates:
+            v = self._version(rid, n)
+            if v and v["result"] and package_hash(v["inputs"], v["result"], v["provenance"], dispositions) == approved_hash:
+                return v
+        return None
+
+    @staticmethod
+    def _filed_on(st: State) -> date | None:
+        """When a filed return was filed, from its stream: the paper filing as recorded, or the electronic postmark (the
+        transmission; Reg. §301.7502-1(d)), else the acknowledgement."""
+        last: dict[str, str] = {}
+        for h in st.history:
+            last[h["event"]] = h["at"]
+        order = ("mark_paper_filed",) if st.status == "paper_filed" else ("transmit", "activity:transmit", "activity_started:transmit", "ack_accepted")
+        at = next((last[e] for e in order if e in last), None)
+        return date.fromisoformat(at[:10]) if at else None
+
+    def _original_as_filed(self, rid: str) -> Original:
+        """The return a Form 1040-X amends, as it was approved, signed and filed: the sealed version the approval pinned
+        (workflow fact approved_version), verified to reproduce the approved hash that the signature (signed_hash) and the
+        filing were bound to. Anything short of that is a problem the 1040-X reports as a blocking diagnostic; column A is
+        never taken from a version that cannot be tied to the signed package."""
+        r = self.get(rid)
+        o = Original(return_id=r.get("amends"))
+        if not o.return_id:
+            o.problems.append(("amendment_original_missing", "this Form 1040-X names no original return (tax_returns.amends); start it "
+                                                             "with Returns.start_amendment from the filed return"))
+            return o
+        try:
+            orig = self.get(o.return_id)
+        except KeyError:
+            o.problems.append(("amendment_original_missing", f"the original return {o.return_id} does not exist"))
+            return o
+        if orig["form"] != "1040" or orig["tax_year"] != r["tax_year"]:
+            o.problems.append(("amendment_original_mismatch", f"the original is a {orig['tax_year']} Form {orig['form']}; a {r['tax_year']} "
+                                                              f"Form 1040-X amends the {r['tax_year']} Form 1040"))
+        st = self.wf.state(o.return_id)
+        o.status = st.status
+        o.filed_on = self._filed_on(st)
+        if st.status not in FILED:
+            o.problems.append(("amendment_original_not_filed", f"the original return is {st.status}; only an accepted or paper-filed return "
+                                                               "is amended"))
+            return o
+        approved, signed = st.facts.get("approved_hash"), st.facts.get("signed_hash")
+        if not approved or signed != approved:
+            o.problems.append(("amendment_original_signature_mismatch", "the original return's signature is not bound to its approved package "
+                                                                        "(signed_hash differs from approved_hash): the filed figures cannot be "
+                                                                        "established"))
+            return o
+        v = self._version_reproducing(o.return_id, st.facts.get("approved_version"), approved)
+        if v is None:
+            o.problems.append(("amendment_original_unpinned", f"no stored version of {o.return_id} reproduces the approved and signed package "
+                                                              f"{approved[:12]}...: the return as filed cannot be established"))
+            return o
+        pinned = Original.from_result(v["result"], return_id=o.return_id, version=int(v["version"]), status=o.status, filed_on=o.filed_on,
+                                      package_hash=approved)
+        pinned.problems = o.problems
+        return pinned
 
     def recalculation_preview(self, rid: str) -> dict[str, Any]:
         """What the return would be under today's rules and engine. Nothing is stored; a filed return stays as filed."""
@@ -970,12 +1060,24 @@ class Returns:
         return result
 
     def start_amendment(self, rid: str, actor: str) -> str:
-        """A change to a filed return starts a linked amendment case (Form 1040-X), copying the filed facts."""
+        """A change to a filed return starts a linked amendment case (Form 1040-X), copying the facts as filed.
+
+        Only an accepted or paper-filed return is amended (a transmitted one may still be rejected, and then is corrected,
+        not amended), and only one whose approved version reproduces the hash its signature and filing were bound to: that
+        version is column A of the 1040-X (returns/amendment.py) and the inputs the amendment starts from."""
         st = self.wf.state(rid)
-        if st.status not in ("accepted", "paper_filed", "transmitted"):
-            raise TransitionError(f"only a filed return can be amended (this one is {st.status})")
+        if st.status not in FILED:
+            raise TransitionError(f"only a filed return (accepted or filed on paper) can be amended; this one is {st.status}")
         r = self.get(rid)
-        cur = self.latest(rid)
+        if r["form"] != "1040":
+            raise TransitionError(f"a Form {r['form']} is not amended again: one Form 1040-X per tax year amends the Form 1040")
+        approved, signed = st.facts.get("approved_hash"), st.facts.get("signed_hash")
+        if not approved or signed != approved:
+            raise TransitionError("the filed return's signature is not bound to its approved package: the figures as filed cannot be established")
+        cur = self._version_reproducing(rid, st.facts.get("approved_version"), approved)
+        if cur is None:
+            raise TransitionError("no stored version of the filed return reproduces its approved and signed package: the figures as filed "
+                                  "cannot be established")
         # The amendment keeps each item's document and provenance, so re-populating it never duplicates them.
         new = self.create(r["client_id"], r["tax_year"], actor, dict(cur["inputs"]), form="1040-X", amends=rid,
                           provenance=cur["provenance"])
@@ -1048,7 +1150,10 @@ class Returns:
         below = len((result.get("coverage") or {}).get("below_preparation", []))
         pop = self._population(rid, v)
         open_now = facts.open_conflicts(self.conn, self.sealer, rid)
-        return {"computed": bool(result), "blocking": below + sum(1 for d in result.get("diagnostics", []) if d["severity"] == "error"),
+        errors = [d for d in result.get("diagnostics", []) if d["severity"] == "error"]
+        # A Form 1040-X without its Part III explanation is named as such (a blocker of its own, not counted twice).
+        unexplained = any(d["code"] == EXPLANATION_CODE for d in errors)
+        return {"computed": bool(result), "blocking": below + sum(1 for d in errors if d["code"] != EXPLANATION_CODE), "unexplained": unexplained,
                 "missing": len(facts.missing_required(v["inputs"], v["provenance"], pop.unreadable)),
                 "drift": self._drift(rid, v, pop),
                 "unconfirmed": sum(1 for p in v["provenance"].values() if not p.get("confirmed")),
