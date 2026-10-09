@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 from urllib.parse import quote
-from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -44,7 +44,7 @@ from ..returns.facts import InputRejected
 from ..security.platform import PLATFORM_FIRM, AuthError, Platform, client_scope
 from ..security.vault import Vault, VaultIntegrityError
 from ..workflow.engine import TransitionError
-from . import internal
+from . import internal, schemas
 
 ROOT = Path(os.environ.get("AGENTLEDGER_HOME", Path.cwd())).resolve()
 from ..envfile import load as _load_env  # noqa: E402
@@ -52,7 +52,8 @@ from ..envfile import load as _load_env  # noqa: E402
 _load_env(ROOT)  # local .env for development; real environment variables always win
 WEB = Path(__file__).resolve().parent.parent / "web"
 
-app = FastAPI(title="AgentLedger", version="0.1.0")
+# Operation ids are the handler names, so the generated client (packages/contracts) calls routes by the names used here.
+app = FastAPI(title="AgentLedger", version="0.1.0", generate_unique_id_function=lambda route: route.name)
 # Dev mode keeps the single-firm layout and the demo identities in config/users.yaml. It must never be
 # enabled on a deployment that holds real taxpayer data.
 DEV = os.environ.get("AGENTLEDGER_DEV_AUTH") == "1"
@@ -78,7 +79,8 @@ def users() -> dict[str, dict[str, Any]]:
     if not DEV:
         return {}
     data = yaml.safe_load((ROOT / "config" / "users.yaml").read_text(encoding="utf-8"))
-    return {u["token"]: {**u, "firm_id": DEV_FIRM} for u in data["users"]}
+    # Demo identities carry the two role views like real accounts do (`_api_user`), so GET /api/me has one shape.
+    return {u["token"]: {**u, "firm_id": DEV_FIRM, "base_role": u["role"]} for u in data["users"]}
 
 
 def _api_user(u: dict[str, Any]) -> dict[str, Any]:
@@ -298,12 +300,12 @@ def fresh(user: dict[str, Any]) -> None:
         raise HTTPException(403, "step_up_required")
 
 
-@app.get("/api/auth/config")
+@app.get("/api/auth/config", response_model=schemas.AuthConfig)
 def auth_config() -> dict[str, Any]:
     return {"identity": IDENTITY, "password_sign_in": IDENTITY != "workos" or "platform administrators only"}
 
 
-@app.get("/api/auth/idp/start")
+@app.get("/api/auth/idp/start", response_model=schemas.IdpStart)
 def idp_start(request: Request, purpose: str = "login", invite: str = "", authorization: str = Header(default="")) -> Response:
     redirect = os.environ.get("WORKOS_REDIRECT_URI", "")
     if not redirect:
@@ -336,19 +338,19 @@ def idp_callback(request: Request, code: str = "", state: str = "") -> Response:
     return resp
 
 
-@app.post("/api/auth/step-up")
-def auth_step_up(request: Request, body: dict[str, Any] = Body(...), authorization: str = Header(default="")) -> dict[str, Any]:
+@app.post("/api/auth/step-up", response_model=schemas.Ok)
+def auth_step_up(request: Request, body: schemas.StepUpRequest, authorization: str = Header(default="")) -> dict[str, Any]:
     try:
-        PLATFORM.step_up_totp(authorization.removeprefix("Bearer ").strip(), str(body.get("code", "")), ip=_ip(request))
+        PLATFORM.step_up_totp(authorization.removeprefix("Bearer ").strip(), body.code, ip=_ip(request))
     except AuthError as e:
         raise HTTPException(401, str(e))
     return {"ok": True}
 
 
-@app.post("/api/auth/login")
-def auth_login(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+@app.post("/api/auth/login", response_model=schemas.MfaStep | schemas.EnrolStep)
+def auth_login(request: Request, body: schemas.LoginRequest) -> dict[str, Any]:
     try:
-        step = PLATFORM.login(str(body.get("email", "")), str(body.get("password", "")), ip=_ip(request))
+        step = PLATFORM.login(body.email, body.password, ip=_ip(request))
     except AuthError as e:
         raise HTTPException(401, str(e))
     if "mfa" in step:
@@ -357,55 +359,53 @@ def auth_login(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, 
     return {"next": "enroll", "challenge": enroll.challenge, "secret": enroll.secret, "otpauth_uri": enroll.uri}
 
 
-@app.post("/api/auth/mfa")
-def auth_mfa(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+@app.post("/api/auth/mfa", response_model=schemas.MfaResult, response_model_exclude_unset=True)
+def auth_mfa(request: Request, body: schemas.MfaRequest) -> dict[str, Any]:
     try:
-        token = PLATFORM.complete_mfa(str(body.get("challenge", "")), str(body.get("code", "")), ip=_ip(request),
-                                      user_agent=request.headers.get("user-agent"))
+        token = PLATFORM.complete_mfa(body.challenge, body.code, ip=_ip(request), user_agent=request.headers.get("user-agent"))
     except AuthError as e:
         raise HTTPException(401, str(e))
     return {"token": token, "user": PLATFORM.session_user(token)}
 
 
-@app.post("/api/auth/accept")
-def auth_accept(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+@app.post("/api/auth/accept", response_model=schemas.EnrolStep)
+def auth_accept(request: Request, body: schemas.AcceptRequest) -> dict[str, Any]:
     try:
-        e = PLATFORM.accept_invite(str(body.get("token", "")), str(body.get("name", "")), str(body.get("password", "")),
-                                   ip=_ip(request))
+        e = PLATFORM.accept_invite(body.token, body.name, body.password, ip=_ip(request))
     except AuthError as err:
         raise HTTPException(400, str(err))
     return {"next": "enroll", "challenge": e.challenge, "secret": e.secret, "otpauth_uri": e.uri}
 
 
-@app.post("/api/auth/logout")
+@app.post("/api/auth/logout", response_model=schemas.Ok)
 def auth_logout(authorization: str = Header(default="")) -> dict[str, Any]:
     PLATFORM.logout(authorization.removeprefix("Bearer ").strip())
     return {"ok": True}
 
 
-@app.post("/api/auth/invite")
-def auth_invite(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+@app.post("/api/auth/invite", response_model=schemas.InviteResult)
+def auth_invite(body: schemas.InviteRequest, user=Depends(me)) -> dict[str, Any]:
     fresh(user)          # an invitation grants access
-    firm = body.get("firm_id") or user["firm_id"]
-    if body.get("role") == "client" and body.get("client_id"):
-        scope(user, body["client_id"])
+    firm = body.firm_id or user["firm_id"]
+    if body.role == "client" and body.client_id:
+        scope(user, body.client_id)
     try:
-        token = PLATFORM.invite(firm, str(body["email"]), str(body["role"]), by=_as_actor(user), client_id=body.get("client_id"))
+        token = PLATFORM.invite(firm, body.email, body.role, by=_as_actor(user), client_id=body.client_id)
     except AuthError as e:
         raise HTTPException(403, str(e))
     return {"invite_token": token, "expires_in_days": 7}
 
 
-@app.get("/api/auth/users")
+@app.get("/api/auth/users", response_model=list[schemas.FirmUser], response_model_exclude_unset=True)
 def auth_users(user=Depends(me)) -> list[dict[str, Any]]:
     cpa_only(user)
     return PLATFORM.users(user["firm_id"])
 
 
-@app.post("/api/auth/users/{user_id}/disable")
-def auth_disable(user_id: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
+@app.post("/api/auth/users/{user_id}/disable", response_model=schemas.Ok)
+def auth_disable(user_id: str, body: schemas.DisableRequest | None = None, user=Depends(me)) -> dict[str, Any]:
     try:
-        PLATFORM.set_disabled(user_id, bool(body.get("disabled", True)), by=_as_actor(user))
+        PLATFORM.set_disabled(user_id, body.disabled if body else True, by=_as_actor(user))
     except AuthError as e:
         raise HTTPException(403, str(e))
     return {"ok": True}
@@ -460,7 +460,7 @@ def _firm_manager(user: dict[str, Any], user_id: str) -> None:
         raise HTTPException(404, "user not found")
 
 
-@app.get("/api/auth/events")
+@app.get("/api/auth/events", response_model=list[schemas.AuthEvent])
 def auth_events(user=Depends(me)) -> list[dict[str, Any]]:
     if user.get("base_role") == "platform_admin":
         return PLATFORM.events()
@@ -468,9 +468,9 @@ def auth_events(user=Depends(me)) -> list[dict[str, Any]]:
     return PLATFORM.events(user["firm_id"])
 
 
-@app.post("/api/links")
-def make_link(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
-    path = str(body.get("path", ""))
+@app.post("/api/links", response_model=schemas.LinkResult)
+def make_link(body: schemas.LinkRequest, user=Depends(me)) -> dict[str, Any]:
+    path = body.path
     if not re.fullmatch(r"/api/(documents/[\w.-]+/file|clients/[\w.-]+/export/[\w.-]+)", path):
         raise HTTPException(400, "unsupported path")
     return {"url": signed_link(user, path), "expires_in": LINK_TTL}
@@ -478,19 +478,28 @@ def make_link(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, A
 
 # ------------------------------------------------------------------------------ platform administration
 
-@app.get("/api/platform/firms")
+@app.get("/api/platform/firms", response_model=list[schemas.Firm])
 def platform_firms(user=Depends(me)) -> list[dict[str, Any]]:
     platform_admin(user)
     return PLATFORM.firms()
 
 
-@app.post("/api/platform/firms")
-def platform_create_firm(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+@app.get("/api/platform/firms/{firm_id}", response_model=schemas.Firm)
+def platform_firm(firm_id: str, user=Depends(me)) -> dict[str, Any]:
+    platform_admin(user)
+    try:
+        return PLATFORM.firm(firm_id)
+    except AuthError:
+        raise HTTPException(404, "firm not found")
+
+
+@app.post("/api/platform/firms", response_model=schemas.CreateFirmResult)
+def platform_create_firm(body: schemas.CreateFirmRequest, user=Depends(me)) -> dict[str, Any]:
     platform_admin(user)
     fresh(user)
     try:
-        firm = PLATFORM.create_firm(str(body["id"]).strip(), str(body["name"]).strip(), by=user["id"])
-        token = PLATFORM.invite(firm["id"], str(body["admin_email"]), "firm_admin", by=_as_actor(user))
+        firm = PLATFORM.create_firm(body.id.strip(), body.name.strip(), by=user["id"])
+        token = PLATFORM.invite(firm["id"], body.admin_email, "firm_admin", by=_as_actor(user))
     except AuthError as e:
         raise HTTPException(400, str(e))
     # "provisioning": the store is created by the provisioning worker (this process holds no owner credentials);
@@ -532,7 +541,7 @@ def build_id() -> str:
     return "dev"
 
 
-@app.get("/healthz")
+@app.get("/healthz", response_model=schemas.Health)
 def healthz() -> dict[str, Any]:
     """Liveness for the edge and the release smoke test (scripts/smoke.py waits for `build` to reach the deployed
     commit). No firm or platform store is touched."""
@@ -546,12 +555,33 @@ def index() -> str:
     return (WEB / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/legacy", response_class=HTMLResponse)
+def legacy() -> str:
+    """The previous (no-build) interface, reachable at /legacy#/... while the React app (apps/web) owns / at the edge.
+    The same page as /: its asset URLs are absolute (/static/...), so it works from either path."""
+    return index()
+
+
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 
 
-@app.get("/api/me")
+def _firm_ref(user: dict[str, Any]) -> dict[str, Any] | None:
+    """The firm a session belongs to, by name (the context bar shows it); platform administrators have none."""
+    firm_id = user.get("firm_id")
+    if not firm_id or firm_id == PLATFORM_FIRM:
+        return None
+    if DEV and firm_id == DEV_FIRM:
+        return {"id": DEV_FIRM, "name": "Development firm", "status": "active"}
+    try:
+        firm = PLATFORM.firm(firm_id)
+    except AuthError:
+        return None
+    return {"id": firm["id"], "name": firm["name"], "status": firm["status"]}
+
+
+@app.get("/api/me", response_model=schemas.Me, response_model_exclude_unset=True)
 def get_me(user=Depends(me)) -> dict[str, Any]:
-    return {k: v for k, v in user.items() if k != "token"}
+    return {**{k: v for k, v in user.items() if k != "token"}, "firm": _firm_ref(user)}
 
 
 @app.get("/api/users")
@@ -564,7 +594,7 @@ def list_users() -> list[dict[str, Any]]:
 
 # ------------------------------------------------------------------------------ dashboard
 
-@app.get("/api/dashboard")
+@app.get("/api/dashboard", response_model=schemas.Dashboard, response_model_exclude_unset=True)
 def dashboard(user=Depends(me)) -> dict[str, Any]:
     allowed = client_scope(user)
     clients = [c for c in store.list_clients(A(user).conn) if "*" in allowed or c["id"] in allowed]
@@ -597,26 +627,71 @@ def dashboard(user=Depends(me)) -> dict[str, Any]:
 
 # ------------------------------------------------------------------------------ clients
 
-@app.get("/api/clients")
+@app.get("/api/packs", response_model=list[schemas.Pack])
+def packs(user=Depends(me)) -> list[dict[str, Any]]:
+    """The industry packs a client can be onboarded on (domains/*.yaml), shared by every firm."""
+    return [p.model_dump(include={"id", "title", "description", "status", "facts"}) for p in APP.packs.packs.values()]
+
+
+@app.get("/api/clients", response_model=list[schemas.Client], response_model_exclude_unset=True)
 def clients(user=Depends(me)) -> list[dict[str, Any]]:
     cs = store.list_clients(A(user).conn)
     allowed = client_scope(user)
     return [c for c in cs if "*" in allowed or c["id"] in allowed]
 
 
-@app.post("/api/clients")
-def create_client(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+@app.post("/api/clients", response_model=schemas.CreateClientResult)
+def create_client(body: schemas.CreateClientRequest, user=Depends(me)) -> dict[str, Any]:
     cpa_only(user)
-    store.add_client(A(user).conn, id=body["id"], name=body["name"], kind=body.get("kind", "business"),
-                     entity_type=body.get("entity_type"), formed_under=body.get("formed_under", "domestic"),
-                     tax_id_last4=body.get("tax_id_last4"), emails=body.get("emails", []), aliases=body.get("aliases", []),
-                     consent_7216_at=body.get("consent_7216_at"), domain=body.get("domain", "general"), facts=body.get("facts", {}),
+    if one(A(user).conn, "SELECT 1 AS n FROM clients WHERE id = ?", body.id):
+        raise HTTPException(409, f"a client with the id {body.id} already exists in this firm")
+    store.add_client(A(user).conn, id=body.id, name=body.name, kind=body.kind, entity_type=body.entity_type,
+                     formed_under=body.formed_under, tax_id_last4=body.tax_id_last4, emails=body.emails, aliases=body.aliases,
+                     consent_7216_at=body.consent_7216_at, domain=body.domain, facts=body.facts.model_dump(exclude_unset=True),
                      actor=user["id"])
-    n = domains.onboard(A(user).conn, A(user).packs, body["id"], body.get("domain", "general"))
-    return {"id": body["id"], "accounts_created": n}
+    n = domains.onboard(A(user).conn, A(user).packs, body.id, body.domain)
+    return {"id": body.id, "accounts_created": n}
 
 
-@app.get("/api/clients/{client_id}")
+DOCUMENT_COLUMNS = ("id, original_name, doc_type, tax_year, status, confidence, vault_path, summary, classified_by, received_at, "
+                    "channel")
+
+
+def _document_cursor(d: dict[str, Any]) -> str:
+    return base64.urlsafe_b64encode(json.dumps([d["received_at"], d["id"]]).encode()).decode()
+
+
+def _document_cursor_values(cursor: str) -> tuple[str, str]:
+    try:
+        received_at, doc_id = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
+        if not isinstance(received_at, str) or not isinstance(doc_id, str):
+            raise ValueError("cursor fields")
+    except Exception:
+        raise HTTPException(400, "invalid cursor")
+    return received_at, doc_id
+
+
+@app.get("/api/clients/{client_id}/documents", response_model=schemas.DocumentPage)
+def client_documents(client_id: str, cursor: str | None = None, limit: int = Query(default=50, ge=1, le=200),
+                     user=Depends(me)) -> dict[str, Any]:
+    """A client's documents, newest first and paged (deleted ones excluded): the same fields the client detail embeds
+    for its 100 most recent. Follow `next_cursor` until it is null."""
+    scope(user, client_id)
+    conn = A(user).conn
+    where, args = "client_id = ? AND deleted_at IS NULL", [client_id]
+    if cursor:
+        received_at, doc_id = _document_cursor_values(cursor)
+        where += " AND (received_at < ? OR (received_at = ? AND id < ?))"
+        args += [received_at, received_at, doc_id]
+    page = rows(conn, f"SELECT {DOCUMENT_COLUMNS} FROM documents WHERE {where} ORDER BY received_at DESC, id DESC LIMIT ?",
+                *args, limit + 1)
+    more = len(page) > limit
+    items = page[:limit]
+    return {"items": items, "next_cursor": _document_cursor(items[-1]) if more else None,
+            "total": count(conn, "SELECT COUNT(*) n FROM documents WHERE client_id = ? AND deleted_at IS NULL", client_id)}
+
+
+@app.get("/api/clients/{client_id}", response_model=schemas.ClientDetail, response_model_exclude_unset=True)
 def client_detail(client_id: str, year: int | None = None, user=Depends(me)) -> dict[str, Any]:
     scope(user, client_id)
     year = year or date.today().year
@@ -627,9 +702,8 @@ def client_detail(client_id: str, year: int | None = None, user=Depends(me)) -> 
                            "balances": store.balances(A(user).conn, client_id, date(year, 1, 1), date(year, 12, 31)),
                            "kpis": domains.kpis(A(user).conn, A(user).packs, client_id, year),
                            "findings": list_findings(A(user).conn, client_id),
-                           "documents": rows(A(user).conn, "SELECT id, original_name, doc_type, tax_year, status, confidence, vault_path, "
-                                                       "summary, classified_by, received_at, channel FROM documents WHERE client_id = ? "
-                                                       "AND deleted_at IS NULL ORDER BY received_at DESC LIMIT 100", client_id),
+                           "documents": rows(A(user).conn, f"SELECT {DOCUMENT_COLUMNS} FROM documents WHERE client_id = ? "
+                                                       "AND deleted_at IS NULL ORDER BY received_at DESC, id DESC LIMIT 100", client_id),
                            "tasks": crm.tasks(A(user).conn, client_id),
                            "deadlines": crm.deadlines(A(user).conn, ROOT / "config" / "deadlines.yaml", client_id),
                            "opportunities": A(user).brain.scan(A(user).conn, client_id),
@@ -646,13 +720,18 @@ def client_detail(client_id: str, year: int | None = None, user=Depends(me)) -> 
     return jsonable(out)
 
 
-@app.patch("/api/clients/{client_id}/facts")
-def update_facts(client_id: str, facts: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+@app.patch("/api/clients/{client_id}/facts", response_model=schemas.ClientFacts, response_model_exclude_unset=True)
+def update_facts(client_id: str, facts: schemas.ClientFacts, user=Depends(me)) -> dict[str, Any]:
+    """Merge the facts sent into the client's profile; a fact sent as null is removed. Returns the whole profile."""
     scope(user, client_id)
     c = store.get_client(A(user).conn, client_id)
-    merged = {**c["facts"], **facts}
+    changed = facts.model_dump(exclude_unset=True)
+    merged = {**c["facts"], **{k: v for k, v in changed.items() if v is not None}}
+    for k, v in changed.items():
+        if v is None:
+            merged.pop(k, None)
     A(user).conn.execute("UPDATE clients SET facts = ? WHERE id = ?", (json.dumps(merged), client_id))
-    audit.record(A(user).conn, user["id"], authority(user), "client.facts", {"changed": facts}, client_id=client_id)
+    audit.record(A(user).conn, user["id"], authority(user), "client.facts", {"changed": changed}, client_id=client_id)
     return merged
 
 
@@ -769,7 +848,7 @@ def playbooks(user=Depends(me)) -> list[dict[str, Any]]:
 
 # ------------------------------------------------------------------------------ documents
 
-@app.post("/api/documents/upload")
+@app.post("/api/documents/upload", response_model=list[schemas.IngestedDocument | schemas.DuplicateDocument])
 async def upload(file: UploadFile = File(...), client_id: str | None = Form(default=None), user=Depends(me)) -> list[dict[str, Any]]:
     if user["role"] == "client":
         client_id = user["client_id"]
@@ -780,21 +859,21 @@ async def upload(file: UploadFile = File(...), client_id: str | None = Form(defa
                            client_hint=client_id, actor=user["id"]))
 
 
-@app.get("/api/documents/review")
+@app.get("/api/documents/review", response_model=list[schemas.ReviewDocument])
 def review_queue(user=Depends(me)) -> list[dict[str, Any]]:
     cpa_only(user)
     return rows(A(user).conn, "SELECT id, original_name, doc_type, tax_year, confidence, summary, sender, received_at, channel, "
                           "classified_by FROM documents WHERE status = 'needs_review' ORDER BY received_at DESC")
 
 
-@app.post("/api/documents/{doc_id}/assign")
-def assign_doc(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
+@app.post("/api/documents/{doc_id}/assign", response_model=schemas.AssignedDocument)
+def assign_doc(doc_id: str, body: schemas.AssignRequest, user=Depends(me)) -> dict[str, Any]:
     """File a review-queue document to a client, or move a filed one (a reviewer, with a reason on record)."""
     cpa_only(user)
     d = one(A(user).conn, "SELECT client_id, status FROM documents WHERE id = ?", doc_id)
     if not d:
         raise HTTPException(404)
-    target = str(body["client_id"])
+    target = body.client_id
     scope(user, target)
     moving = d["status"] == "filed" and d["client_id"] and d["client_id"] != target
     if moving:
@@ -803,13 +882,45 @@ def assign_doc(doc_id: str, body: dict[str, Any] = Body(...), user=Depends(me)) 
         fresh(user)
     try:
         return jsonable(assign_document(A(user).conn, A(user).foundry.vault, doc_id, target, user["id"], authority(user),
-                                        move_reason=body.get("move_reason")))
+                                        move_reason=body.move_reason))
     except ValueError as e:
         raise HTTPException(400, str(e))
 
 
+# The only media types a document may be rendered inline as, each with the byte signature its bytes must carry: a file
+# whose name says PDF but whose bytes are HTML is served as a download like everything else. HTML, SVG, XML and Office
+# files are never rendered, whatever the request asks: rendered inside the app's origin they could run script.
+INLINE_TYPES: dict[str, tuple[bytes, ...]] = {
+    "application/pdf": (b"%PDF-",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+    "image/jpeg": (b"\xff\xd8\xff",),
+}
+_INLINE_EXTENSIONS = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+
+
+def inline_media_type(name: str, data: bytes) -> str | None:
+    """The media type to render `data` inline as, or None when it must stay a download."""
+    guess = _INLINE_EXTENSIONS.get(Path(name).suffix.lower())
+    if guess and any(data.startswith(signature) for signature in INLINE_TYPES[guess]):
+        return guess
+    return None
+
+
+def content_disposition(kind: str, name: str) -> str:
+    """`attachment` or `inline` with the document's name; control characters and quotes cannot escape the header, and a
+    name outside ASCII travels RFC 5987-encoded next to an ASCII fallback."""
+    clean = re.sub(r"[\r\n\"\\]", "_", name)
+    if clean.isascii():
+        return f'{kind}; filename="{clean}"'
+    return f"{kind}; filename=\"{clean.encode('ascii', 'replace').decode()}\"; filename*=UTF-8''{quote(clean)}"
+
+
 @app.get("/api/documents/{doc_id}/file")
-def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default="")) -> Response:
+def doc_file(doc_id: str, dl: str = "", inline: bool = False, authorization: str = Header(default="")) -> Response:
+    """The document's bytes, as a download (`Content-Disposition: attachment`, application/octet-stream). With
+    `inline=1`, a PDF, PNG or JPEG is served inline with its real media type inside a sandbox
+    (`Content-Security-Policy: sandbox; default-src 'none'`, `X-Content-Type-Options: nosniff`) so the app can show it;
+    every other type stays a download. Either way a signed link (`dl`) stands in for the session header."""
     user = link_user(dl, f"/api/documents/{doc_id}/file") if dl else me(authorization)
     d = one(A(user).conn, "SELECT * FROM documents WHERE id = ?", doc_id)
     if not d:
@@ -826,13 +937,21 @@ def doc_file(doc_id: str, dl: str = "", authorization: str = Header(default=""))
         audit.record(A(user).conn, user["id"], authority(user), "evidence.integrity_failed",
                      {"document_id": doc_id, "error": str(e)}, client_id=d["client_id"])
         raise HTTPException(409, f"the stored evidence failed its integrity check ({e}); it was not served")
+    media_type = inline_media_type(d["original_name"], data) if inline else None
+    if media_type:
+        return Response(data, media_type=media_type,
+                        headers={"Content-Disposition": content_disposition("inline", d["original_name"]),
+                                 "X-Content-Type-Options": "nosniff",
+                                 "Content-Security-Policy": "sandbox; default-src 'none'",
+                                 "Cache-Control": "private, no-store"})
     return Response(data, media_type="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{d["original_name"]}"'})
+                    headers={"Content-Disposition": content_disposition("attachment", d["original_name"]),
+                             "X-Content-Type-Options": "nosniff"})
 
 
 # ------------------------------------------------------------------------------ evidence lifecycle (F-06)
 
-@app.get("/api/documents/{doc_id}/versions")
+@app.get("/api/documents/{doc_id}/versions", response_model=list[schemas.DocumentVersion])
 def doc_versions(doc_id: str, user=Depends(me)) -> list[dict[str, Any]]:
     d = one(A(user).conn, "SELECT client_id FROM documents WHERE id = ?", doc_id)
     if not d:
@@ -1530,7 +1649,7 @@ async def inbound_hook(firm_id: str, client_id: str, request: Request, x_agentle
 
 # ------------------------------------------------------------------------------ CRM (firm side)
 
-@app.get("/api/crm/pipeline")
+@app.get("/api/crm/pipeline", response_model=dict[str, list[schemas.Engagement]])
 def crm_pipeline(user=Depends(me)) -> dict[str, Any]:
     cpa_only(user)
     return crm.pipeline(A(user).conn)
@@ -1550,7 +1669,7 @@ def crm_stage(eid: int, body: dict[str, Any] = Body(...), user=Depends(me)) -> d
     return {"ok": True}
 
 
-@app.get("/api/tasks")
+@app.get("/api/tasks", response_model=list[schemas.Task])
 def list_tasks(client_id: str | None = None, user=Depends(me)) -> list[dict[str, Any]]:
     if user["role"] == "client":
         return crm.tasks(A(user).conn, user["client_id"], assignee="client")

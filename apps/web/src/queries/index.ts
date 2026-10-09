@@ -3,14 +3,19 @@
  * carry the context that selects the data (the client and the period), never the session.
  */
 
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { api } from "../api";
+
+/** Documents per page of GET /api/clients/{id}/documents (the API allows up to 200). */
+export const DOCUMENTS_PAGE_SIZE = 50;
 
 export const queryKeys = {
   clients: ["clients"] as const,
   client: (clientId: string) => ["clients", clientId] as const,
   clientDetail: (clientId: string, year: number) => ["clients", clientId, "detail", { year }] as const,
+  /** Under the client's key, so a change to the client (an upload) invalidates every page with the detail. */
+  documents: (clientId: string) => ["clients", clientId, "documents"] as const,
   reviewQueue: ["documents", "review"] as const,
   versions: (docId: string) => ["documents", docId, "versions"] as const,
   users: ["auth", "users"] as const,
@@ -25,6 +30,14 @@ export const queries = {
     queryOptions({
       queryKey: queryKeys.clientDetail(clientId, year),
       queryFn: () => api.clients.detail(clientId, year),
+    }),
+  /** The client's documents, newest first, a page at a time: `fetchNextPage` follows the API's cursor. */
+  documents: (clientId: string) =>
+    infiniteQueryOptions({
+      queryKey: queryKeys.documents(clientId),
+      queryFn: ({ pageParam }) => api.clients.documents(clientId, pageParam, DOCUMENTS_PAGE_SIZE),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.next_cursor ?? null,
     }),
   reviewQueue: () => queryOptions({ queryKey: queryKeys.reviewQueue, queryFn: () => api.documents.review() }),
   versions: (docId: string) =>

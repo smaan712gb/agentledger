@@ -142,7 +142,7 @@ describe("context bar", () => {
     renderApp("/clients/ortiz-auto", { me: fx.firmAdmin });
     await waitFor(() => expect(screen.getByTestId("context-basis")).toHaveTextContent("cash"));
     expect(screen.getByTestId("context-period")).toHaveTextContent(/FY2026 · closed through/);
-    expect(screen.getByTestId("context-firm")).toHaveTextContent("rivera-cpa");
+    expect(screen.getByTestId("context-firm")).toHaveTextContent("Rivera CPA");
   });
 
   it("the basis chip links to the profile when nothing is recorded", async () => {

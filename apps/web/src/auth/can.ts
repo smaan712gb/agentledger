@@ -19,7 +19,7 @@ export function isFirmStaff(me: Me): boolean {
 
 /** Holds authority over returns, risks, periods and filings: CPAs, and firm administrators recorded as reviewers. */
 export function isReviewer(me: Me): boolean {
-  return me.base_role === "cpa" || (me.base_role === "firm_admin" && me.reviewer);
+  return me.base_role === "cpa" || (me.base_role === "firm_admin" && me.reviewer === true);
 }
 
 export function isClient(me: Me): boolean {

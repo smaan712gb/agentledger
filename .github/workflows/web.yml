@@ -1,0 +1,54 @@
+# The web app's checks (docs/WEB.md, section 5), one job reused by release.yml (every push to main, the build stamped
+# with the commit) and ci.yml (every pull request): the API contract drift gate, lint, types, unit tests, the
+# production build and its size budget, then Playwright against the real API in multi-firm mode. The build it tested
+# is uploaded as `web-dist`; the deploy jobs ship exactly that as the Worker's static assets.
+name: web
+
+on:
+  workflow_call:
+    inputs:
+      build_sha:
+        description: the commit to write into BUILD_SHA before the build (a release); empty keeps the checkout's "dev"
+        type: string
+        default: ""
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm}
+      - run: npm ci
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e .
+      - name: Contract drift gate (openapi.json and schema.d.ts must be what the API and the generator produce)
+        run: |
+          python scripts/export_openapi.py
+          npm run -w packages/contracts generate
+          git diff --exit-code packages/contracts
+      - run: npm run -w packages/contracts check
+      - run: npm run -w packages/contracts typecheck
+      - run: npm run -w packages/contracts test
+      - run: npm run -w apps/web lint
+      - run: npm run -w apps/web typecheck
+      - run: npm run -w apps/web test
+      - name: Stamp the build (the app's __BUILD_SHA__ must equal the API's /healthz build)
+        if: inputs.build_sha != ''
+        run: echo "${{ inputs.build_sha }}" > BUILD_SHA
+      - run: npm run -w apps/web build
+      - run: npm run -w apps/web size
+      - run: npm exec -w apps/web -- playwright install --with-deps chromium
+      - name: End-to-end (the API in multi-firm mode on a seeded temporary home, vite preview, axe on every page)
+        env:
+          E2E_PYTHON: python          # setup-python's interpreter; there is no .venv in CI
+          E2E_SKIP_BUILD: "1"         # the build above is the one under test
+          CI: "true"
+        run: npm run -w apps/web e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: playwright-report, path: apps/web/playwright-report, if-no-files-found: ignore, retention-days: 14}
+      - uses: actions/upload-artifact@v4
+        with: {name: web-dist, path: apps/web/dist, if-no-files-found: error, retention-days: 7}

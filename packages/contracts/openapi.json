@@ -1,7 +1,221 @@
 {
   "components": {
     "schemas": {
-      "Body_upload_api_documents_upload_post": {
+      "AcceptRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "name",
+          "password"
+        ],
+        "title": "AcceptRequest",
+        "type": "object"
+      },
+      "AssignRequest": {
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "move_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "required (10+ characters) to move a document already filed elsewhere",
+            "title": "Move Reason"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "AssignRequest",
+        "type": "object"
+      },
+      "AssignedDocument": {
+        "additionalProperties": true,
+        "description": "The document row after filing.",
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "AssignedDocument",
+        "type": "object"
+      },
+      "AuthConfig": {
+        "properties": {
+          "identity": {
+            "description": "AGENTLEDGER_IDENTITY: 'local' (password + one-time code) or 'workos'",
+            "title": "Identity",
+            "type": "string"
+          },
+          "password_sign_in": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "true, or 'platform administrators only' when firms sign in through the provider",
+            "title": "Password Sign In"
+          }
+        },
+        "required": [
+          "identity",
+          "password_sign_in"
+        ],
+        "title": "AuthConfig",
+        "type": "object"
+      },
+      "AuthEvent": {
+        "additionalProperties": true,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "firm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firm Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "event"
+        ],
+        "title": "AuthEvent",
+        "type": "object"
+      },
+      "Balance": {
+        "additionalProperties": true,
+        "properties": {
+          "balance": {
+            "title": "Balance",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "type",
+          "balance"
+        ],
+        "title": "Balance",
+        "type": "object"
+      },
+      "Body_upload": {
         "properties": {
           "client_id": {
             "anyOf": [
@@ -23,7 +237,1460 @@
         "required": [
           "file"
         ],
-        "title": "Body_upload_api_documents_upload_post",
+        "title": "Body_upload",
+        "type": "object"
+      },
+      "ChainStatus": {
+        "additionalProperties": true,
+        "properties": {
+          "broken_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Broken At"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "checked"
+        ],
+        "title": "ChainStatus",
+        "type": "object"
+      },
+      "Client": {
+        "additionalProperties": true,
+        "description": "A row of the clients table (ledger/store.py), JSON columns parsed.",
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "closed_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO date; postings on or before it are frozen",
+            "title": "Closed Through"
+          },
+          "consent_7216_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent 7216 At"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "emails": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Emails",
+            "type": "array"
+          },
+          "entity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type"
+          },
+          "facts": {
+            "$ref": "#/components/schemas/ClientFacts"
+          },
+          "formed_under": {
+            "title": "Formed Under",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "business",
+              "individual"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tax_id_last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Id Last4"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "entity_type",
+          "formed_under",
+          "tax_id_last4",
+          "emails",
+          "aliases",
+          "consent_7216_at",
+          "closed_through",
+          "domain",
+          "facts",
+          "created_at"
+        ],
+        "title": "Client",
+        "type": "object"
+      },
+      "ClientDetail": {
+        "additionalProperties": true,
+        "properties": {
+          "ar": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "business clients only",
+            "title": "Ar"
+          },
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/Balance"
+            },
+            "title": "Balances",
+            "type": "array"
+          },
+          "chain": {
+            "$ref": "#/components/schemas/ChainStatus"
+          },
+          "client": {
+            "$ref": "#/components/schemas/Client"
+          },
+          "deadlines": {
+            "items": {
+              "$ref": "#/components/schemas/Deadline"
+            },
+            "title": "Deadlines",
+            "type": "array"
+          },
+          "deals": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "business clients only",
+            "title": "Deals"
+          },
+          "documents": {
+            "description": "the 100 most recent; the full list is paged at /documents",
+            "items": {
+              "$ref": "#/components/schemas/ClientDocument"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "integrity": {
+            "title": "Integrity",
+            "type": "integer"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/components/schemas/Kpi"
+            },
+            "title": "Kpis",
+            "type": "array"
+          },
+          "m1": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "business clients only",
+            "title": "M1"
+          },
+          "opportunities": {
+            "items": {
+              "$ref": "#/components/schemas/Opportunity"
+            },
+            "title": "Opportunities",
+            "type": "array"
+          },
+          "pack": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "vendors_1099": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "business clients only",
+            "title": "Vendors 1099"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client",
+          "year",
+          "balances",
+          "kpis",
+          "findings",
+          "documents",
+          "tasks",
+          "deadlines",
+          "opportunities",
+          "chain",
+          "integrity"
+        ],
+        "title": "ClientDetail",
+        "type": "object"
+      },
+      "ClientDocument": {
+        "additionalProperties": true,
+        "description": "A document as the client detail and GET /api/clients/{id}/documents list them.",
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "classified_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classified By"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "original_name": {
+            "title": "Original Name",
+            "type": "string"
+          },
+          "received_at": {
+            "title": "Received At",
+            "type": "string"
+          },
+          "status": {
+            "description": "filed, or needs_review",
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "tax_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Year"
+          },
+          "vault_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vault Path"
+          }
+        },
+        "required": [
+          "id",
+          "original_name",
+          "status",
+          "received_at",
+          "channel"
+        ],
+        "title": "ClientDocument",
+        "type": "object"
+      },
+      "ClientFacts": {
+        "additionalProperties": true,
+        "description": "Profile facts are free-form; the keys the app reads by name are declared. PATCH /api/clients/{id}/facts merges\nthe keys sent; a key sent as null is removed.",
+        "properties": {
+          "accounting_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accounting Basis"
+          },
+          "employees": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "title": "ClientFacts",
+        "type": "object"
+      },
+      "CreateClientRequest": {
+        "properties": {
+          "aliases": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "consent_7216_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent 7216 At"
+          },
+          "domain": {
+            "default": "general",
+            "title": "Domain",
+            "type": "string"
+          },
+          "emails": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Emails",
+            "type": "array"
+          },
+          "entity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type"
+          },
+          "facts": {
+            "$ref": "#/components/schemas/ClientFacts"
+          },
+          "formed_under": {
+            "default": "domestic",
+            "title": "Formed Under",
+            "type": "string"
+          },
+          "id": {
+            "description": "lowercase letters, digits, '-' or '_'; up to 64 characters",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "business",
+            "enum": [
+              "business",
+              "individual"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tax_id_last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Id Last4"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CreateClientRequest",
+        "type": "object"
+      },
+      "CreateClientResult": {
+        "properties": {
+          "accounts_created": {
+            "title": "Accounts Created",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "accounts_created"
+        ],
+        "title": "CreateClientResult",
+        "type": "object"
+      },
+      "CreateFirmRequest": {
+        "properties": {
+          "admin_email": {
+            "title": "Admin Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "admin_email"
+        ],
+        "title": "CreateFirmRequest",
+        "type": "object"
+      },
+      "CreateFirmResult": {
+        "properties": {
+          "admin_invite_token": {
+            "title": "Admin Invite Token",
+            "type": "string"
+          },
+          "firm": {
+            "$ref": "#/components/schemas/Firm"
+          }
+        },
+        "required": [
+          "firm",
+          "admin_invite_token"
+        ],
+        "title": "CreateFirmResult",
+        "type": "object"
+      },
+      "Dashboard": {
+        "additionalProperties": true,
+        "description": "GET /api/dashboard: the cards every role gets, the firm's work for CPAs, the client's tasks for a client.",
+        "properties": {
+          "adopted": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adopted"
+          },
+          "ai": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai"
+          },
+          "ai_usage": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Usage"
+          },
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardCard"
+            },
+            "title": "Clients",
+            "type": "array"
+          },
+          "kb": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kb"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "review_queue": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Queue"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
+          },
+          "staleness": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staleness"
+          },
+          "tasks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Task"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks"
+          },
+          "today": {
+            "title": "Today",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clients",
+          "today"
+        ],
+        "title": "Dashboard",
+        "type": "object"
+      },
+      "DashboardCard": {
+        "properties": {
+          "docs_this_month": {
+            "title": "Docs This Month",
+            "type": "integer"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "integrity": {
+            "title": "Integrity",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_findings": {
+            "title": "Open Findings",
+            "type": "integer"
+          },
+          "open_tasks": {
+            "title": "Open Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "domain",
+          "integrity",
+          "open_findings",
+          "open_tasks",
+          "docs_this_month"
+        ],
+        "title": "DashboardCard",
+        "type": "object"
+      },
+      "Deadline": {
+        "additionalProperties": true,
+        "properties": {
+          "citation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "due": {
+            "title": "Due",
+            "type": "string"
+          },
+          "form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "due",
+          "days"
+        ],
+        "title": "Deadline",
+        "type": "object"
+      },
+      "DisableRequest": {
+        "properties": {
+          "disabled": {
+            "default": true,
+            "title": "Disabled",
+            "type": "boolean"
+          }
+        },
+        "title": "DisableRequest",
+        "type": "object"
+      },
+      "DocumentPage": {
+        "description": "One page of a client's documents, newest first; `next_cursor` is null on the last page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClientDocument"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "description": "the client's documents not deleted under retention, all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "DocumentPage",
+        "type": "object"
+      },
+      "DocumentVersion": {
+        "additionalProperties": true,
+        "description": "A stored version of a document (the storage locator is withheld).",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id",
+          "version",
+          "sha256",
+          "size",
+          "created_at",
+          "created_by",
+          "reason"
+        ],
+        "title": "DocumentVersion",
+        "type": "object"
+      },
+      "DuplicateDocument": {
+        "description": "The same bytes were stored before: nothing new was written.",
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "duplicate": {
+            "const": true,
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "vault_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vault Path"
+          }
+        },
+        "required": [
+          "duplicate",
+          "id",
+          "status",
+          "name"
+        ],
+        "title": "DuplicateDocument",
+        "type": "object"
+      },
+      "Engagement": {
+        "additionalProperties": true,
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "fee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "open_tasks": {
+            "title": "Open Tasks",
+            "type": "integer"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "tax_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Year"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "client_name",
+          "type",
+          "stage",
+          "open_tasks"
+        ],
+        "title": "Engagement",
+        "type": "object"
+      },
+      "EnrolStep": {
+        "description": "The account's first sign-in (or an accepted invitation): enrol the authenticator with this secret.",
+        "properties": {
+          "challenge": {
+            "title": "Challenge",
+            "type": "string"
+          },
+          "next": {
+            "const": "enroll",
+            "title": "Next",
+            "type": "string"
+          },
+          "otpauth_uri": {
+            "title": "Otpauth Uri",
+            "type": "string"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "next",
+          "challenge",
+          "secret",
+          "otpauth_uri"
+        ],
+        "title": "EnrolStep",
+        "type": "object"
+      },
+      "Finding": {
+        "additionalProperties": true,
+        "properties": {
+          "check_id": {
+            "title": "Check Id",
+            "type": "string"
+          },
+          "citation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence"
+          },
+          "first_seen": {
+            "title": "First Seen",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "owner": {
+            "enum": [
+              "client",
+              "cpa",
+              "both"
+            ],
+            "title": "Owner",
+            "type": "string"
+          },
+          "resolutions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FindingResolution"
+            },
+            "title": "Resolutions",
+            "type": "array"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tax_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Year"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "check_id",
+          "severity",
+          "title",
+          "detail",
+          "owner",
+          "first_seen",
+          "status"
+        ],
+        "title": "Finding",
+        "type": "object"
+      },
+      "FindingResolution": {
+        "additionalProperties": true,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "finding_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finding Id"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "role",
+          "action",
+          "note",
+          "at"
+        ],
+        "title": "FindingResolution",
+        "type": "object"
+      },
+      "Firm": {
+        "additionalProperties": true,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "description": "active, provisioning, or deleting",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "title": "Firm",
+        "type": "object"
+      },
+      "FirmRef": {
+        "description": "The firm a session belongs to, as GET /api/me names it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "title": "FirmRef",
+        "type": "object"
+      },
+      "FirmUser": {
+        "additionalProperties": true,
+        "description": "A firm member as GET /api/auth/users lists them (platform.py `public_user`).",
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "engaged": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "staff only: the clients they are engaged on",
+            "title": "Engaged"
+          },
+          "firm_id": {
+            "title": "Firm Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "mfa_enrolled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Enrolled At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reviewer": {
+            "title": "Reviewer",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "platform_admin",
+              "firm_admin",
+              "cpa",
+              "staff",
+              "client"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firm_id",
+          "email",
+          "name",
+          "role",
+          "client_id",
+          "mfa_enrolled_at",
+          "disabled",
+          "last_login_at",
+          "reviewer"
+        ],
+        "title": "FirmUser",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -37,6 +1704,1037 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "build": {
+            "description": "AGENTLEDGER_BUILD or the BUILD_SHA file; 'dev' in a checkout",
+            "title": "Build",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "build",
+          "backend"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "IdpStart": {
+        "properties": {
+          "url": {
+            "description": "the identity provider's hosted sign-in page; the agentledger_idp cookie binds the browser",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "IdpStart",
+        "type": "object"
+      },
+      "IngestedDocument": {
+        "description": "One part of an upload that was stored (intake/pipeline.py `ingest`; a zip or an email yields several).",
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "match": {
+            "description": "how the client was matched",
+            "title": "Match",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "retention_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Class"
+          },
+          "status": {
+            "description": "filed, or needs_review (waiting in the inbox)",
+            "title": "Status",
+            "type": "string"
+          },
+          "suggested_client": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Client"
+          },
+          "tax_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Year"
+          },
+          "vault_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vault Path"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "confidence",
+          "match",
+          "name"
+        ],
+        "title": "IngestedDocument",
+        "type": "object"
+      },
+      "InviteRequest": {
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "required for a client user",
+            "title": "Client Id"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "firm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "platform administrators may name the firm; members invite into their own",
+            "title": "Firm Id"
+          },
+          "role": {
+            "enum": [
+              "firm_admin",
+              "cpa",
+              "staff",
+              "client"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "title": "InviteRequest",
+        "type": "object"
+      },
+      "InviteResult": {
+        "properties": {
+          "expires_in_days": {
+            "title": "Expires In Days",
+            "type": "integer"
+          },
+          "invite_token": {
+            "title": "Invite Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invite_token",
+          "expires_in_days"
+        ],
+        "title": "InviteResult",
+        "type": "object"
+      },
+      "Kpi": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the fact or balance the KPI needs and does not have",
+            "title": "Missing"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "Kpi",
+        "type": "object"
+      },
+      "LinkRequest": {
+        "properties": {
+          "path": {
+            "description": "/api/documents/{id}/file or /api/clients/{id}/export/{plugin}",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "LinkRequest",
+        "type": "object"
+      },
+      "LinkResult": {
+        "properties": {
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "url": {
+            "description": "the path with a signed `dl` token; a session header is not needed",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_in"
+        ],
+        "title": "LinkResult",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "Me": {
+        "additionalProperties": true,
+        "description": "GET /api/me: the public account, the session, the two role views and the firm.",
+        "properties": {
+          "auth_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Method"
+          },
+          "base_role": {
+            "enum": [
+              "platform_admin",
+              "firm_admin",
+              "cpa",
+              "staff",
+              "client"
+            ],
+            "title": "Base Role",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "disabled": {
+            "default": false,
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "engaged": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "staff only: the clients they are engaged on",
+            "title": "Engaged"
+          },
+          "firm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FirmRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null for platform administrators"
+          },
+          "firm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firm Id"
+          },
+          "fresh_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fresh At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "mfa_enrolled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Enrolled At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reviewer": {
+            "default": false,
+            "title": "Reviewer",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "cpa",
+              "client",
+              "platform_admin"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "base_role"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
+      "MfaRequest": {
+        "properties": {
+          "challenge": {
+            "title": "Challenge",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge",
+          "code"
+        ],
+        "title": "MfaRequest",
+        "type": "object"
+      },
+      "MfaResult": {
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionUser"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "MfaResult",
+        "type": "object"
+      },
+      "MfaStep": {
+        "description": "A second factor is always required: the account is enrolled, enter the current code.",
+        "properties": {
+          "challenge": {
+            "title": "Challenge",
+            "type": "string"
+          },
+          "next": {
+            "const": "mfa",
+            "title": "Next",
+            "type": "string"
+          }
+        },
+        "required": [
+          "next",
+          "challenge"
+        ],
+        "title": "MfaStep",
+        "type": "object"
+      },
+      "Ok": {
+        "properties": {
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "title": "Ok",
+        "type": "object"
+      },
+      "Opportunity": {
+        "additionalProperties": true,
+        "properties": {
+          "aggressiveness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggressiveness"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "freshness": {
+            "title": "Freshness"
+          },
+          "missing_fact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Fact"
+          },
+          "playbook_id": {
+            "title": "Playbook Id",
+            "type": "string"
+          },
+          "status": {
+            "description": "applies, or needs_facts",
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "playbook_id",
+          "title",
+          "category",
+          "status",
+          "summary"
+        ],
+        "title": "Opportunity",
+        "type": "object"
+      },
+      "Pack": {
+        "description": "An industry pack (domains/*.yaml) a client can be onboarded on.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "status",
+          "facts"
+        ],
+        "title": "Pack",
+        "type": "object"
+      },
+      "PackSummary": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "facts"
+        ],
+        "title": "PackSummary",
+        "type": "object"
+      },
+      "ReviewDocument": {
+        "additionalProperties": true,
+        "description": "A document waiting in the review queue (GET /api/documents/review).",
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "classified_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classified By"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "original_name": {
+            "title": "Original Name",
+            "type": "string"
+          },
+          "received_at": {
+            "title": "Received At",
+            "type": "string"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "tax_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Year"
+          }
+        },
+        "required": [
+          "id",
+          "original_name",
+          "received_at",
+          "channel"
+        ],
+        "title": "ReviewDocument",
+        "type": "object"
+      },
+      "SessionUser": {
+        "additionalProperties": true,
+        "description": "The person a fresh session belongs to (platform.py `session_user`).",
+        "properties": {
+          "auth_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Method"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "engaged": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "staff only: the clients they are engaged on",
+            "title": "Engaged"
+          },
+          "firm_id": {
+            "title": "Firm Id",
+            "type": "string"
+          },
+          "fresh_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fresh At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "mfa_enrolled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Enrolled At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reviewer": {
+            "title": "Reviewer",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "platform_admin",
+              "firm_admin",
+              "cpa",
+              "staff",
+              "client"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firm_id",
+          "email",
+          "name",
+          "role",
+          "client_id",
+          "mfa_enrolled_at",
+          "disabled",
+          "last_login_at",
+          "reviewer",
+          "session_id"
+        ],
+        "title": "SessionUser",
+        "type": "object"
+      },
+      "StepUpRequest": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "StepUpRequest",
+        "type": "object"
+      },
+      "Task": {
+        "additionalProperties": true,
+        "properties": {
+          "assignee": {
+            "title": "Assignee",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "done_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done At"
+          },
+          "done_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done Note"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due"
+          },
+          "engagement_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engagement Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "assignee",
+          "status",
+          "source"
+        ],
+        "title": "Task",
         "type": "object"
       },
       "ValidationError": {
@@ -89,7 +2787,7 @@
   "paths": {
     "/": {
       "get": {
-        "operationId": "index__get",
+        "operationId": "index",
         "responses": {
           "200": {
             "content": {
@@ -107,7 +2805,7 @@
     },
     "/api/agents": {
       "get": {
-        "operationId": "agents_api_agents_get",
+        "operationId": "agents",
         "parameters": [
           {
             "in": "header",
@@ -126,7 +2824,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Agents Api Agents Get",
+                  "title": "Response Agents",
                   "type": "object"
                 }
               }
@@ -149,7 +2847,7 @@
     },
     "/api/agents/{agent_id}/run": {
       "post": {
-        "operationId": "run_agent_api_agents__agent_id__run_post",
+        "operationId": "run_agent",
         "parameters": [
           {
             "in": "path",
@@ -177,7 +2875,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Run Agent Api Agents  Agent Id  Run Post",
+                  "title": "Response Run Agent",
                   "type": "object"
                 }
               }
@@ -200,7 +2898,7 @@
     },
     "/api/ask": {
       "post": {
-        "operationId": "ask_api_ask_post",
+        "operationId": "ask",
         "parameters": [
           {
             "in": "header",
@@ -250,7 +2948,7 @@
     },
     "/api/audit": {
       "get": {
-        "operationId": "audit_trail_api_audit_get",
+        "operationId": "audit_trail",
         "parameters": [
           {
             "in": "query",
@@ -285,7 +2983,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Audit Trail Api Audit Get",
+                  "title": "Response Audit Trail",
                   "type": "object"
                 }
               }
@@ -308,14 +3006,12 @@
     },
     "/api/auth/accept": {
       "post": {
-        "operationId": "auth_accept_api_auth_accept_post",
+        "operationId": "auth_accept",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/AcceptRequest"
               }
             }
           },
@@ -326,9 +3022,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Accept Api Auth Accept Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/EnrolStep"
                 }
               }
             },
@@ -350,15 +3044,13 @@
     },
     "/api/auth/config": {
       "get": {
-        "operationId": "auth_config_api_auth_config_get",
+        "operationId": "auth_config",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Config Api Auth Config Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AuthConfig"
                 }
               }
             },
@@ -370,7 +3062,7 @@
     },
     "/api/auth/events": {
       "get": {
-        "operationId": "auth_events_api_auth_events_get",
+        "operationId": "auth_events",
         "parameters": [
           {
             "in": "header",
@@ -389,10 +3081,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/AuthEvent"
                   },
-                  "title": "Response Auth Events Api Auth Events Get",
+                  "title": "Response Auth Events",
                   "type": "array"
                 }
               }
@@ -416,7 +3107,7 @@
     "/api/auth/idp/callback": {
       "get": {
         "description": "The provider redirects the browser here. The session token goes to the app in the URL fragment, which is\nnever sent to a server.",
-        "operationId": "idp_callback_api_auth_idp_callback_get",
+        "operationId": "idp_callback",
         "parameters": [
           {
             "in": "query",
@@ -464,7 +3155,7 @@
     },
     "/api/auth/idp/start": {
       "get": {
-        "operationId": "idp_start_api_auth_idp_start_get",
+        "operationId": "idp_start",
         "parameters": [
           {
             "in": "query",
@@ -501,7 +3192,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IdpStart"
+                }
               }
             },
             "description": "Successful Response"
@@ -522,7 +3215,7 @@
     },
     "/api/auth/invite": {
       "post": {
-        "operationId": "auth_invite_api_auth_invite_post",
+        "operationId": "auth_invite",
         "parameters": [
           {
             "in": "header",
@@ -539,9 +3232,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/InviteRequest"
               }
             }
           },
@@ -552,9 +3243,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Invite Api Auth Invite Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InviteResult"
                 }
               }
             },
@@ -576,14 +3265,12 @@
     },
     "/api/auth/login": {
       "post": {
-        "operationId": "auth_login_api_auth_login_post",
+        "operationId": "auth_login",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/LoginRequest"
               }
             }
           },
@@ -594,9 +3281,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Login Api Auth Login Post",
-                  "type": "object"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MfaStep"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EnrolStep"
+                    }
+                  ],
+                  "title": "Response Auth Login"
                 }
               }
             },
@@ -618,7 +3311,7 @@
     },
     "/api/auth/logout": {
       "post": {
-        "operationId": "auth_logout_api_auth_logout_post",
+        "operationId": "auth_logout",
         "parameters": [
           {
             "in": "header",
@@ -636,9 +3329,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Logout Api Auth Logout Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Ok"
                 }
               }
             },
@@ -660,14 +3351,12 @@
     },
     "/api/auth/mfa": {
       "post": {
-        "operationId": "auth_mfa_api_auth_mfa_post",
+        "operationId": "auth_mfa",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/MfaRequest"
               }
             }
           },
@@ -678,9 +3367,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Mfa Api Auth Mfa Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MfaResult"
                 }
               }
             },
@@ -702,7 +3389,7 @@
     },
     "/api/auth/step-up": {
       "post": {
-        "operationId": "auth_step_up_api_auth_step_up_post",
+        "operationId": "auth_step_up",
         "parameters": [
           {
             "in": "header",
@@ -719,9 +3406,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/StepUpRequest"
               }
             }
           },
@@ -732,9 +3417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Step Up Api Auth Step Up Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Ok"
                 }
               }
             },
@@ -756,7 +3439,7 @@
     },
     "/api/auth/users": {
       "get": {
-        "operationId": "auth_users_api_auth_users_get",
+        "operationId": "auth_users",
         "parameters": [
           {
             "in": "header",
@@ -775,10 +3458,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/FirmUser"
                   },
-                  "title": "Response Auth Users Api Auth Users Get",
+                  "title": "Response Auth Users",
                   "type": "array"
                 }
               }
@@ -801,7 +3483,7 @@
     },
     "/api/auth/users/{user_id}/disable": {
       "post": {
-        "operationId": "auth_disable_api_auth_users__user_id__disable_post",
+        "operationId": "auth_disable",
         "parameters": [
           {
             "in": "path",
@@ -827,10 +3509,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "default": {},
-                "title": "Body",
-                "type": "object"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DisableRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
               }
             }
           }
@@ -840,9 +3527,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Auth Disable Api Auth Users  User Id  Disable Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Ok"
                 }
               }
             },
@@ -864,7 +3549,7 @@
     },
     "/api/auth/users/{user_id}/grants": {
       "get": {
-        "operationId": "auth_grants_api_auth_users__user_id__grants_get",
+        "operationId": "auth_grants",
         "parameters": [
           {
             "in": "path",
@@ -894,7 +3579,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "title": "Response Auth Grants Api Auth Users  User Id  Grants Get",
+                  "title": "Response Auth Grants",
                   "type": "array"
                 }
               }
@@ -915,7 +3600,7 @@
         "summary": "Auth Grants"
       },
       "post": {
-        "operationId": "auth_grant_api_auth_users__user_id__grants_post",
+        "operationId": "auth_grant",
         "parameters": [
           {
             "in": "path",
@@ -955,7 +3640,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Auth Grant Api Auth Users  User Id  Grants Post",
+                  "title": "Response Auth Grant",
                   "type": "object"
                 }
               }
@@ -978,7 +3663,7 @@
     },
     "/api/auth/users/{user_id}/grants/{client_id}": {
       "delete": {
-        "operationId": "auth_revoke_api_auth_users__user_id__grants__client_id__delete",
+        "operationId": "auth_revoke",
         "parameters": [
           {
             "in": "path",
@@ -1015,7 +3700,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Auth Revoke Api Auth Users  User Id  Grants  Client Id  Delete",
+                  "title": "Response Auth Revoke",
                   "type": "object"
                 }
               }
@@ -1038,7 +3723,7 @@
     },
     "/api/auth/users/{user_id}/reviewer": {
       "post": {
-        "operationId": "auth_reviewer_api_auth_users__user_id__reviewer_post",
+        "operationId": "auth_reviewer",
         "parameters": [
           {
             "in": "path",
@@ -1078,7 +3763,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Auth Reviewer Api Auth Users  User Id  Reviewer Post",
+                  "title": "Response Auth Reviewer",
                   "type": "object"
                 }
               }
@@ -1101,7 +3786,7 @@
     },
     "/api/automations": {
       "get": {
-        "operationId": "automations_list_api_automations_get",
+        "operationId": "automations_list",
         "parameters": [
           {
             "in": "header",
@@ -1120,7 +3805,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Automations List Api Automations Get",
+                  "title": "Response Automations List",
                   "type": "object"
                 }
               }
@@ -1143,7 +3828,7 @@
     },
     "/api/automations/run": {
       "post": {
-        "operationId": "automations_run_api_automations_run_post",
+        "operationId": "automations_run",
         "parameters": [
           {
             "in": "header",
@@ -1162,7 +3847,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Automations Run Api Automations Run Post",
+                  "title": "Response Automations Run",
                   "type": "object"
                 }
               }
@@ -1185,7 +3870,7 @@
     },
     "/api/calculators": {
       "get": {
-        "operationId": "calculators_api_calculators_get",
+        "operationId": "calculators",
         "parameters": [
           {
             "in": "header",
@@ -1206,7 +3891,7 @@
                   "additionalProperties": {
                     "type": "string"
                   },
-                  "title": "Response Calculators Api Calculators Get",
+                  "title": "Response Calculators",
                   "type": "object"
                 }
               }
@@ -1229,7 +3914,7 @@
     },
     "/api/calculators/{name}": {
       "post": {
-        "operationId": "calculate_api_calculators__name__post",
+        "operationId": "calculate",
         "parameters": [
           {
             "in": "path",
@@ -1269,7 +3954,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Calculate Api Calculators  Name  Post",
+                  "title": "Response Calculate",
                   "type": "object"
                 }
               }
@@ -1292,7 +3977,7 @@
     },
     "/api/clients": {
       "get": {
-        "operationId": "clients_api_clients_get",
+        "operationId": "clients",
         "parameters": [
           {
             "in": "header",
@@ -1311,10 +3996,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/Client"
                   },
-                  "title": "Response Clients Api Clients Get",
+                  "title": "Response Clients",
                   "type": "array"
                 }
               }
@@ -1335,7 +4019,7 @@
         "summary": "Clients"
       },
       "post": {
-        "operationId": "create_client_api_clients_post",
+        "operationId": "create_client",
         "parameters": [
           {
             "in": "header",
@@ -1352,9 +4036,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/CreateClientRequest"
               }
             }
           },
@@ -1365,9 +4047,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Client Api Clients Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CreateClientResult"
                 }
               }
             },
@@ -1389,7 +4069,7 @@
     },
     "/api/clients/{client_id}": {
       "get": {
-        "operationId": "client_detail_api_clients__client_id__get",
+        "operationId": "client_detail",
         "parameters": [
           {
             "in": "path",
@@ -1432,9 +4112,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Client Detail Api Clients  Client Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ClientDetail"
                 }
               }
             },
@@ -1456,7 +4134,7 @@
     },
     "/api/clients/{client_id}/bank/post": {
       "post": {
-        "operationId": "bank_post_api_clients__client_id__bank_post_post",
+        "operationId": "bank_post",
         "parameters": [
           {
             "in": "path",
@@ -1499,7 +4177,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Bank Post Api Clients  Client Id  Bank Post Post",
+                  "title": "Response Bank Post",
                   "type": "object"
                 }
               }
@@ -1522,7 +4200,7 @@
     },
     "/api/clients/{client_id}/bank/preview": {
       "post": {
-        "operationId": "bank_preview_api_clients__client_id__bank_preview_post",
+        "operationId": "bank_preview",
         "parameters": [
           {
             "in": "path",
@@ -1565,7 +4243,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Bank Preview Api Clients  Client Id  Bank Preview Post",
+                  "title": "Response Bank Preview",
                   "type": "array"
                 }
               }
@@ -1588,7 +4266,7 @@
     },
     "/api/clients/{client_id}/deals": {
       "post": {
-        "operationId": "biz_add_deal_api_clients__client_id__deals_post",
+        "operationId": "biz_add_deal",
         "parameters": [
           {
             "in": "path",
@@ -1628,7 +4306,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Biz Add Deal Api Clients  Client Id  Deals Post",
+                  "title": "Response Biz Add Deal",
                   "type": "object"
                 }
               }
@@ -1649,9 +4327,87 @@
         "summary": "Biz Add Deal"
       }
     },
+    "/api/clients/{client_id}/documents": {
+      "get": {
+        "description": "A client's documents, newest first and paged (deleted ones excluded): the same fields the client detail embeds\nfor its 100 most recent. Follow `next_cursor` until it is null.",
+        "operationId": "client_documents",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Client Documents"
+      }
+    },
     "/api/clients/{client_id}/entries": {
       "get": {
-        "operationId": "client_entries_api_clients__client_id__entries_get",
+        "operationId": "client_entries",
         "parameters": [
           {
             "in": "path",
@@ -1682,7 +4438,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Client Entries Api Clients  Client Id  Entries Get",
+                  "title": "Response Client Entries",
                   "type": "array"
                 }
               }
@@ -1705,7 +4461,7 @@
     },
     "/api/clients/{client_id}/entries/{entry_id}/reverse": {
       "post": {
-        "operationId": "reverse_entry_api_clients__client_id__entries__entry_id__reverse_post",
+        "operationId": "reverse_entry",
         "parameters": [
           {
             "in": "path",
@@ -1754,7 +4510,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Reverse Entry Api Clients  Client Id  Entries  Entry Id  Reverse Post",
+                  "title": "Response Reverse Entry",
                   "type": "object"
                 }
               }
@@ -1777,7 +4533,7 @@
     },
     "/api/clients/{client_id}/export/{plugin_id}": {
       "get": {
-        "operationId": "export_api_clients__client_id__export__plugin_id__get",
+        "operationId": "export",
         "parameters": [
           {
             "in": "path",
@@ -1843,7 +4599,8 @@
     },
     "/api/clients/{client_id}/facts": {
       "patch": {
-        "operationId": "update_facts_api_clients__client_id__facts_patch",
+        "description": "Merge the facts sent into the client's profile; a fact sent as null is removed. Returns the whole profile.",
+        "operationId": "update_facts",
         "parameters": [
           {
             "in": "path",
@@ -1869,9 +4626,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Facts",
-                "type": "object"
+                "$ref": "#/components/schemas/ClientFacts"
               }
             }
           },
@@ -1882,9 +4637,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Update Facts Api Clients  Client Id  Facts Patch",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ClientFacts"
                 }
               }
             },
@@ -1906,7 +4659,7 @@
     },
     "/api/clients/{client_id}/holds": {
       "get": {
-        "operationId": "client_holds_api_clients__client_id__holds_get",
+        "operationId": "client_holds",
         "parameters": [
           {
             "in": "path",
@@ -1937,7 +4690,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Client Holds Api Clients  Client Id  Holds Get",
+                  "title": "Response Client Holds",
                   "type": "array"
                 }
               }
@@ -1958,7 +4711,7 @@
         "summary": "Client Holds"
       },
       "post": {
-        "operationId": "place_hold_api_clients__client_id__holds_post",
+        "operationId": "place_hold",
         "parameters": [
           {
             "in": "path",
@@ -1998,7 +4751,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Place Hold Api Clients  Client Id  Holds Post",
+                  "title": "Response Place Hold",
                   "type": "object"
                 }
               }
@@ -2021,7 +4774,7 @@
     },
     "/api/clients/{client_id}/integrity/run": {
       "post": {
-        "operationId": "integrity_run_api_clients__client_id__integrity_run_post",
+        "operationId": "integrity_run",
         "parameters": [
           {
             "in": "path",
@@ -2065,7 +4818,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Integrity Run Api Clients  Client Id  Integrity Run Post",
+                  "title": "Response Integrity Run",
                   "type": "object"
                 }
               }
@@ -2089,7 +4842,7 @@
     "/api/clients/{client_id}/invoices": {
       "post": {
         "description": "Send an Idempotency-Key header to make retries safe: the same key returns the original invoice.",
-        "operationId": "biz_invoice_api_clients__client_id__invoices_post",
+        "operationId": "biz_invoice",
         "parameters": [
           {
             "in": "path",
@@ -2139,7 +4892,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Biz Invoice Api Clients  Client Id  Invoices Post",
+                  "title": "Response Biz Invoice",
                   "type": "object"
                 }
               }
@@ -2162,7 +4915,7 @@
     },
     "/api/clients/{client_id}/invoices/{invoice_id}/pay": {
       "post": {
-        "operationId": "biz_pay_api_clients__client_id__invoices__invoice_id__pay_post",
+        "operationId": "biz_pay",
         "parameters": [
           {
             "in": "path",
@@ -2209,7 +4962,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Biz Pay Api Clients  Client Id  Invoices  Invoice Id  Pay Post",
+                  "title": "Response Biz Pay",
                   "type": "object"
                 }
               }
@@ -2232,7 +4985,7 @@
     },
     "/api/clients/{client_id}/opportunities": {
       "get": {
-        "operationId": "opportunities_api_clients__client_id__opportunities_get",
+        "operationId": "opportunities",
         "parameters": [
           {
             "in": "path",
@@ -2263,7 +5016,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Opportunities Api Clients  Client Id  Opportunities Get",
+                  "title": "Response Opportunities",
                   "type": "array"
                 }
               }
@@ -2286,7 +5039,7 @@
     },
     "/api/clients/{client_id}/parties": {
       "get": {
-        "operationId": "biz_parties_api_clients__client_id__parties_get",
+        "operationId": "biz_parties",
         "parameters": [
           {
             "in": "path",
@@ -2317,7 +5070,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Biz Parties Api Clients  Client Id  Parties Get",
+                  "title": "Response Biz Parties",
                   "type": "array"
                 }
               }
@@ -2338,7 +5091,7 @@
         "summary": "Biz Parties"
       },
       "post": {
-        "operationId": "biz_add_party_api_clients__client_id__parties_post",
+        "operationId": "biz_add_party",
         "parameters": [
           {
             "in": "path",
@@ -2378,7 +5131,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Biz Add Party Api Clients  Client Id  Parties Post",
+                  "title": "Response Biz Add Party",
                   "type": "object"
                 }
               }
@@ -2402,7 +5155,7 @@
     "/api/clients/{client_id}/periods/{action}": {
       "post": {
         "description": "Close the books through a date, or reopen them (reviewers only; every change is in the audit trail).",
-        "operationId": "period_action_api_clients__client_id__periods__action__post",
+        "operationId": "period_action",
         "parameters": [
           {
             "in": "path",
@@ -2451,7 +5204,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Period Action Api Clients  Client Id  Periods  Action  Post",
+                  "title": "Response Period Action",
                   "type": "object"
                 }
               }
@@ -2474,7 +5227,7 @@
     },
     "/api/clients/{client_id}/returns": {
       "get": {
-        "operationId": "client_returns_api_clients__client_id__returns_get",
+        "operationId": "client_returns",
         "parameters": [
           {
             "in": "path",
@@ -2505,7 +5258,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Client Returns Api Clients  Client Id  Returns Get",
+                  "title": "Response Client Returns",
                   "type": "array"
                 }
               }
@@ -2526,7 +5279,7 @@
         "summary": "Client Returns"
       },
       "post": {
-        "operationId": "create_return_api_clients__client_id__returns_post",
+        "operationId": "create_return",
         "parameters": [
           {
             "in": "path",
@@ -2566,7 +5319,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Create Return Api Clients  Client Id  Returns Post",
+                  "title": "Response Create Return",
                   "type": "object"
                 }
               }
@@ -2590,7 +5343,7 @@
     "/api/clients/{client_id}/tax-year-events": {
       "post": {
         "description": "Record a filing, amendment, payment or 'no return required' that retention counts from (returns filed outside\nAgentLedger), with its evidence.",
-        "operationId": "record_tax_year_event_api_clients__client_id__tax_year_events_post",
+        "operationId": "record_tax_year_event",
         "parameters": [
           {
             "in": "path",
@@ -2630,7 +5383,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Record Tax Year Event Api Clients  Client Id  Tax Year Events Post",
+                  "title": "Response Record Tax Year Event",
                   "type": "object"
                 }
               }
@@ -2653,7 +5406,7 @@
     },
     "/api/clients/{client_id}/templates": {
       "get": {
-        "operationId": "client_templates_api_clients__client_id__templates_get",
+        "operationId": "client_templates",
         "parameters": [
           {
             "in": "path",
@@ -2684,7 +5437,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Client Templates Api Clients  Client Id  Templates Get",
+                  "title": "Response Client Templates",
                   "type": "array"
                 }
               }
@@ -2707,7 +5460,7 @@
     },
     "/api/clients/{client_id}/templates/{template_id}": {
       "post": {
-        "operationId": "post_template_api_clients__client_id__templates__template_id__post",
+        "operationId": "post_template",
         "parameters": [
           {
             "in": "path",
@@ -2756,7 +5509,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Post Template Api Clients  Client Id  Templates  Template Id  Post",
+                  "title": "Response Post Template",
                   "type": "object"
                 }
               }
@@ -2779,7 +5532,7 @@
     },
     "/api/clients/{client_id}/vendors/{party_id}/pay": {
       "post": {
-        "operationId": "biz_pay_vendor_api_clients__client_id__vendors__party_id__pay_post",
+        "operationId": "biz_pay_vendor",
         "parameters": [
           {
             "in": "path",
@@ -2838,7 +5591,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Biz Pay Vendor Api Clients  Client Id  Vendors  Party Id  Pay Post",
+                  "title": "Response Biz Pay Vendor",
                   "type": "object"
                 }
               }
@@ -2862,7 +5615,7 @@
     "/api/coverage": {
       "get": {
         "description": "What the product actually supports, per form, year and jurisdiction (spec §7). Read by every signed-in user and\nby the deployment smoke check.",
-        "operationId": "get_coverage_api_coverage_get",
+        "operationId": "get_coverage",
         "parameters": [
           {
             "in": "query",
@@ -2897,7 +5650,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Get Coverage Api Coverage Get",
+                  "title": "Response Get Coverage",
                   "type": "object"
                 }
               }
@@ -2920,7 +5673,7 @@
     },
     "/api/crm/engagements": {
       "post": {
-        "operationId": "crm_new_engagement_api_crm_engagements_post",
+        "operationId": "crm_new_engagement",
         "parameters": [
           {
             "in": "header",
@@ -2951,7 +5704,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Crm New Engagement Api Crm Engagements Post",
+                  "title": "Response Crm New Engagement",
                   "type": "object"
                 }
               }
@@ -2974,7 +5727,7 @@
     },
     "/api/crm/engagements/{eid}/stage": {
       "post": {
-        "operationId": "crm_stage_api_crm_engagements__eid__stage_post",
+        "operationId": "crm_stage",
         "parameters": [
           {
             "in": "path",
@@ -3014,7 +5767,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Crm Stage Api Crm Engagements  Eid  Stage Post",
+                  "title": "Response Crm Stage",
                   "type": "object"
                 }
               }
@@ -3037,7 +5790,7 @@
     },
     "/api/crm/pipeline": {
       "get": {
-        "operationId": "crm_pipeline_api_crm_pipeline_get",
+        "operationId": "crm_pipeline",
         "parameters": [
           {
             "in": "header",
@@ -3055,8 +5808,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Crm Pipeline Api Crm Pipeline Get",
+                  "additionalProperties": {
+                    "items": {
+                      "$ref": "#/components/schemas/Engagement"
+                    },
+                    "type": "array"
+                  },
+                  "title": "Response Crm Pipeline",
                   "type": "object"
                 }
               }
@@ -3079,7 +5837,7 @@
     },
     "/api/dashboard": {
       "get": {
-        "operationId": "dashboard_api_dashboard_get",
+        "operationId": "dashboard",
         "parameters": [
           {
             "in": "header",
@@ -3097,9 +5855,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Dashboard Api Dashboard Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Dashboard"
                 }
               }
             },
@@ -3121,7 +5877,7 @@
     },
     "/api/deals/{deal_id}/stage": {
       "post": {
-        "operationId": "biz_deal_stage_api_deals__deal_id__stage_post",
+        "operationId": "biz_deal_stage",
         "parameters": [
           {
             "in": "path",
@@ -3161,7 +5917,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Biz Deal Stage Api Deals  Deal Id  Stage Post",
+                  "title": "Response Biz Deal Stage",
                   "type": "object"
                 }
               }
@@ -3184,7 +5940,7 @@
     },
     "/api/design/{what}": {
       "post": {
-        "operationId": "design_api_design__what__post",
+        "operationId": "design",
         "parameters": [
           {
             "in": "path",
@@ -3224,7 +5980,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Design Api Design  What  Post",
+                  "title": "Response Design",
                   "type": "object"
                 }
               }
@@ -3247,7 +6003,7 @@
     },
     "/api/documents/review": {
       "get": {
-        "operationId": "review_queue_api_documents_review_get",
+        "operationId": "review_queue",
         "parameters": [
           {
             "in": "header",
@@ -3266,10 +6022,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/ReviewDocument"
                   },
-                  "title": "Response Review Queue Api Documents Review Get",
+                  "title": "Response Review Queue",
                   "type": "array"
                 }
               }
@@ -3292,7 +6047,7 @@
     },
     "/api/documents/upload": {
       "post": {
-        "operationId": "upload_api_documents_upload_post",
+        "operationId": "upload",
         "parameters": [
           {
             "in": "header",
@@ -3309,7 +6064,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_upload_api_documents_upload_post"
+                "$ref": "#/components/schemas/Body_upload"
               }
             }
           },
@@ -3321,10 +6076,16 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/IngestedDocument"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DuplicateDocument"
+                      }
+                    ]
                   },
-                  "title": "Response Upload Api Documents Upload Post",
+                  "title": "Response Upload",
                   "type": "array"
                 }
               }
@@ -3348,7 +6109,7 @@
     "/api/documents/{doc_id}/assign": {
       "post": {
         "description": "File a review-queue document to a client, or move a filed one (a reviewer, with a reason on record).",
-        "operationId": "assign_doc_api_documents__doc_id__assign_post",
+        "operationId": "assign_doc",
         "parameters": [
           {
             "in": "path",
@@ -3374,9 +6135,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/AssignRequest"
               }
             }
           },
@@ -3387,9 +6146,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Assign Doc Api Documents  Doc Id  Assign Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AssignedDocument"
                 }
               }
             },
@@ -3412,7 +6169,7 @@
     "/api/documents/{doc_id}/basis-release": {
       "post": {
         "description": "A CPA records that the property a basis record supports was disposed of: the record is then kept as a tax record\nof the disposition year.",
-        "operationId": "release_document_basis_api_documents__doc_id__basis_release_post",
+        "operationId": "release_document_basis",
         "parameters": [
           {
             "in": "path",
@@ -3452,7 +6209,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Release Document Basis Api Documents  Doc Id  Basis Release Post",
+                  "title": "Response Release Document Basis",
                   "type": "object"
                 }
               }
@@ -3475,7 +6232,8 @@
     },
     "/api/documents/{doc_id}/file": {
       "get": {
-        "operationId": "doc_file_api_documents__doc_id__file_get",
+        "description": "The document's bytes, as a download (`Content-Disposition: attachment`, application/octet-stream). With\n`inline=1`, a PDF, PNG or JPEG is served inline with its real media type inside a sandbox\n(`Content-Security-Policy: sandbox; default-src 'none'`, `X-Content-Type-Options: nosniff`) so the app can show it;\nevery other type stays a download. Either way a signed link (`dl`) stands in for the session header.",
+        "operationId": "doc_file",
         "parameters": [
           {
             "in": "path",
@@ -3494,6 +6252,16 @@
               "default": "",
               "title": "Dl",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "inline",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Inline",
+              "type": "boolean"
             }
           },
           {
@@ -3533,7 +6301,7 @@
     "/api/documents/{doc_id}/retention": {
       "get": {
         "description": "When a document may be deleted, computed now (or why it may not be yet), its hold and the years it supports.",
-        "operationId": "document_retention_api_documents__doc_id__retention_get",
+        "operationId": "document_retention",
         "parameters": [
           {
             "in": "path",
@@ -3561,7 +6329,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Document Retention Api Documents  Doc Id  Retention Get",
+                  "title": "Response Document Retention",
                   "type": "object"
                 }
               }
@@ -3583,7 +6351,7 @@
       },
       "post": {
         "description": "A CPA confirms a document's tax year (or that it has none) and retention class; until then it is never deleted.",
-        "operationId": "confirm_document_retention_api_documents__doc_id__retention_post",
+        "operationId": "confirm_document_retention",
         "parameters": [
           {
             "in": "path",
@@ -3623,7 +6391,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Confirm Document Retention Api Documents  Doc Id  Retention Post",
+                  "title": "Response Confirm Document Retention",
                   "type": "object"
                 }
               }
@@ -3646,7 +6414,7 @@
     },
     "/api/documents/{doc_id}/versions": {
       "get": {
-        "operationId": "doc_versions_api_documents__doc_id__versions_get",
+        "operationId": "doc_versions",
         "parameters": [
           {
             "in": "path",
@@ -3674,10 +6442,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/DocumentVersion"
                   },
-                  "title": "Response Doc Versions Api Documents  Doc Id  Versions Get",
+                  "title": "Response Doc Versions",
                   "type": "array"
                 }
               }
@@ -3701,7 +6468,7 @@
     "/api/evidence/due": {
       "get": {
         "description": "What a retention run would delete today (held documents excluded).",
-        "operationId": "evidence_due_api_evidence_due_get",
+        "operationId": "evidence_due",
         "parameters": [
           {
             "in": "header",
@@ -3723,7 +6490,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Evidence Due Api Evidence Due Get",
+                  "title": "Response Evidence Due",
                   "type": "array"
                 }
               }
@@ -3747,7 +6514,7 @@
     "/api/evidence/integrity": {
       "get": {
         "description": "Live documents whose bytes are missing, deletions not finished, and (verify=true) every stored object read back\nand authenticated against its recorded hash.",
-        "operationId": "evidence_integrity_api_evidence_integrity_get",
+        "operationId": "evidence_integrity",
         "parameters": [
           {
             "in": "query",
@@ -3776,7 +6543,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Evidence Integrity Api Evidence Integrity Get",
+                  "title": "Response Evidence Integrity",
                   "type": "object"
                 }
               }
@@ -3800,7 +6567,7 @@
     "/api/evidence/purge": {
       "post": {
         "description": "Delete evidence whose retention has ended. Never automatic; each deletion leaves a receipt.",
-        "operationId": "evidence_purge_api_evidence_purge_post",
+        "operationId": "evidence_purge",
         "parameters": [
           {
             "in": "header",
@@ -3831,7 +6598,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Evidence Purge Api Evidence Purge Post",
+                  "title": "Response Evidence Purge",
                   "type": "object"
                 }
               }
@@ -3854,7 +6621,7 @@
     },
     "/api/findings/{finding_id}/resolve": {
       "post": {
-        "operationId": "resolve_finding_api_findings__finding_id__resolve_post",
+        "operationId": "resolve_finding",
         "parameters": [
           {
             "in": "path",
@@ -3894,7 +6661,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Resolve Finding Api Findings  Finding Id  Resolve Post",
+                  "title": "Response Resolve Finding",
                   "type": "object"
                 }
               }
@@ -3917,7 +6684,7 @@
     },
     "/api/holds/{hold_id}/release": {
       "post": {
-        "operationId": "release_hold_api_holds__hold_id__release_post",
+        "operationId": "release_hold",
         "parameters": [
           {
             "in": "path",
@@ -3957,7 +6724,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Release Hold Api Holds  Hold Id  Release Post",
+                  "title": "Response Release Hold",
                   "type": "object"
                 }
               }
@@ -3980,7 +6747,7 @@
     },
     "/api/hooks/{firm_id}/{client_id}": {
       "post": {
-        "operationId": "inbound_hook_api_hooks__firm_id___client_id__post",
+        "operationId": "inbound_hook",
         "parameters": [
           {
             "in": "path",
@@ -4017,7 +6784,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Inbound Hook Api Hooks  Firm Id   Client Id  Post",
+                  "title": "Response Inbound Hook",
                   "type": "object"
                 }
               }
@@ -4040,7 +6807,7 @@
     },
     "/api/links": {
       "post": {
-        "operationId": "make_link_api_links_post",
+        "operationId": "make_link",
         "parameters": [
           {
             "in": "header",
@@ -4057,9 +6824,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/LinkRequest"
               }
             }
           },
@@ -4070,9 +6835,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Make Link Api Links Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LinkResult"
                 }
               }
             },
@@ -4094,7 +6857,7 @@
     },
     "/api/me": {
       "get": {
-        "operationId": "get_me_api_me_get",
+        "operationId": "get_me",
         "parameters": [
           {
             "in": "header",
@@ -4112,9 +6875,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Me Api Me Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Me"
                 }
               }
             },
@@ -4136,7 +6897,7 @@
     },
     "/api/messages": {
       "get": {
-        "operationId": "messages_api_messages_get",
+        "operationId": "messages",
         "parameters": [
           {
             "in": "header",
@@ -4158,7 +6919,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Messages Api Messages Get",
+                  "title": "Response Messages",
                   "type": "array"
                 }
               }
@@ -4181,7 +6942,7 @@
     },
     "/api/messages/{mid}/send": {
       "post": {
-        "operationId": "send_api_messages__mid__send_post",
+        "operationId": "send",
         "parameters": [
           {
             "in": "path",
@@ -4209,7 +6970,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Send Api Messages  Mid  Send Post",
+                  "title": "Response Send",
                   "type": "object"
                 }
               }
@@ -4232,7 +6993,7 @@
     },
     "/api/models": {
       "get": {
-        "operationId": "models_api_models_get",
+        "operationId": "models",
         "parameters": [
           {
             "in": "header",
@@ -4251,7 +7012,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Models Api Models Get",
+                  "title": "Response Models",
                   "type": "object"
                 }
               }
@@ -4274,7 +7035,7 @@
     },
     "/api/oss": {
       "get": {
-        "operationId": "oss_api_oss_get",
+        "operationId": "oss",
         "parameters": [
           {
             "in": "header",
@@ -4293,7 +7054,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Oss Api Oss Get",
+                  "title": "Response Oss",
                   "type": "object"
                 }
               }
@@ -4314,9 +7075,10 @@
         "summary": "Oss"
       }
     },
-    "/api/platform/firms": {
+    "/api/packs": {
       "get": {
-        "operationId": "platform_firms_api_platform_firms_get",
+        "description": "The industry packs a client can be onboarded on (domains/*.yaml), shared by every firm.",
+        "operationId": "packs",
         "parameters": [
           {
             "in": "header",
@@ -4335,10 +7097,53 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/Pack"
                   },
-                  "title": "Response Platform Firms Api Platform Firms Get",
+                  "title": "Response Packs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Packs"
+      }
+    },
+    "/api/platform/firms": {
+      "get": {
+        "operationId": "platform_firms",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Firm"
+                  },
+                  "title": "Response Platform Firms",
                   "type": "array"
                 }
               }
@@ -4359,7 +7164,7 @@
         "summary": "Platform Firms"
       },
       "post": {
-        "operationId": "platform_create_firm_api_platform_firms_post",
+        "operationId": "platform_create_firm",
         "parameters": [
           {
             "in": "header",
@@ -4376,9 +7181,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/CreateFirmRequest"
               }
             }
           },
@@ -4389,9 +7192,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Platform Create Firm Api Platform Firms Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CreateFirmResult"
                 }
               }
             },
@@ -4411,10 +7212,59 @@
         "summary": "Platform Create Firm"
       }
     },
+    "/api/platform/firms/{firm_id}": {
+      "get": {
+        "operationId": "platform_firm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "firm_id",
+            "required": true,
+            "schema": {
+              "title": "Firm Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Firm"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platform Firm"
+      }
+    },
     "/api/platform/sso-mfa": {
       "post": {
         "description": "Record (or revoke) that an organization's own identity provider enforces MFA, so its SSO sign-ins count.",
-        "operationId": "platform_sso_mfa_api_platform_sso_mfa_post",
+        "operationId": "platform_sso_mfa",
         "parameters": [
           {
             "in": "header",
@@ -4445,7 +7295,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Platform Sso Mfa Api Platform Sso Mfa Post",
+                  "title": "Response Platform Sso Mfa",
                   "type": "object"
                 }
               }
@@ -4468,7 +7318,7 @@
     },
     "/api/playbooks": {
       "get": {
-        "operationId": "playbooks_api_playbooks_get",
+        "operationId": "playbooks",
         "parameters": [
           {
             "in": "header",
@@ -4490,7 +7340,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Playbooks Api Playbooks Get",
+                  "title": "Response Playbooks",
                   "type": "array"
                 }
               }
@@ -4513,7 +7363,7 @@
     },
     "/api/plugins": {
       "get": {
-        "operationId": "plugins_api_plugins_get",
+        "operationId": "plugins",
         "parameters": [
           {
             "in": "header",
@@ -4532,7 +7382,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Plugins Api Plugins Get",
+                  "title": "Response Plugins",
                   "type": "object"
                 }
               }
@@ -4556,7 +7406,7 @@
     "/api/plugins/request": {
       "post": {
         "description": "Ask the AI Engineer to build a catalog connector (becomes a work item; result needs approval).",
-        "operationId": "request_connector_api_plugins_request_post",
+        "operationId": "request_connector",
         "parameters": [
           {
             "in": "header",
@@ -4587,7 +7437,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Request Connector Api Plugins Request Post",
+                  "title": "Response Request Connector",
                   "type": "object"
                 }
               }
@@ -4610,7 +7460,7 @@
     },
     "/api/plugins/{plugin_id}/run": {
       "post": {
-        "operationId": "plugin_run_api_plugins__plugin_id__run_post",
+        "operationId": "plugin_run",
         "parameters": [
           {
             "in": "path",
@@ -4649,7 +7499,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Plugin Run Api Plugins  Plugin Id  Run Post"
+                  "title": "Response Plugin Run"
                 }
               }
             },
@@ -4671,7 +7521,7 @@
     },
     "/api/precedents": {
       "post": {
-        "operationId": "new_precedent_api_precedents_post",
+        "operationId": "new_precedent",
         "parameters": [
           {
             "in": "header",
@@ -4702,7 +7552,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response New Precedent Api Precedents Post",
+                  "title": "Response New Precedent",
                   "type": "object"
                 }
               }
@@ -4725,7 +7575,7 @@
     },
     "/api/proposals": {
       "get": {
-        "operationId": "proposals_api_proposals_get",
+        "operationId": "proposals",
         "parameters": [
           {
             "in": "query",
@@ -4763,7 +7613,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Proposals Api Proposals Get",
+                  "title": "Response Proposals",
                   "type": "array"
                 }
               }
@@ -4786,7 +7636,7 @@
     },
     "/api/proposals/{pid}": {
       "get": {
-        "operationId": "proposal_api_proposals__pid__get",
+        "operationId": "proposal",
         "parameters": [
           {
             "in": "path",
@@ -4814,7 +7664,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Proposal Api Proposals  Pid  Get",
+                  "title": "Response Proposal",
                   "type": "object"
                 }
               }
@@ -4837,7 +7687,7 @@
     },
     "/api/proposals/{pid}/{decision}": {
       "post": {
-        "operationId": "decide_api_proposals__pid___decision__post",
+        "operationId": "decide",
         "parameters": [
           {
             "in": "path",
@@ -4886,7 +7736,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Decide Api Proposals  Pid   Decision  Post",
+                  "title": "Response Decide",
                   "type": "object"
                 }
               }
@@ -4910,7 +7760,7 @@
     "/api/returns/individual": {
       "post": {
         "description": "Compute a Form 1040 from facts and source documents. Nothing is stored (so the deployment smoke check may\ncall it too).",
-        "operationId": "compute_individual_return_api_returns_individual_post",
+        "operationId": "compute_individual_return",
         "parameters": [
           {
             "in": "header",
@@ -4941,7 +7791,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Compute Individual Return Api Returns Individual Post",
+                  "title": "Response Compute Individual Return",
                   "type": "object"
                 }
               }
@@ -4964,7 +7814,7 @@
     },
     "/api/returns/{rid}": {
       "get": {
-        "operationId": "get_return_api_returns__rid__get",
+        "operationId": "get_return",
         "parameters": [
           {
             "in": "path",
@@ -4992,7 +7842,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Get Return Api Returns  Rid  Get",
+                  "title": "Response Get Return",
                   "type": "object"
                 }
               }
@@ -5015,7 +7865,7 @@
     },
     "/api/returns/{rid}/amend": {
       "post": {
-        "operationId": "return_amend_api_returns__rid__amend_post",
+        "operationId": "return_amend",
         "parameters": [
           {
             "in": "path",
@@ -5043,7 +7893,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Return Amend Api Returns  Rid  Amend Post",
+                  "title": "Response Return Amend",
                   "type": "object"
                 }
               }
@@ -5066,7 +7916,7 @@
     },
     "/api/returns/{rid}/compute": {
       "post": {
-        "operationId": "compute_return_api_returns__rid__compute_post",
+        "operationId": "compute_return",
         "parameters": [
           {
             "in": "path",
@@ -5106,7 +7956,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Compute Return Api Returns  Rid  Compute Post",
+                  "title": "Response Compute Return",
                   "type": "object"
                 }
               }
@@ -5129,7 +7979,7 @@
     },
     "/api/returns/{rid}/confirm": {
       "post": {
-        "operationId": "confirm_return_amounts_api_returns__rid__confirm_post",
+        "operationId": "confirm_return_amounts",
         "parameters": [
           {
             "in": "path",
@@ -5169,7 +8019,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Confirm Return Amounts Api Returns  Rid  Confirm Post",
+                  "title": "Response Confirm Return Amounts",
                   "type": "object"
                 }
               }
@@ -5193,7 +8043,7 @@
     "/api/returns/{rid}/conflicts": {
       "get": {
         "description": "Where a document disagrees with what the return holds (nothing was overwritten).",
-        "operationId": "return_conflicts_api_returns__rid__conflicts_get",
+        "operationId": "return_conflicts",
         "parameters": [
           {
             "in": "path",
@@ -5224,7 +8074,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Return Conflicts Api Returns  Rid  Conflicts Get",
+                  "title": "Response Return Conflicts",
                   "type": "array"
                 }
               }
@@ -5247,7 +8097,7 @@
     },
     "/api/returns/{rid}/conflicts/{conflict_id}": {
       "post": {
-        "operationId": "resolve_return_conflict_api_returns__rid__conflicts__conflict_id__post",
+        "operationId": "resolve_return_conflict",
         "parameters": [
           {
             "in": "path",
@@ -5296,7 +8146,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Resolve Return Conflict Api Returns  Rid  Conflicts  Conflict Id  Post",
+                  "title": "Response Resolve Return Conflict",
                   "type": "object"
                 }
               }
@@ -5320,7 +8170,7 @@
     "/api/returns/{rid}/documents/{doc_id}/disposition": {
       "post": {
         "description": "Account for a filed document the return does not use: entered by hand, or not applicable, with a reason.",
-        "operationId": "return_document_disposition_api_returns__rid__documents__doc_id__disposition_post",
+        "operationId": "return_document_disposition",
         "parameters": [
           {
             "in": "path",
@@ -5372,7 +8222,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Return Document Disposition Api Returns  Rid  Documents  Doc Id  Disposition Post",
+                  "title": "Response Return Document Disposition",
                   "type": "array"
                 }
               }
@@ -5396,7 +8246,7 @@
     "/api/returns/{rid}/facts": {
       "get": {
         "description": "Every value a field has had, where each came from, and what it superseded.",
-        "operationId": "return_fact_history_api_returns__rid__facts_get",
+        "operationId": "return_fact_history",
         "parameters": [
           {
             "in": "path",
@@ -5436,7 +8286,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Return Fact History Api Returns  Rid  Facts Get",
+                  "title": "Response Return Fact History",
                   "type": "array"
                 }
               }
@@ -5459,7 +8309,7 @@
     },
     "/api/returns/{rid}/inputs": {
       "put": {
-        "operationId": "put_return_inputs_api_returns__rid__inputs_put",
+        "operationId": "put_return_inputs",
         "parameters": [
           {
             "in": "path",
@@ -5499,7 +8349,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Put Return Inputs Api Returns  Rid  Inputs Put",
+                  "title": "Response Put Return Inputs",
                   "type": "object"
                 }
               }
@@ -5522,7 +8372,7 @@
     },
     "/api/returns/{rid}/populate": {
       "post": {
-        "operationId": "populate_return_api_returns__rid__populate_post",
+        "operationId": "populate_return",
         "parameters": [
           {
             "in": "path",
@@ -5550,7 +8400,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Populate Return Api Returns  Rid  Populate Post",
+                  "title": "Response Populate Return",
                   "type": "object"
                 }
               }
@@ -5574,7 +8424,7 @@
     "/api/returns/{rid}/recalculation-preview": {
       "get": {
         "description": "What the return would be under today's rules; never stored on a filed return.",
-        "operationId": "return_recalc_preview_api_returns__rid__recalculation_preview_get",
+        "operationId": "return_recalc_preview",
         "parameters": [
           {
             "in": "path",
@@ -5602,7 +8452,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Return Recalc Preview Api Returns  Rid  Recalculation Preview Get",
+                  "title": "Response Return Recalc Preview",
                   "type": "object"
                 }
               }
@@ -5626,7 +8476,7 @@
     "/api/returns/{rid}/void": {
       "post": {
         "description": "A CPA voids a return that will not be filed through AgentLedger (abandoned, or filed with other software).",
-        "operationId": "void_return_api_returns__rid__void_post",
+        "operationId": "void_return",
         "parameters": [
           {
             "in": "path",
@@ -5666,7 +8516,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Void Return Api Returns  Rid  Void Post",
+                  "title": "Response Void Return",
                   "type": "object"
                 }
               }
@@ -5689,7 +8539,7 @@
     },
     "/api/returns/{rid}/{action}": {
       "post": {
-        "operationId": "return_action_api_returns__rid___action__post",
+        "operationId": "return_action",
         "parameters": [
           {
             "in": "path",
@@ -5738,7 +8588,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Return Action Api Returns  Rid   Action  Post",
+                  "title": "Response Return Action",
                   "type": "object"
                 }
               }
@@ -5761,7 +8611,7 @@
     },
     "/api/rules": {
       "get": {
-        "operationId": "rules_api_rules_get",
+        "operationId": "rules",
         "parameters": [
           {
             "in": "header",
@@ -5783,7 +8633,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Rules Api Rules Get",
+                  "title": "Response Rules",
                   "type": "array"
                 }
               }
@@ -5806,7 +8656,7 @@
     },
     "/api/rules/{rule_id}": {
       "get": {
-        "operationId": "rule_api_rules__rule_id__get",
+        "operationId": "rule",
         "parameters": [
           {
             "in": "path",
@@ -5834,7 +8684,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Rule Api Rules  Rule Id  Get",
+                  "title": "Response Rule",
                   "type": "object"
                 }
               }
@@ -5857,7 +8707,7 @@
     },
     "/api/staleness": {
       "get": {
-        "operationId": "staleness_api_staleness_get",
+        "operationId": "staleness",
         "parameters": [
           {
             "in": "header",
@@ -5879,7 +8729,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Staleness Api Staleness Get",
+                  "title": "Response Staleness",
                   "type": "array"
                 }
               }
@@ -5902,7 +8752,7 @@
     },
     "/api/tasks": {
       "get": {
-        "operationId": "list_tasks_api_tasks_get",
+        "operationId": "list_tasks",
         "parameters": [
           {
             "in": "query",
@@ -5937,10 +8787,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/Task"
                   },
-                  "title": "Response List Tasks Api Tasks Get",
+                  "title": "Response List Tasks",
                   "type": "array"
                 }
               }
@@ -5961,7 +8810,7 @@
         "summary": "List Tasks"
       },
       "post": {
-        "operationId": "new_task_api_tasks_post",
+        "operationId": "new_task",
         "parameters": [
           {
             "in": "header",
@@ -5992,7 +8841,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response New Task Api Tasks Post",
+                  "title": "Response New Task",
                   "type": "object"
                 }
               }
@@ -6015,7 +8864,7 @@
     },
     "/api/tasks/{task_id}/done": {
       "post": {
-        "operationId": "task_done_api_tasks__task_id__done_post",
+        "operationId": "task_done",
         "parameters": [
           {
             "in": "path",
@@ -6055,7 +8904,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Task Done Api Tasks  Task Id  Done Post",
+                  "title": "Response Task Done",
                   "type": "object"
                 }
               }
@@ -6079,7 +8928,7 @@
     "/api/users": {
       "get": {
         "description": "Demo identity picker. Exists only in dev mode; production sign-in is /api/auth/login.",
-        "operationId": "list_users_api_users_get",
+        "operationId": "list_users",
         "responses": {
           "200": {
             "content": {
@@ -6089,7 +8938,7 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response List Users Api Users Get",
+                  "title": "Response List Users",
                   "type": "array"
                 }
               }
@@ -6103,15 +8952,13 @@
     "/healthz": {
       "get": {
         "description": "Liveness for the edge and the release smoke test (scripts/smoke.py waits for `build` to reach the deployed\ncommit). No firm or platform store is touched.",
-        "operationId": "healthz_healthz_get",
+        "operationId": "healthz",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Healthz Healthz Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             },
@@ -6119,6 +8966,25 @@
           }
         },
         "summary": "Healthz"
+      }
+    },
+    "/legacy": {
+      "get": {
+        "description": "The previous (no-build) interface, reachable at /legacy#/... while the React app (apps/web) owns / at the edge.\nThe same page as /: its asset URLs are absolute (/static/...), so it works from either path.",
+        "operationId": "legacy",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Legacy"
       }
     }
   }

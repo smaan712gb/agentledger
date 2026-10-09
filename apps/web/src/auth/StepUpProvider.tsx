@@ -40,7 +40,7 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const identity = auth.config.identity;
-  const providerAccount = identity === "workos" && auth.me?.auth_method.startsWith("workos:") === true;
+  const providerAccount = identity === "workos" && auth.me?.auth_method?.startsWith("workos:") === true;
 
   useEffect(
     () =>

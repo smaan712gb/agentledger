@@ -1,7 +1,7 @@
 /**
  * This file was generated from openapi.json by `npm run generate` (openapi-typescript). Do not edit it.
- * The API publishes no response schemas yet, so every body is `unknown`; src/types.ts carries the hand-maintained
- * shapes until it does (docs/WEB.md).
+ * openapi.json is written by `python scripts/export_openapi.py` from the API's request and response models
+ * (src/agentledger/api/schemas.py); src/types.ts names the schemas the app uses (docs/WEB.md).
  */
 export interface paths {
     "/": {
@@ -12,7 +12,7 @@ export interface paths {
             cookie?: never;
         };
         /** Index */
-        get: operations["index__get"];
+        get: operations["index"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
             cookie?: never;
         };
         /** Agents */
-        get: operations["agents_api_agents_get"];
+        get: operations["agents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -48,7 +48,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Run Agent */
-        post: operations["run_agent_api_agents__agent_id__run_post"];
+        post: operations["run_agent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -65,7 +65,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Ask */
-        post: operations["ask_api_ask_post"];
+        post: operations["ask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -80,7 +80,7 @@ export interface paths {
             cookie?: never;
         };
         /** Audit Trail */
-        get: operations["audit_trail_api_audit_get"];
+        get: operations["audit_trail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -99,7 +99,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Accept */
-        post: operations["auth_accept_api_auth_accept_post"];
+        post: operations["auth_accept"];
         delete?: never;
         options?: never;
         head?: never;
@@ -114,7 +114,7 @@ export interface paths {
             cookie?: never;
         };
         /** Auth Config */
-        get: operations["auth_config_api_auth_config_get"];
+        get: operations["auth_config"];
         put?: never;
         post?: never;
         delete?: never;
@@ -131,7 +131,7 @@ export interface paths {
             cookie?: never;
         };
         /** Auth Events */
-        get: operations["auth_events_api_auth_events_get"];
+        get: operations["auth_events"];
         put?: never;
         post?: never;
         delete?: never;
@@ -152,7 +152,7 @@ export interface paths {
          * @description The provider redirects the browser here. The session token goes to the app in the URL fragment, which is
          *     never sent to a server.
          */
-        get: operations["idp_callback_api_auth_idp_callback_get"];
+        get: operations["idp_callback"];
         put?: never;
         post?: never;
         delete?: never;
@@ -169,7 +169,7 @@ export interface paths {
             cookie?: never;
         };
         /** Idp Start */
-        get: operations["idp_start_api_auth_idp_start_get"];
+        get: operations["idp_start"];
         put?: never;
         post?: never;
         delete?: never;
@@ -188,7 +188,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Invite */
-        post: operations["auth_invite_api_auth_invite_post"];
+        post: operations["auth_invite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -205,7 +205,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Login */
-        post: operations["auth_login_api_auth_login_post"];
+        post: operations["auth_login"];
         delete?: never;
         options?: never;
         head?: never;
@@ -222,7 +222,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Logout */
-        post: operations["auth_logout_api_auth_logout_post"];
+        post: operations["auth_logout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -239,7 +239,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Mfa */
-        post: operations["auth_mfa_api_auth_mfa_post"];
+        post: operations["auth_mfa"];
         delete?: never;
         options?: never;
         head?: never;
@@ -256,7 +256,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Step Up */
-        post: operations["auth_step_up_api_auth_step_up_post"];
+        post: operations["auth_step_up"];
         delete?: never;
         options?: never;
         head?: never;
@@ -271,7 +271,7 @@ export interface paths {
             cookie?: never;
         };
         /** Auth Users */
-        get: operations["auth_users_api_auth_users_get"];
+        get: operations["auth_users"];
         put?: never;
         post?: never;
         delete?: never;
@@ -290,7 +290,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Disable */
-        post: operations["auth_disable_api_auth_users__user_id__disable_post"];
+        post: operations["auth_disable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -305,10 +305,10 @@ export interface paths {
             cookie?: never;
         };
         /** Auth Grants */
-        get: operations["auth_grants_api_auth_users__user_id__grants_get"];
+        get: operations["auth_grants"];
         put?: never;
         /** Auth Grant */
-        post: operations["auth_grant_api_auth_users__user_id__grants_post"];
+        post: operations["auth_grant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -326,7 +326,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Auth Revoke */
-        delete: operations["auth_revoke_api_auth_users__user_id__grants__client_id__delete"];
+        delete: operations["auth_revoke"];
         options?: never;
         head?: never;
         patch?: never;
@@ -342,7 +342,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Auth Reviewer */
-        post: operations["auth_reviewer_api_auth_users__user_id__reviewer_post"];
+        post: operations["auth_reviewer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -357,7 +357,7 @@ export interface paths {
             cookie?: never;
         };
         /** Automations List */
-        get: operations["automations_list_api_automations_get"];
+        get: operations["automations_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -376,7 +376,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Automations Run */
-        post: operations["automations_run_api_automations_run_post"];
+        post: operations["automations_run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -391,7 +391,7 @@ export interface paths {
             cookie?: never;
         };
         /** Calculators */
-        get: operations["calculators_api_calculators_get"];
+        get: operations["calculators"];
         put?: never;
         post?: never;
         delete?: never;
@@ -410,7 +410,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Calculate */
-        post: operations["calculate_api_calculators__name__post"];
+        post: operations["calculate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -425,10 +425,10 @@ export interface paths {
             cookie?: never;
         };
         /** Clients */
-        get: operations["clients_api_clients_get"];
+        get: operations["clients"];
         put?: never;
         /** Create Client */
-        post: operations["create_client_api_clients_post"];
+        post: operations["create_client"];
         delete?: never;
         options?: never;
         head?: never;
@@ -443,7 +443,7 @@ export interface paths {
             cookie?: never;
         };
         /** Client Detail */
-        get: operations["client_detail_api_clients__client_id__get"];
+        get: operations["client_detail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -462,7 +462,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Bank Post */
-        post: operations["bank_post_api_clients__client_id__bank_post_post"];
+        post: operations["bank_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -479,7 +479,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Bank Preview */
-        post: operations["bank_preview_api_clients__client_id__bank_preview_post"];
+        post: operations["bank_preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -496,7 +496,28 @@ export interface paths {
         get?: never;
         put?: never;
         /** Biz Add Deal */
-        post: operations["biz_add_deal_api_clients__client_id__deals_post"];
+        post: operations["biz_add_deal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Documents
+         * @description A client's documents, newest first and paged (deleted ones excluded): the same fields the client detail embeds
+         *     for its 100 most recent. Follow `next_cursor` until it is null.
+         */
+        get: operations["client_documents"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -511,7 +532,7 @@ export interface paths {
             cookie?: never;
         };
         /** Client Entries */
-        get: operations["client_entries_api_clients__client_id__entries_get"];
+        get: operations["client_entries"];
         put?: never;
         post?: never;
         delete?: never;
@@ -530,7 +551,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Reverse Entry */
-        post: operations["reverse_entry_api_clients__client_id__entries__entry_id__reverse_post"];
+        post: operations["reverse_entry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -545,7 +566,7 @@ export interface paths {
             cookie?: never;
         };
         /** Export */
-        get: operations["export_api_clients__client_id__export__plugin_id__get"];
+        get: operations["export"];
         put?: never;
         post?: never;
         delete?: never;
@@ -567,8 +588,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Facts */
-        patch: operations["update_facts_api_clients__client_id__facts_patch"];
+        /**
+         * Update Facts
+         * @description Merge the facts sent into the client's profile; a fact sent as null is removed. Returns the whole profile.
+         */
+        patch: operations["update_facts"];
         trace?: never;
     };
     "/api/clients/{client_id}/holds": {
@@ -579,10 +603,10 @@ export interface paths {
             cookie?: never;
         };
         /** Client Holds */
-        get: operations["client_holds_api_clients__client_id__holds_get"];
+        get: operations["client_holds"];
         put?: never;
         /** Place Hold */
-        post: operations["place_hold_api_clients__client_id__holds_post"];
+        post: operations["place_hold"];
         delete?: never;
         options?: never;
         head?: never;
@@ -599,7 +623,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Integrity Run */
-        post: operations["integrity_run_api_clients__client_id__integrity_run_post"];
+        post: operations["integrity_run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -619,7 +643,7 @@ export interface paths {
          * Biz Invoice
          * @description Send an Idempotency-Key header to make retries safe: the same key returns the original invoice.
          */
-        post: operations["biz_invoice_api_clients__client_id__invoices_post"];
+        post: operations["biz_invoice"];
         delete?: never;
         options?: never;
         head?: never;
@@ -636,7 +660,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Biz Pay */
-        post: operations["biz_pay_api_clients__client_id__invoices__invoice_id__pay_post"];
+        post: operations["biz_pay"];
         delete?: never;
         options?: never;
         head?: never;
@@ -651,7 +675,7 @@ export interface paths {
             cookie?: never;
         };
         /** Opportunities */
-        get: operations["opportunities_api_clients__client_id__opportunities_get"];
+        get: operations["opportunities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -668,10 +692,10 @@ export interface paths {
             cookie?: never;
         };
         /** Biz Parties */
-        get: operations["biz_parties_api_clients__client_id__parties_get"];
+        get: operations["biz_parties"];
         put?: never;
         /** Biz Add Party */
-        post: operations["biz_add_party_api_clients__client_id__parties_post"];
+        post: operations["biz_add_party"];
         delete?: never;
         options?: never;
         head?: never;
@@ -691,7 +715,7 @@ export interface paths {
          * Period Action
          * @description Close the books through a date, or reopen them (reviewers only; every change is in the audit trail).
          */
-        post: operations["period_action_api_clients__client_id__periods__action__post"];
+        post: operations["period_action"];
         delete?: never;
         options?: never;
         head?: never;
@@ -706,10 +730,10 @@ export interface paths {
             cookie?: never;
         };
         /** Client Returns */
-        get: operations["client_returns_api_clients__client_id__returns_get"];
+        get: operations["client_returns"];
         put?: never;
         /** Create Return */
-        post: operations["create_return_api_clients__client_id__returns_post"];
+        post: operations["create_return"];
         delete?: never;
         options?: never;
         head?: never;
@@ -730,7 +754,7 @@ export interface paths {
          * @description Record a filing, amendment, payment or 'no return required' that retention counts from (returns filed outside
          *     AgentLedger), with its evidence.
          */
-        post: operations["record_tax_year_event_api_clients__client_id__tax_year_events_post"];
+        post: operations["record_tax_year_event"];
         delete?: never;
         options?: never;
         head?: never;
@@ -745,7 +769,7 @@ export interface paths {
             cookie?: never;
         };
         /** Client Templates */
-        get: operations["client_templates_api_clients__client_id__templates_get"];
+        get: operations["client_templates"];
         put?: never;
         post?: never;
         delete?: never;
@@ -764,7 +788,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Post Template */
-        post: operations["post_template_api_clients__client_id__templates__template_id__post"];
+        post: operations["post_template"];
         delete?: never;
         options?: never;
         head?: never;
@@ -781,7 +805,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Biz Pay Vendor */
-        post: operations["biz_pay_vendor_api_clients__client_id__vendors__party_id__pay_post"];
+        post: operations["biz_pay_vendor"];
         delete?: never;
         options?: never;
         head?: never;
@@ -800,7 +824,7 @@ export interface paths {
          * @description What the product actually supports, per form, year and jurisdiction (spec §7). Read by every signed-in user and
          *     by the deployment smoke check.
          */
-        get: operations["get_coverage_api_coverage_get"];
+        get: operations["get_coverage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -819,7 +843,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Crm New Engagement */
-        post: operations["crm_new_engagement_api_crm_engagements_post"];
+        post: operations["crm_new_engagement"];
         delete?: never;
         options?: never;
         head?: never;
@@ -836,7 +860,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Crm Stage */
-        post: operations["crm_stage_api_crm_engagements__eid__stage_post"];
+        post: operations["crm_stage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -851,7 +875,7 @@ export interface paths {
             cookie?: never;
         };
         /** Crm Pipeline */
-        get: operations["crm_pipeline_api_crm_pipeline_get"];
+        get: operations["crm_pipeline"];
         put?: never;
         post?: never;
         delete?: never;
@@ -868,7 +892,7 @@ export interface paths {
             cookie?: never;
         };
         /** Dashboard */
-        get: operations["dashboard_api_dashboard_get"];
+        get: operations["dashboard"];
         put?: never;
         post?: never;
         delete?: never;
@@ -887,7 +911,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Biz Deal Stage */
-        post: operations["biz_deal_stage_api_deals__deal_id__stage_post"];
+        post: operations["biz_deal_stage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -904,7 +928,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Design */
-        post: operations["design_api_design__what__post"];
+        post: operations["design"];
         delete?: never;
         options?: never;
         head?: never;
@@ -924,7 +948,7 @@ export interface paths {
          * Assign Doc
          * @description File a review-queue document to a client, or move a filed one (a reviewer, with a reason on record).
          */
-        post: operations["assign_doc_api_documents__doc_id__assign_post"];
+        post: operations["assign_doc"];
         delete?: never;
         options?: never;
         head?: never;
@@ -945,7 +969,7 @@ export interface paths {
          * @description A CPA records that the property a basis record supports was disposed of: the record is then kept as a tax record
          *     of the disposition year.
          */
-        post: operations["release_document_basis_api_documents__doc_id__basis_release_post"];
+        post: operations["release_document_basis"];
         delete?: never;
         options?: never;
         head?: never;
@@ -959,8 +983,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Doc File */
-        get: operations["doc_file_api_documents__doc_id__file_get"];
+        /**
+         * Doc File
+         * @description The document's bytes, as a download (`Content-Disposition: attachment`, application/octet-stream). With
+         *     `inline=1`, a PDF, PNG or JPEG is served inline with its real media type inside a sandbox
+         *     (`Content-Security-Policy: sandbox; default-src 'none'`, `X-Content-Type-Options: nosniff`) so the app can show it;
+         *     every other type stays a download. Either way a signed link (`dl`) stands in for the session header.
+         */
+        get: operations["doc_file"];
         put?: never;
         post?: never;
         delete?: never;
@@ -980,13 +1010,13 @@ export interface paths {
          * Document Retention
          * @description When a document may be deleted, computed now (or why it may not be yet), its hold and the years it supports.
          */
-        get: operations["document_retention_api_documents__doc_id__retention_get"];
+        get: operations["document_retention"];
         put?: never;
         /**
          * Confirm Document Retention
          * @description A CPA confirms a document's tax year (or that it has none) and retention class; until then it is never deleted.
          */
-        post: operations["confirm_document_retention_api_documents__doc_id__retention_post"];
+        post: operations["confirm_document_retention"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1001,7 +1031,7 @@ export interface paths {
             cookie?: never;
         };
         /** Doc Versions */
-        get: operations["doc_versions_api_documents__doc_id__versions_get"];
+        get: operations["doc_versions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1018,7 +1048,7 @@ export interface paths {
             cookie?: never;
         };
         /** Review Queue */
-        get: operations["review_queue_api_documents_review_get"];
+        get: operations["review_queue"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1037,7 +1067,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Upload */
-        post: operations["upload_api_documents_upload_post"];
+        post: operations["upload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1055,7 +1085,7 @@ export interface paths {
          * Evidence Due
          * @description What a retention run would delete today (held documents excluded).
          */
-        get: operations["evidence_due_api_evidence_due_get"];
+        get: operations["evidence_due"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1076,7 +1106,7 @@ export interface paths {
          * @description Live documents whose bytes are missing, deletions not finished, and (verify=true) every stored object read back
          *     and authenticated against its recorded hash.
          */
-        get: operations["evidence_integrity_api_evidence_integrity_get"];
+        get: operations["evidence_integrity"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1098,7 +1128,7 @@ export interface paths {
          * Evidence Purge
          * @description Delete evidence whose retention has ended. Never automatic; each deletion leaves a receipt.
          */
-        post: operations["evidence_purge_api_evidence_purge_post"];
+        post: operations["evidence_purge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1115,7 +1145,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Resolve Finding */
-        post: operations["resolve_finding_api_findings__finding_id__resolve_post"];
+        post: operations["resolve_finding"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1132,7 +1162,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Release Hold */
-        post: operations["release_hold_api_holds__hold_id__release_post"];
+        post: operations["release_hold"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1149,7 +1179,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Inbound Hook */
-        post: operations["inbound_hook_api_hooks__firm_id___client_id__post"];
+        post: operations["inbound_hook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1166,7 +1196,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Make Link */
-        post: operations["make_link_api_links_post"];
+        post: operations["make_link"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1181,7 +1211,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Me */
-        get: operations["get_me_api_me_get"];
+        get: operations["get_me"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1198,7 +1228,7 @@ export interface paths {
             cookie?: never;
         };
         /** Messages */
-        get: operations["messages_api_messages_get"];
+        get: operations["messages"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1217,7 +1247,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Send */
-        post: operations["send_api_messages__mid__send_post"];
+        post: operations["send"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1232,7 +1262,7 @@ export interface paths {
             cookie?: never;
         };
         /** Models */
-        get: operations["models_api_models_get"];
+        get: operations["models"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1249,7 +1279,27 @@ export interface paths {
             cookie?: never;
         };
         /** Oss */
-        get: operations["oss_api_oss_get"];
+        get: operations["oss"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Packs
+         * @description The industry packs a client can be onboarded on (domains/*.yaml), shared by every firm.
+         */
+        get: operations["packs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1266,10 +1316,27 @@ export interface paths {
             cookie?: never;
         };
         /** Platform Firms */
-        get: operations["platform_firms_api_platform_firms_get"];
+        get: operations["platform_firms"];
         put?: never;
         /** Platform Create Firm */
-        post: operations["platform_create_firm_api_platform_firms_post"];
+        post: operations["platform_create_firm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/firms/{firm_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platform Firm */
+        get: operations["platform_firm"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1289,7 +1356,7 @@ export interface paths {
          * Platform Sso Mfa
          * @description Record (or revoke) that an organization's own identity provider enforces MFA, so its SSO sign-ins count.
          */
-        post: operations["platform_sso_mfa_api_platform_sso_mfa_post"];
+        post: operations["platform_sso_mfa"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1304,7 +1371,7 @@ export interface paths {
             cookie?: never;
         };
         /** Playbooks */
-        get: operations["playbooks_api_playbooks_get"];
+        get: operations["playbooks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1321,7 +1388,7 @@ export interface paths {
             cookie?: never;
         };
         /** Plugins */
-        get: operations["plugins_api_plugins_get"];
+        get: operations["plugins"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1340,7 +1407,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Plugin Run */
-        post: operations["plugin_run_api_plugins__plugin_id__run_post"];
+        post: operations["plugin_run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1360,7 +1427,7 @@ export interface paths {
          * Request Connector
          * @description Ask the AI Engineer to build a catalog connector (becomes a work item; result needs approval).
          */
-        post: operations["request_connector_api_plugins_request_post"];
+        post: operations["request_connector"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1377,7 +1444,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** New Precedent */
-        post: operations["new_precedent_api_precedents_post"];
+        post: operations["new_precedent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1392,7 +1459,7 @@ export interface paths {
             cookie?: never;
         };
         /** Proposals */
-        get: operations["proposals_api_proposals_get"];
+        get: operations["proposals"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1409,7 +1476,7 @@ export interface paths {
             cookie?: never;
         };
         /** Proposal */
-        get: operations["proposal_api_proposals__pid__get"];
+        get: operations["proposal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1428,7 +1495,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Decide */
-        post: operations["decide_api_proposals__pid___decision__post"];
+        post: operations["decide"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1443,7 +1510,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Return */
-        get: operations["get_return_api_returns__rid__get"];
+        get: operations["get_return"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1462,7 +1529,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Return Action */
-        post: operations["return_action_api_returns__rid___action__post"];
+        post: operations["return_action"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1479,7 +1546,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Return Amend */
-        post: operations["return_amend_api_returns__rid__amend_post"];
+        post: operations["return_amend"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1496,7 +1563,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Compute Return */
-        post: operations["compute_return_api_returns__rid__compute_post"];
+        post: operations["compute_return"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1513,7 +1580,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Confirm Return Amounts */
-        post: operations["confirm_return_amounts_api_returns__rid__confirm_post"];
+        post: operations["confirm_return_amounts"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1531,7 +1598,7 @@ export interface paths {
          * Return Conflicts
          * @description Where a document disagrees with what the return holds (nothing was overwritten).
          */
-        get: operations["return_conflicts_api_returns__rid__conflicts_get"];
+        get: operations["return_conflicts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1550,7 +1617,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Resolve Return Conflict */
-        post: operations["resolve_return_conflict_api_returns__rid__conflicts__conflict_id__post"];
+        post: operations["resolve_return_conflict"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1570,7 +1637,7 @@ export interface paths {
          * Return Document Disposition
          * @description Account for a filed document the return does not use: entered by hand, or not applicable, with a reason.
          */
-        post: operations["return_document_disposition_api_returns__rid__documents__doc_id__disposition_post"];
+        post: operations["return_document_disposition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1588,7 +1655,7 @@ export interface paths {
          * Return Fact History
          * @description Every value a field has had, where each came from, and what it superseded.
          */
-        get: operations["return_fact_history_api_returns__rid__facts_get"];
+        get: operations["return_fact_history"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1606,7 +1673,7 @@ export interface paths {
         };
         get?: never;
         /** Put Return Inputs */
-        put: operations["put_return_inputs_api_returns__rid__inputs_put"];
+        put: operations["put_return_inputs"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1624,7 +1691,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Populate Return */
-        post: operations["populate_return_api_returns__rid__populate_post"];
+        post: operations["populate_return"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1642,7 +1709,7 @@ export interface paths {
          * Return Recalc Preview
          * @description What the return would be under today's rules; never stored on a filed return.
          */
-        get: operations["return_recalc_preview_api_returns__rid__recalculation_preview_get"];
+        get: operations["return_recalc_preview"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1664,7 +1731,7 @@ export interface paths {
          * Void Return
          * @description A CPA voids a return that will not be filed through AgentLedger (abandoned, or filed with other software).
          */
-        post: operations["void_return_api_returns__rid__void_post"];
+        post: operations["void_return"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1685,7 +1752,7 @@ export interface paths {
          * @description Compute a Form 1040 from facts and source documents. Nothing is stored (so the deployment smoke check may
          *     call it too).
          */
-        post: operations["compute_individual_return_api_returns_individual_post"];
+        post: operations["compute_individual_return"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1700,7 +1767,7 @@ export interface paths {
             cookie?: never;
         };
         /** Rules */
-        get: operations["rules_api_rules_get"];
+        get: operations["rules"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1717,7 +1784,7 @@ export interface paths {
             cookie?: never;
         };
         /** Rule */
-        get: operations["rule_api_rules__rule_id__get"];
+        get: operations["rule"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1734,7 +1801,7 @@ export interface paths {
             cookie?: never;
         };
         /** Staleness */
-        get: operations["staleness_api_staleness_get"];
+        get: operations["staleness"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1751,10 +1818,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Tasks */
-        get: operations["list_tasks_api_tasks_get"];
+        get: operations["list_tasks"];
         put?: never;
         /** New Task */
-        post: operations["new_task_api_tasks_post"];
+        post: operations["new_task"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1771,7 +1838,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Task Done */
-        post: operations["task_done_api_tasks__task_id__done_post"];
+        post: operations["task_done"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1789,7 +1856,7 @@ export interface paths {
          * List Users
          * @description Demo identity picker. Exists only in dev mode; production sign-in is /api/auth/login.
          */
-        get: operations["list_users_api_users_get"];
+        get: operations["list_users"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1810,7 +1877,28 @@ export interface paths {
          * @description Liveness for the edge and the release smoke test (scripts/smoke.py waits for `build` to reach the deployed
          *     commit). No firm or platform store is touched.
          */
-        get: operations["healthz_healthz_get"];
+        get: operations["healthz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/legacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Legacy
+         * @description The previous (no-build) interface, reachable at /legacy#/... while the React app (apps/web) owns / at the edge.
+         *     The same page as /: its asset URLs are absolute (/static/...), so it works from either path.
+         */
+        get: operations["legacy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1823,17 +1911,1012 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** Body_upload_api_documents_upload_post */
-        Body_upload_api_documents_upload_post: {
+        /** AcceptRequest */
+        AcceptRequest: {
+            /** Name */
+            name: string;
+            /** Password */
+            password: string;
+            /** Token */
+            token: string;
+        };
+        /**
+         * AssignedDocument
+         * @description The document row after filing.
+         */
+        AssignedDocument: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** AssignRequest */
+        AssignRequest: {
+            /** Client Id */
+            client_id: string;
+            /**
+             * Move Reason
+             * @description required (10+ characters) to move a document already filed elsewhere
+             */
+            move_reason?: string | null;
+        };
+        /** AuthConfig */
+        AuthConfig: {
+            /**
+             * Identity
+             * @description AGENTLEDGER_IDENTITY: 'local' (password + one-time code) or 'workos'
+             */
+            identity: string;
+            /**
+             * Password Sign In
+             * @description true, or 'platform administrators only' when firms sign in through the provider
+             */
+            password_sign_in: boolean | string;
+        };
+        /** AuthEvent */
+        AuthEvent: {
+            /** At */
+            at: string;
+            /** Detail */
+            detail?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Event */
+            event: string;
+            /** Firm Id */
+            firm_id?: string | null;
+            /** Id */
+            id: number;
+            /** Ip */
+            ip?: string | null;
+            /** User Id */
+            user_id?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** Balance */
+        Balance: {
+            /** Balance */
+            balance: string;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** Body_upload */
+        Body_upload: {
             /** Client Id */
             client_id?: string | null;
             /** File */
             file: string;
         };
+        /** ChainStatus */
+        ChainStatus: {
+            /** Broken At */
+            broken_at?: number | string | null;
+            /** Checked */
+            checked: number;
+            /** Head */
+            head?: string | null;
+            /** Ok */
+            ok: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * Client
+         * @description A row of the clients table (ledger/store.py), JSON columns parsed.
+         */
+        Client: {
+            /** Aliases */
+            aliases: string[];
+            /**
+             * Closed Through
+             * @description ISO date; postings on or before it are frozen
+             */
+            closed_through: string | null;
+            /** Consent 7216 At */
+            consent_7216_at: string | null;
+            /** Created At */
+            created_at: string;
+            /** Domain */
+            domain: string;
+            /** Emails */
+            emails: string[];
+            /** Entity Type */
+            entity_type: string | null;
+            facts: components["schemas"]["ClientFacts"];
+            /** Formed Under */
+            formed_under: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "business" | "individual";
+            /** Name */
+            name: string;
+            /** Tax Id Last4 */
+            tax_id_last4: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** ClientDetail */
+        ClientDetail: {
+            /**
+             * Ar
+             * @description business clients only
+             */
+            ar?: {
+                [key: string]: unknown;
+            } | null;
+            /** Balances */
+            balances: components["schemas"]["Balance"][];
+            chain: components["schemas"]["ChainStatus"];
+            client: components["schemas"]["Client"];
+            /** Deadlines */
+            deadlines: components["schemas"]["Deadline"][];
+            /**
+             * Deals
+             * @description business clients only
+             */
+            deals?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Documents
+             * @description the 100 most recent; the full list is paged at /documents
+             */
+            documents: components["schemas"]["ClientDocument"][];
+            /** Findings */
+            findings: components["schemas"]["Finding"][];
+            /** Integrity */
+            integrity: number;
+            /** Kpis */
+            kpis: components["schemas"]["Kpi"][];
+            /**
+             * M1
+             * @description business clients only
+             */
+            m1?: {
+                [key: string]: unknown;
+            } | null;
+            /** Opportunities */
+            opportunities: components["schemas"]["Opportunity"][];
+            pack?: components["schemas"]["PackSummary"] | null;
+            /** Tasks */
+            tasks: components["schemas"]["Task"][];
+            /**
+             * Vendors 1099
+             * @description business clients only
+             */
+            vendors_1099?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Year */
+            year: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ClientDocument
+         * @description A document as the client detail and GET /api/clients/{id}/documents list them.
+         */
+        ClientDocument: {
+            /** Channel */
+            channel: string;
+            /** Classified By */
+            classified_by?: string | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Doc Type */
+            doc_type?: string | null;
+            /** Id */
+            id: string;
+            /** Original Name */
+            original_name: string;
+            /** Received At */
+            received_at: string;
+            /**
+             * Status
+             * @description filed, or needs_review
+             */
+            status: string;
+            /** Summary */
+            summary?: string | null;
+            /** Tax Year */
+            tax_year?: number | null;
+            /** Vault Path */
+            vault_path?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ClientFacts
+         * @description Profile facts are free-form; the keys the app reads by name are declared. PATCH /api/clients/{id}/facts merges
+         *     the keys sent; a key sent as null is removed.
+         */
+        ClientFacts: {
+            /** Accounting Basis */
+            accounting_basis?: string | null;
+            /** Employees */
+            employees?: number | string | null;
+            /** State */
+            state?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** CreateClientRequest */
+        CreateClientRequest: {
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases?: string[];
+            /** Consent 7216 At */
+            consent_7216_at?: string | null;
+            /**
+             * Domain
+             * @default general
+             */
+            domain?: string;
+            /**
+             * Emails
+             * @default []
+             */
+            emails?: string[];
+            /** Entity Type */
+            entity_type?: string | null;
+            facts?: components["schemas"]["ClientFacts"];
+            /**
+             * Formed Under
+             * @default domestic
+             */
+            formed_under?: string;
+            /**
+             * Id
+             * @description lowercase letters, digits, '-' or '_'; up to 64 characters
+             */
+            id: string;
+            /**
+             * Kind
+             * @default business
+             * @enum {string}
+             */
+            kind?: "business" | "individual";
+            /** Name */
+            name: string;
+            /** Tax Id Last4 */
+            tax_id_last4?: string | null;
+        };
+        /** CreateClientResult */
+        CreateClientResult: {
+            /** Accounts Created */
+            accounts_created: number;
+            /** Id */
+            id: string;
+        };
+        /** CreateFirmRequest */
+        CreateFirmRequest: {
+            /** Admin Email */
+            admin_email: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** CreateFirmResult */
+        CreateFirmResult: {
+            /** Admin Invite Token */
+            admin_invite_token: string;
+            firm: components["schemas"]["Firm"];
+        };
+        /**
+         * Dashboard
+         * @description GET /api/dashboard: the cards every role gets, the firm's work for CPAs, the client's tasks for a client.
+         */
+        Dashboard: {
+            /** Adopted */
+            adopted?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Ai */
+            ai?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ai Usage */
+            ai_usage?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Clients */
+            clients: components["schemas"]["DashboardCard"][];
+            /** Kb */
+            kb?: {
+                [key: string]: unknown;
+            } | null;
+            /** Pending */
+            pending?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Review Queue */
+            review_queue?: number | null;
+            /** Runs */
+            runs?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Staleness */
+            staleness?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Tasks */
+            tasks?: components["schemas"]["Task"][] | null;
+            /** Today */
+            today: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** DashboardCard */
+        DashboardCard: {
+            /** Docs This Month */
+            docs_this_month: number;
+            /** Domain */
+            domain: string;
+            /** Id */
+            id: string;
+            /** Integrity */
+            integrity: number;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Open Findings */
+            open_findings: number;
+            /** Open Tasks */
+            open_tasks: number;
+        };
+        /** Deadline */
+        Deadline: {
+            /** Citation */
+            citation?: string | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Days */
+            days: number;
+            /** Due */
+            due: string;
+            /** Form */
+            form?: string | null;
+            /** Id */
+            id?: string | null;
+            /** Title */
+            title: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** DisableRequest */
+        DisableRequest: {
+            /**
+             * Disabled
+             * @default true
+             */
+            disabled?: boolean;
+        };
+        /**
+         * DocumentPage
+         * @description One page of a client's documents, newest first; `next_cursor` is null on the last page.
+         */
+        DocumentPage: {
+            /** Items */
+            items: components["schemas"]["ClientDocument"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Total
+             * @description the client's documents not deleted under retention, all pages
+             */
+            total: number;
+        };
+        /**
+         * DocumentVersion
+         * @description A stored version of a document (the storage locator is withheld).
+         */
+        DocumentVersion: {
+            /** Created At */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+            /** Document Id */
+            document_id: string;
+            /** Reason */
+            reason: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size */
+            size: number;
+            /** Version */
+            version: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * DuplicateDocument
+         * @description The same bytes were stored before: nothing new was written.
+         */
+        DuplicateDocument: {
+            /** Client Id */
+            client_id?: string | null;
+            /**
+             * Duplicate
+             * @constant
+             */
+            duplicate: true;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Vault Path */
+            vault_path?: string | null;
+        };
+        /** Engagement */
+        Engagement: {
+            /** Client Id */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Fee */
+            fee?: string | null;
+            /** Id */
+            id: number;
+            /** Open Tasks */
+            open_tasks: number;
+            /** Owner */
+            owner?: string | null;
+            /** Stage */
+            stage: string;
+            /** Tax Year */
+            tax_year?: number | null;
+            /** Type */
+            type: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * EnrolStep
+         * @description The account's first sign-in (or an accepted invitation): enrol the authenticator with this secret.
+         */
+        EnrolStep: {
+            /** Challenge */
+            challenge: string;
+            /**
+             * Next
+             * @constant
+             */
+            next: "enroll";
+            /** Otpauth Uri */
+            otpauth_uri: string;
+            /** Secret */
+            secret: string;
+        };
+        /** Finding */
+        Finding: {
+            /** Check Id */
+            check_id: string;
+            /** Citation */
+            citation?: string | null;
+            /** Client Id */
+            client_id: string;
+            /** Detail */
+            detail: string;
+            /** Evidence */
+            evidence?: unknown;
+            /** First Seen */
+            first_seen: string;
+            /** Id */
+            id: string;
+            /**
+             * Owner
+             * @enum {string}
+             */
+            owner: "client" | "cpa" | "both";
+            /**
+             * Resolutions
+             * @default []
+             */
+            resolutions?: components["schemas"]["FindingResolution"][];
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "low" | "medium" | "high" | "critical";
+            /** Status */
+            status: string;
+            /** Tax Year */
+            tax_year?: number | null;
+            /** Title */
+            title: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** FindingResolution */
+        FindingResolution: {
+            /** Action */
+            action: string;
+            /** Actor */
+            actor: string;
+            /** At */
+            at: string;
+            /** Finding Id */
+            finding_id?: string | null;
+            /** Id */
+            id?: number | null;
+            /** Note */
+            note: string;
+            /** Role */
+            role: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** Firm */
+        Firm: {
+            /** Created At */
+            created_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @description active, provisioning, or deleting
+             */
+            status: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * FirmRef
+         * @description The firm a session belongs to, as GET /api/me names it.
+         */
+        FirmRef: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * FirmUser
+         * @description A firm member as GET /api/auth/users lists them (platform.py `public_user`).
+         */
+        FirmUser: {
+            /** Client Id */
+            client_id: string | null;
+            /** Disabled */
+            disabled: boolean;
+            /** Email */
+            email: string;
+            /**
+             * Engaged
+             * @description staff only: the clients they are engaged on
+             */
+            engaged?: string[] | null;
+            /** Firm Id */
+            firm_id: string;
+            /** Id */
+            id: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Mfa Enrolled At */
+            mfa_enrolled_at: string | null;
+            /** Name */
+            name: string;
+            /** Reviewer */
+            reviewer: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "platform_admin" | "firm_admin" | "cpa" | "staff" | "client";
+        } & {
+            [key: string]: unknown;
+        };
+        /** Health */
+        Health: {
+            /** Backend */
+            backend: string;
+            /**
+             * Build
+             * @description AGENTLEDGER_BUILD or the BUILD_SHA file; 'dev' in a checkout
+             */
+            build: string;
+            /** Ok */
+            ok: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IdpStart */
+        IdpStart: {
+            /**
+             * Url
+             * @description the identity provider's hosted sign-in page; the agentledger_idp cookie binds the browser
+             */
+            url: string;
+        };
+        /**
+         * IngestedDocument
+         * @description One part of an upload that was stored (intake/pipeline.py `ingest`; a zip or an email yields several).
+         */
+        IngestedDocument: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Confidence */
+            confidence: number;
+            /** Doc Type */
+            doc_type?: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Match
+             * @description how the client was matched
+             */
+            match: string;
+            /** Name */
+            name: string;
+            /** Retention Class */
+            retention_class?: string | null;
+            /**
+             * Status
+             * @description filed, or needs_review (waiting in the inbox)
+             */
+            status: string;
+            /** Suggested Client */
+            suggested_client?: string | null;
+            /** Tax Year */
+            tax_year?: number | null;
+            /** Vault Path */
+            vault_path?: string | null;
+        };
+        /** InviteRequest */
+        InviteRequest: {
+            /**
+             * Client Id
+             * @description required for a client user
+             */
+            client_id?: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Firm Id
+             * @description platform administrators may name the firm; members invite into their own
+             */
+            firm_id?: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "firm_admin" | "cpa" | "staff" | "client";
+        };
+        /** InviteResult */
+        InviteResult: {
+            /** Expires In Days */
+            expires_in_days: number;
+            /** Invite Token */
+            invite_token: string;
+        };
+        /** Kpi */
+        Kpi: {
+            /** Id */
+            id?: string | null;
+            /**
+             * Missing
+             * @description the fact or balance the KPI needs and does not have
+             */
+            missing?: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit?: string;
+            /** Value */
+            value?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** LinkRequest */
+        LinkRequest: {
+            /**
+             * Path
+             * @description /api/documents/{id}/file or /api/clients/{id}/export/{plugin}
+             */
+            path: string;
+        };
+        /** LinkResult */
+        LinkResult: {
+            /** Expires In */
+            expires_in: number;
+            /**
+             * Url
+             * @description the path with a signed `dl` token; a session header is not needed
+             */
+            url: string;
+        };
+        /** LoginRequest */
+        LoginRequest: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /**
+         * Me
+         * @description GET /api/me: the public account, the session, the two role views and the firm.
+         */
+        Me: {
+            /** Auth Method */
+            auth_method?: string | null;
+            /**
+             * Base Role
+             * @enum {string}
+             */
+            base_role: "platform_admin" | "firm_admin" | "cpa" | "staff" | "client";
+            /** Client Id */
+            client_id?: string | null;
+            /**
+             * Disabled
+             * @default false
+             */
+            disabled?: boolean;
+            /** Email */
+            email?: string | null;
+            /**
+             * Engaged
+             * @description staff only: the clients they are engaged on
+             */
+            engaged?: string[] | null;
+            /** @description null for platform administrators */
+            firm?: components["schemas"]["FirmRef"] | null;
+            /** Firm Id */
+            firm_id?: string | null;
+            /** Fresh At */
+            fresh_at?: string | null;
+            /** Id */
+            id: string;
+            /** Last Login At */
+            last_login_at?: string | null;
+            /** Mfa Enrolled At */
+            mfa_enrolled_at?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Reviewer
+             * @default false
+             */
+            reviewer?: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "cpa" | "client" | "platform_admin";
+            /** Session Id */
+            session_id?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** MfaRequest */
+        MfaRequest: {
+            /** Challenge */
+            challenge: string;
+            /** Code */
+            code: string;
+        };
+        /** MfaResult */
+        MfaResult: {
+            /** Token */
+            token: string;
+            user?: components["schemas"]["SessionUser"] | null;
+        };
+        /**
+         * MfaStep
+         * @description A second factor is always required: the account is enrolled, enter the current code.
+         */
+        MfaStep: {
+            /** Challenge */
+            challenge: string;
+            /**
+             * Next
+             * @constant
+             */
+            next: "mfa";
+        };
+        /** Ok */
+        Ok: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok?: boolean;
+        };
+        /** Opportunity */
+        Opportunity: {
+            /** Aggressiveness */
+            aggressiveness?: string | null;
+            /** Category */
+            category: string;
+            /** Freshness */
+            freshness?: unknown;
+            /** Missing Fact */
+            missing_fact?: string | null;
+            /** Playbook Id */
+            playbook_id: string;
+            /**
+             * Status
+             * @description applies, or needs_facts
+             */
+            status: string;
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * Pack
+         * @description An industry pack (domains/*.yaml) a client can be onboarded on.
+         */
+        Pack: {
+            /** Description */
+            description: string;
+            /** Facts */
+            facts: string[];
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /** PackSummary */
+        PackSummary: {
+            /** Description */
+            description: string;
+            /** Facts */
+            facts: string[];
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * ReviewDocument
+         * @description A document waiting in the review queue (GET /api/documents/review).
+         */
+        ReviewDocument: {
+            /** Channel */
+            channel: string;
+            /** Classified By */
+            classified_by?: string | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Doc Type */
+            doc_type?: string | null;
+            /** Id */
+            id: string;
+            /** Original Name */
+            original_name: string;
+            /** Received At */
+            received_at: string;
+            /** Sender */
+            sender?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Tax Year */
+            tax_year?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * SessionUser
+         * @description The person a fresh session belongs to (platform.py `session_user`).
+         */
+        SessionUser: {
+            /** Auth Method */
+            auth_method?: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Disabled */
+            disabled: boolean;
+            /** Email */
+            email: string;
+            /**
+             * Engaged
+             * @description staff only: the clients they are engaged on
+             */
+            engaged?: string[] | null;
+            /** Firm Id */
+            firm_id: string;
+            /** Fresh At */
+            fresh_at?: string | null;
+            /** Id */
+            id: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Mfa Enrolled At */
+            mfa_enrolled_at: string | null;
+            /** Name */
+            name: string;
+            /** Reviewer */
+            reviewer: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "platform_admin" | "firm_admin" | "cpa" | "staff" | "client";
+            /** Session Id */
+            session_id: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** StepUpRequest */
+        StepUpRequest: {
+            /** Code */
+            code: string;
+        };
+        /** Task */
+        Task: {
+            /** Assignee */
+            assignee: string;
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Name */
+            client_name?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail?: string;
+            /** Done At */
+            done_at?: string | null;
+            /** Done Note */
+            done_note?: string | null;
+            /** Due */
+            due?: string | null;
+            /** Engagement Id */
+            engagement_id?: number | null;
+            /** Id */
+            id: number;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        } & {
+            [key: string]: unknown;
         };
         /** ValidationError */
         ValidationError: {
@@ -1857,7 +2940,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    index__get: {
+    index: {
         parameters: {
             query?: never;
             header?: never;
@@ -1877,7 +2960,7 @@ export interface operations {
             };
         };
     };
-    agents_api_agents_get: {
+    agents: {
         parameters: {
             query?: never;
             header?: {
@@ -1910,7 +2993,7 @@ export interface operations {
             };
         };
     };
-    run_agent_api_agents__agent_id__run_post: {
+    run_agent: {
         parameters: {
             query?: never;
             header?: {
@@ -1945,7 +3028,7 @@ export interface operations {
             };
         };
     };
-    ask_api_ask_post: {
+    ask: {
         parameters: {
             query?: never;
             header?: {
@@ -1982,7 +3065,7 @@ export interface operations {
             };
         };
     };
-    audit_trail_api_audit_get: {
+    audit_trail: {
         parameters: {
             query?: {
                 client_id?: string | null;
@@ -2017,7 +3100,7 @@ export interface operations {
             };
         };
     };
-    auth_accept_api_auth_accept_post: {
+    auth_accept: {
         parameters: {
             query?: never;
             header?: never;
@@ -2026,9 +3109,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["AcceptRequest"];
             };
         };
         responses: {
@@ -2038,9 +3119,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["EnrolStep"];
                 };
             };
             /** @description Validation Error */
@@ -2054,7 +3133,7 @@ export interface operations {
             };
         };
     };
-    auth_config_api_auth_config_get: {
+    auth_config: {
         parameters: {
             query?: never;
             header?: never;
@@ -2069,14 +3148,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AuthConfig"];
                 };
             };
         };
     };
-    auth_events_api_auth_events_get: {
+    auth_events: {
         parameters: {
             query?: never;
             header?: {
@@ -2093,9 +3170,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["AuthEvent"][];
                 };
             };
             /** @description Validation Error */
@@ -2109,7 +3184,7 @@ export interface operations {
             };
         };
     };
-    idp_callback_api_auth_idp_callback_get: {
+    idp_callback: {
         parameters: {
             query?: {
                 code?: string;
@@ -2141,7 +3216,7 @@ export interface operations {
             };
         };
     };
-    idp_start_api_auth_idp_start_get: {
+    idp_start: {
         parameters: {
             query?: {
                 invite?: string;
@@ -2161,7 +3236,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["IdpStart"];
                 };
             };
             /** @description Validation Error */
@@ -2175,7 +3250,7 @@ export interface operations {
             };
         };
     };
-    auth_invite_api_auth_invite_post: {
+    auth_invite: {
         parameters: {
             query?: never;
             header?: {
@@ -2186,9 +3261,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["InviteRequest"];
             };
         };
         responses: {
@@ -2198,9 +3271,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["InviteResult"];
                 };
             };
             /** @description Validation Error */
@@ -2214,7 +3285,7 @@ export interface operations {
             };
         };
     };
-    auth_login_api_auth_login_post: {
+    auth_login: {
         parameters: {
             query?: never;
             header?: never;
@@ -2223,9 +3294,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["LoginRequest"];
             };
         };
         responses: {
@@ -2235,9 +3304,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MfaStep"] | components["schemas"]["EnrolStep"];
                 };
             };
             /** @description Validation Error */
@@ -2251,7 +3318,7 @@ export interface operations {
             };
         };
     };
-    auth_logout_api_auth_logout_post: {
+    auth_logout: {
         parameters: {
             query?: never;
             header?: {
@@ -2268,9 +3335,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Ok"];
                 };
             };
             /** @description Validation Error */
@@ -2284,7 +3349,7 @@ export interface operations {
             };
         };
     };
-    auth_mfa_api_auth_mfa_post: {
+    auth_mfa: {
         parameters: {
             query?: never;
             header?: never;
@@ -2293,9 +3358,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["MfaRequest"];
             };
         };
         responses: {
@@ -2305,9 +3368,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MfaResult"];
                 };
             };
             /** @description Validation Error */
@@ -2321,7 +3382,7 @@ export interface operations {
             };
         };
     };
-    auth_step_up_api_auth_step_up_post: {
+    auth_step_up: {
         parameters: {
             query?: never;
             header?: {
@@ -2332,9 +3393,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["StepUpRequest"];
             };
         };
         responses: {
@@ -2344,9 +3403,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Ok"];
                 };
             };
             /** @description Validation Error */
@@ -2360,7 +3417,7 @@ export interface operations {
             };
         };
     };
-    auth_users_api_auth_users_get: {
+    auth_users: {
         parameters: {
             query?: never;
             header?: {
@@ -2377,9 +3434,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["FirmUser"][];
                 };
             };
             /** @description Validation Error */
@@ -2393,7 +3448,7 @@ export interface operations {
             };
         };
     };
-    auth_disable_api_auth_users__user_id__disable_post: {
+    auth_disable: {
         parameters: {
             query?: never;
             header?: {
@@ -2406,9 +3461,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["DisableRequest"] | null;
             };
         };
         responses: {
@@ -2418,9 +3471,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Ok"];
                 };
             };
             /** @description Validation Error */
@@ -2434,7 +3485,7 @@ export interface operations {
             };
         };
     };
-    auth_grants_api_auth_users__user_id__grants_get: {
+    auth_grants: {
         parameters: {
             query?: never;
             header?: {
@@ -2467,7 +3518,7 @@ export interface operations {
             };
         };
     };
-    auth_grant_api_auth_users__user_id__grants_post: {
+    auth_grant: {
         parameters: {
             query?: never;
             header?: {
@@ -2508,7 +3559,7 @@ export interface operations {
             };
         };
     };
-    auth_revoke_api_auth_users__user_id__grants__client_id__delete: {
+    auth_revoke: {
         parameters: {
             query?: never;
             header?: {
@@ -2544,7 +3595,7 @@ export interface operations {
             };
         };
     };
-    auth_reviewer_api_auth_users__user_id__reviewer_post: {
+    auth_reviewer: {
         parameters: {
             query?: never;
             header?: {
@@ -2585,7 +3636,7 @@ export interface operations {
             };
         };
     };
-    automations_list_api_automations_get: {
+    automations_list: {
         parameters: {
             query?: never;
             header?: {
@@ -2618,7 +3669,7 @@ export interface operations {
             };
         };
     };
-    automations_run_api_automations_run_post: {
+    automations_run: {
         parameters: {
             query?: never;
             header?: {
@@ -2651,7 +3702,7 @@ export interface operations {
             };
         };
     };
-    calculators_api_calculators_get: {
+    calculators: {
         parameters: {
             query?: never;
             header?: {
@@ -2684,7 +3735,7 @@ export interface operations {
             };
         };
     };
-    calculate_api_calculators__name__post: {
+    calculate: {
         parameters: {
             query?: never;
             header?: {
@@ -2725,7 +3776,7 @@ export interface operations {
             };
         };
     };
-    clients_api_clients_get: {
+    clients: {
         parameters: {
             query?: never;
             header?: {
@@ -2742,9 +3793,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["Client"][];
                 };
             };
             /** @description Validation Error */
@@ -2758,7 +3807,7 @@ export interface operations {
             };
         };
     };
-    create_client_api_clients_post: {
+    create_client: {
         parameters: {
             query?: never;
             header?: {
@@ -2769,9 +3818,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["CreateClientRequest"];
             };
         };
         responses: {
@@ -2781,9 +3828,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CreateClientResult"];
                 };
             };
             /** @description Validation Error */
@@ -2797,7 +3842,7 @@ export interface operations {
             };
         };
     };
-    client_detail_api_clients__client_id__get: {
+    client_detail: {
         parameters: {
             query?: {
                 year?: number | null;
@@ -2818,9 +3863,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ClientDetail"];
                 };
             };
             /** @description Validation Error */
@@ -2834,7 +3877,7 @@ export interface operations {
             };
         };
     };
-    bank_post_api_clients__client_id__bank_post_post: {
+    bank_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2875,7 +3918,7 @@ export interface operations {
             };
         };
     };
-    bank_preview_api_clients__client_id__bank_preview_post: {
+    bank_preview: {
         parameters: {
             query?: never;
             header?: {
@@ -2916,7 +3959,7 @@ export interface operations {
             };
         };
     };
-    biz_add_deal_api_clients__client_id__deals_post: {
+    biz_add_deal: {
         parameters: {
             query?: never;
             header?: {
@@ -2957,7 +4000,43 @@ export interface operations {
             };
         };
     };
-    client_entries_api_clients__client_id__entries_get: {
+    client_documents: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_entries: {
         parameters: {
             query?: never;
             header?: {
@@ -2992,7 +4071,7 @@ export interface operations {
             };
         };
     };
-    reverse_entry_api_clients__client_id__entries__entry_id__reverse_post: {
+    reverse_entry: {
         parameters: {
             query?: never;
             header?: {
@@ -3034,7 +4113,7 @@ export interface operations {
             };
         };
     };
-    export_api_clients__client_id__export__plugin_id__get: {
+    export: {
         parameters: {
             query?: {
                 dl?: string;
@@ -3070,7 +4149,7 @@ export interface operations {
             };
         };
     };
-    update_facts_api_clients__client_id__facts_patch: {
+    update_facts: {
         parameters: {
             query?: never;
             header?: {
@@ -3083,9 +4162,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ClientFacts"];
             };
         };
         responses: {
@@ -3095,9 +4172,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ClientFacts"];
                 };
             };
             /** @description Validation Error */
@@ -3111,7 +4186,7 @@ export interface operations {
             };
         };
     };
-    client_holds_api_clients__client_id__holds_get: {
+    client_holds: {
         parameters: {
             query?: never;
             header?: {
@@ -3146,7 +4221,7 @@ export interface operations {
             };
         };
     };
-    place_hold_api_clients__client_id__holds_post: {
+    place_hold: {
         parameters: {
             query?: never;
             header?: {
@@ -3187,7 +4262,7 @@ export interface operations {
             };
         };
     };
-    integrity_run_api_clients__client_id__integrity_run_post: {
+    integrity_run: {
         parameters: {
             query?: {
                 year?: number | null;
@@ -3224,7 +4299,7 @@ export interface operations {
             };
         };
     };
-    biz_invoice_api_clients__client_id__invoices_post: {
+    biz_invoice: {
         parameters: {
             query?: never;
             header?: {
@@ -3266,7 +4341,7 @@ export interface operations {
             };
         };
     };
-    biz_pay_api_clients__client_id__invoices__invoice_id__pay_post: {
+    biz_pay: {
         parameters: {
             query?: never;
             header?: {
@@ -3303,7 +4378,7 @@ export interface operations {
             };
         };
     };
-    opportunities_api_clients__client_id__opportunities_get: {
+    opportunities: {
         parameters: {
             query?: never;
             header?: {
@@ -3338,7 +4413,7 @@ export interface operations {
             };
         };
     };
-    biz_parties_api_clients__client_id__parties_get: {
+    biz_parties: {
         parameters: {
             query?: never;
             header?: {
@@ -3373,7 +4448,7 @@ export interface operations {
             };
         };
     };
-    biz_add_party_api_clients__client_id__parties_post: {
+    biz_add_party: {
         parameters: {
             query?: never;
             header?: {
@@ -3414,7 +4489,7 @@ export interface operations {
             };
         };
     };
-    period_action_api_clients__client_id__periods__action__post: {
+    period_action: {
         parameters: {
             query?: never;
             header?: {
@@ -3456,7 +4531,7 @@ export interface operations {
             };
         };
     };
-    client_returns_api_clients__client_id__returns_get: {
+    client_returns: {
         parameters: {
             query?: never;
             header?: {
@@ -3491,7 +4566,7 @@ export interface operations {
             };
         };
     };
-    create_return_api_clients__client_id__returns_post: {
+    create_return: {
         parameters: {
             query?: never;
             header?: {
@@ -3532,7 +4607,7 @@ export interface operations {
             };
         };
     };
-    record_tax_year_event_api_clients__client_id__tax_year_events_post: {
+    record_tax_year_event: {
         parameters: {
             query?: never;
             header?: {
@@ -3573,7 +4648,7 @@ export interface operations {
             };
         };
     };
-    client_templates_api_clients__client_id__templates_get: {
+    client_templates: {
         parameters: {
             query?: never;
             header?: {
@@ -3608,7 +4683,7 @@ export interface operations {
             };
         };
     };
-    post_template_api_clients__client_id__templates__template_id__post: {
+    post_template: {
         parameters: {
             query?: never;
             header?: {
@@ -3650,7 +4725,7 @@ export interface operations {
             };
         };
     };
-    biz_pay_vendor_api_clients__client_id__vendors__party_id__pay_post: {
+    biz_pay_vendor: {
         parameters: {
             query?: never;
             header?: {
@@ -3693,7 +4768,7 @@ export interface operations {
             };
         };
     };
-    get_coverage_api_coverage_get: {
+    get_coverage: {
         parameters: {
             query?: {
                 year?: number | null;
@@ -3728,7 +4803,7 @@ export interface operations {
             };
         };
     };
-    crm_new_engagement_api_crm_engagements_post: {
+    crm_new_engagement: {
         parameters: {
             query?: never;
             header?: {
@@ -3767,7 +4842,7 @@ export interface operations {
             };
         };
     };
-    crm_stage_api_crm_engagements__eid__stage_post: {
+    crm_stage: {
         parameters: {
             query?: never;
             header?: {
@@ -3808,7 +4883,7 @@ export interface operations {
             };
         };
     };
-    crm_pipeline_api_crm_pipeline_get: {
+    crm_pipeline: {
         parameters: {
             query?: never;
             header?: {
@@ -3826,7 +4901,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: unknown;
+                        [key: string]: components["schemas"]["Engagement"][];
                     };
                 };
             };
@@ -3841,7 +4916,7 @@ export interface operations {
             };
         };
     };
-    dashboard_api_dashboard_get: {
+    dashboard: {
         parameters: {
             query?: never;
             header?: {
@@ -3858,9 +4933,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Dashboard"];
                 };
             };
             /** @description Validation Error */
@@ -3874,7 +4947,7 @@ export interface operations {
             };
         };
     };
-    biz_deal_stage_api_deals__deal_id__stage_post: {
+    biz_deal_stage: {
         parameters: {
             query?: never;
             header?: {
@@ -3915,7 +4988,7 @@ export interface operations {
             };
         };
     };
-    design_api_design__what__post: {
+    design: {
         parameters: {
             query?: never;
             header?: {
@@ -3956,7 +5029,44 @@ export interface operations {
             };
         };
     };
-    assign_doc_api_documents__doc_id__assign_post: {
+    assign_doc: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                doc_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignedDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_document_basis: {
         parameters: {
             query?: never;
             header?: {
@@ -3997,51 +5107,11 @@ export interface operations {
             };
         };
     };
-    release_document_basis_api_documents__doc_id__basis_release_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string;
-            };
-            path: {
-                doc_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    doc_file_api_documents__doc_id__file_get: {
+    doc_file: {
         parameters: {
             query?: {
                 dl?: string;
+                inline?: boolean;
             };
             header?: {
                 authorization?: string;
@@ -4073,7 +5143,7 @@ export interface operations {
             };
         };
     };
-    document_retention_api_documents__doc_id__retention_get: {
+    document_retention: {
         parameters: {
             query?: never;
             header?: {
@@ -4108,7 +5178,7 @@ export interface operations {
             };
         };
     };
-    confirm_document_retention_api_documents__doc_id__retention_post: {
+    confirm_document_retention: {
         parameters: {
             query?: never;
             header?: {
@@ -4149,7 +5219,7 @@ export interface operations {
             };
         };
     };
-    doc_versions_api_documents__doc_id__versions_get: {
+    doc_versions: {
         parameters: {
             query?: never;
             header?: {
@@ -4168,9 +5238,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["DocumentVersion"][];
                 };
             };
             /** @description Validation Error */
@@ -4184,7 +5252,7 @@ export interface operations {
             };
         };
     };
-    review_queue_api_documents_review_get: {
+    review_queue: {
         parameters: {
             query?: never;
             header?: {
@@ -4201,9 +5269,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["ReviewDocument"][];
                 };
             };
             /** @description Validation Error */
@@ -4217,7 +5283,7 @@ export interface operations {
             };
         };
     };
-    upload_api_documents_upload_post: {
+    upload: {
         parameters: {
             query?: never;
             header?: {
@@ -4228,7 +5294,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_api_documents_upload_post"];
+                "multipart/form-data": components["schemas"]["Body_upload"];
             };
         };
         responses: {
@@ -4238,9 +5304,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": (components["schemas"]["IngestedDocument"] | components["schemas"]["DuplicateDocument"])[];
                 };
             };
             /** @description Validation Error */
@@ -4254,7 +5318,7 @@ export interface operations {
             };
         };
     };
-    evidence_due_api_evidence_due_get: {
+    evidence_due: {
         parameters: {
             query?: never;
             header?: {
@@ -4287,7 +5351,7 @@ export interface operations {
             };
         };
     };
-    evidence_integrity_api_evidence_integrity_get: {
+    evidence_integrity: {
         parameters: {
             query?: {
                 verify?: boolean;
@@ -4322,7 +5386,7 @@ export interface operations {
             };
         };
     };
-    evidence_purge_api_evidence_purge_post: {
+    evidence_purge: {
         parameters: {
             query?: never;
             header?: {
@@ -4361,7 +5425,7 @@ export interface operations {
             };
         };
     };
-    resolve_finding_api_findings__finding_id__resolve_post: {
+    resolve_finding: {
         parameters: {
             query?: never;
             header?: {
@@ -4402,7 +5466,7 @@ export interface operations {
             };
         };
     };
-    release_hold_api_holds__hold_id__release_post: {
+    release_hold: {
         parameters: {
             query?: never;
             header?: {
@@ -4443,7 +5507,7 @@ export interface operations {
             };
         };
     };
-    inbound_hook_api_hooks__firm_id___client_id__post: {
+    inbound_hook: {
         parameters: {
             query?: never;
             header?: {
@@ -4479,7 +5543,7 @@ export interface operations {
             };
         };
     };
-    make_link_api_links_post: {
+    make_link: {
         parameters: {
             query?: never;
             header?: {
@@ -4490,9 +5554,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["LinkRequest"];
             };
         };
         responses: {
@@ -4502,9 +5564,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LinkResult"];
                 };
             };
             /** @description Validation Error */
@@ -4518,7 +5578,7 @@ export interface operations {
             };
         };
     };
-    get_me_api_me_get: {
+    get_me: {
         parameters: {
             query?: never;
             header?: {
@@ -4535,9 +5595,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Me"];
                 };
             };
             /** @description Validation Error */
@@ -4551,7 +5609,7 @@ export interface operations {
             };
         };
     };
-    messages_api_messages_get: {
+    messages: {
         parameters: {
             query?: never;
             header?: {
@@ -4584,7 +5642,7 @@ export interface operations {
             };
         };
     };
-    send_api_messages__mid__send_post: {
+    send: {
         parameters: {
             query?: never;
             header?: {
@@ -4619,7 +5677,7 @@ export interface operations {
             };
         };
     };
-    models_api_models_get: {
+    models: {
         parameters: {
             query?: never;
             header?: {
@@ -4652,7 +5710,7 @@ export interface operations {
             };
         };
     };
-    oss_api_oss_get: {
+    oss: {
         parameters: {
             query?: never;
             header?: {
@@ -4685,7 +5743,7 @@ export interface operations {
             };
         };
     };
-    platform_firms_api_platform_firms_get: {
+    packs: {
         parameters: {
             query?: never;
             header?: {
@@ -4702,9 +5760,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["Pack"][];
                 };
             };
             /** @description Validation Error */
@@ -4718,7 +5774,106 @@ export interface operations {
             };
         };
     };
-    platform_create_firm_api_platform_firms_post: {
+    platform_firms: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Firm"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_create_firm: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateFirmResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_firm: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string;
+            };
+            path: {
+                firm_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Firm"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_sso_mfa: {
         parameters: {
             query?: never;
             header?: {
@@ -4757,46 +5912,7 @@ export interface operations {
             };
         };
     };
-    platform_sso_mfa_api_platform_sso_mfa_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    playbooks_api_playbooks_get: {
+    playbooks: {
         parameters: {
             query?: never;
             header?: {
@@ -4829,7 +5945,7 @@ export interface operations {
             };
         };
     };
-    plugins_api_plugins_get: {
+    plugins: {
         parameters: {
             query?: never;
             header?: {
@@ -4862,7 +5978,7 @@ export interface operations {
             };
         };
     };
-    plugin_run_api_plugins__plugin_id__run_post: {
+    plugin_run: {
         parameters: {
             query?: never;
             header?: {
@@ -4901,7 +6017,7 @@ export interface operations {
             };
         };
     };
-    request_connector_api_plugins_request_post: {
+    request_connector: {
         parameters: {
             query?: never;
             header?: {
@@ -4940,7 +6056,7 @@ export interface operations {
             };
         };
     };
-    new_precedent_api_precedents_post: {
+    new_precedent: {
         parameters: {
             query?: never;
             header?: {
@@ -4979,7 +6095,7 @@ export interface operations {
             };
         };
     };
-    proposals_api_proposals_get: {
+    proposals: {
         parameters: {
             query?: {
                 status?: string | null;
@@ -5014,7 +6130,7 @@ export interface operations {
             };
         };
     };
-    proposal_api_proposals__pid__get: {
+    proposal: {
         parameters: {
             query?: never;
             header?: {
@@ -5049,7 +6165,7 @@ export interface operations {
             };
         };
     };
-    decide_api_proposals__pid___decision__post: {
+    decide: {
         parameters: {
             query?: never;
             header?: {
@@ -5091,7 +6207,7 @@ export interface operations {
             };
         };
     };
-    get_return_api_returns__rid__get: {
+    get_return: {
         parameters: {
             query?: never;
             header?: {
@@ -5126,7 +6242,7 @@ export interface operations {
             };
         };
     };
-    return_action_api_returns__rid___action__post: {
+    return_action: {
         parameters: {
             query?: never;
             header?: {
@@ -5168,7 +6284,7 @@ export interface operations {
             };
         };
     };
-    return_amend_api_returns__rid__amend_post: {
+    return_amend: {
         parameters: {
             query?: never;
             header?: {
@@ -5203,7 +6319,7 @@ export interface operations {
             };
         };
     };
-    compute_return_api_returns__rid__compute_post: {
+    compute_return: {
         parameters: {
             query?: never;
             header?: {
@@ -5244,7 +6360,7 @@ export interface operations {
             };
         };
     };
-    confirm_return_amounts_api_returns__rid__confirm_post: {
+    confirm_return_amounts: {
         parameters: {
             query?: never;
             header?: {
@@ -5285,7 +6401,7 @@ export interface operations {
             };
         };
     };
-    return_conflicts_api_returns__rid__conflicts_get: {
+    return_conflicts: {
         parameters: {
             query?: never;
             header?: {
@@ -5320,7 +6436,7 @@ export interface operations {
             };
         };
     };
-    resolve_return_conflict_api_returns__rid__conflicts__conflict_id__post: {
+    resolve_return_conflict: {
         parameters: {
             query?: never;
             header?: {
@@ -5362,7 +6478,7 @@ export interface operations {
             };
         };
     };
-    return_document_disposition_api_returns__rid__documents__doc_id__disposition_post: {
+    return_document_disposition: {
         parameters: {
             query?: never;
             header?: {
@@ -5404,7 +6520,7 @@ export interface operations {
             };
         };
     };
-    return_fact_history_api_returns__rid__facts_get: {
+    return_fact_history: {
         parameters: {
             query: {
                 path: string;
@@ -5441,7 +6557,7 @@ export interface operations {
             };
         };
     };
-    put_return_inputs_api_returns__rid__inputs_put: {
+    put_return_inputs: {
         parameters: {
             query?: never;
             header?: {
@@ -5482,7 +6598,7 @@ export interface operations {
             };
         };
     };
-    populate_return_api_returns__rid__populate_post: {
+    populate_return: {
         parameters: {
             query?: never;
             header?: {
@@ -5517,7 +6633,7 @@ export interface operations {
             };
         };
     };
-    return_recalc_preview_api_returns__rid__recalculation_preview_get: {
+    return_recalc_preview: {
         parameters: {
             query?: never;
             header?: {
@@ -5552,7 +6668,7 @@ export interface operations {
             };
         };
     };
-    void_return_api_returns__rid__void_post: {
+    void_return: {
         parameters: {
             query?: never;
             header?: {
@@ -5593,7 +6709,7 @@ export interface operations {
             };
         };
     };
-    compute_individual_return_api_returns_individual_post: {
+    compute_individual_return: {
         parameters: {
             query?: never;
             header?: {
@@ -5632,7 +6748,7 @@ export interface operations {
             };
         };
     };
-    rules_api_rules_get: {
+    rules: {
         parameters: {
             query?: never;
             header?: {
@@ -5665,7 +6781,7 @@ export interface operations {
             };
         };
     };
-    rule_api_rules__rule_id__get: {
+    rule: {
         parameters: {
             query?: never;
             header?: {
@@ -5700,7 +6816,7 @@ export interface operations {
             };
         };
     };
-    staleness_api_staleness_get: {
+    staleness: {
         parameters: {
             query?: never;
             header?: {
@@ -5733,7 +6849,7 @@ export interface operations {
             };
         };
     };
-    list_tasks_api_tasks_get: {
+    list_tasks: {
         parameters: {
             query?: {
                 client_id?: string | null;
@@ -5752,9 +6868,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["Task"][];
                 };
             };
             /** @description Validation Error */
@@ -5768,7 +6882,7 @@ export interface operations {
             };
         };
     };
-    new_task_api_tasks_post: {
+    new_task: {
         parameters: {
             query?: never;
             header?: {
@@ -5807,7 +6921,7 @@ export interface operations {
             };
         };
     };
-    task_done_api_tasks__task_id__done_post: {
+    task_done: {
         parameters: {
             query?: never;
             header?: {
@@ -5848,7 +6962,7 @@ export interface operations {
             };
         };
     };
-    list_users_api_users_get: {
+    list_users: {
         parameters: {
             query?: never;
             header?: never;
@@ -5870,7 +6984,7 @@ export interface operations {
             };
         };
     };
-    healthz_healthz_get: {
+    healthz: {
         parameters: {
             query?: never;
             header?: never;
@@ -5885,9 +6999,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    legacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
                 };
             };
         };

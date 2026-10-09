@@ -180,7 +180,7 @@ export function ContextBar({ detail, clients }: { detail: ClientDetail | undefin
   );
 }
 
-/** The firm's name is not in GET /api/me yet (docs/WEB.md); the id is shown honestly instead. */
+/** The firm's name from GET /api/me; the id when the session has no firm record (a platform administrator). */
 export function firmLabel(me: Me): string {
-  return me.firm_id;
+  return me.firm?.name ?? me.firm_id ?? "";
 }

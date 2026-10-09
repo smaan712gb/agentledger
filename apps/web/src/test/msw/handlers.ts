@@ -22,6 +22,10 @@ export function happyHandlers(me: Me = fx.firmAdmin): HttpHandler[] {
       const year = Number(new URL(request.url).searchParams.get("year") ?? 2026);
       return HttpResponse.json(fx.detailOf(client, year));
     }),
+    http.get(`${ORIGIN}/api/clients/:clientId/documents`, ({ params }) => {
+      const items = params.clientId === fx.ortiz.id ? [fx.doc1] : [];
+      return HttpResponse.json({ items, next_cursor: null, total: items.length });
+    }),
     http.patch(`${ORIGIN}/api/clients/:clientId/facts`, async ({ request }) => {
       const facts = (await request.json()) as Record<string, unknown>;
       return HttpResponse.json({ ...fx.ortiz.facts, ...facts });
@@ -96,6 +100,7 @@ export function outcomeHandlers(paths: string[], outcome: Outcome): HttpHandler[
         case 200:
           return undefined;
         case "empty":
+          if (path.endsWith("/documents")) return HttpResponse.json({ items: [], next_cursor: null, total: 0 });
           return HttpResponse.json(path.includes(":clientId") ? fx.detailOf({ ...fx.lakeside, facts: {} }) : []);
         case "network":
           return HttpResponse.error();

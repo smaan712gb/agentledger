@@ -33,6 +33,17 @@
 	"durable_objects": {
 		"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
 	},
+	// The web app (apps/web, built to apps/web/dist by the release's web job; docs/WEB.md) as static assets with the
+	// single-page-application fallback, served before the Worker runs. Only the listed paths reach the Worker and so the
+	// container: the API, health, the previous interface at /legacy and its /static files, the OpenAPI document, and
+	// /internal (refused at the edge). The app calls /api relatively from the same origin: no CORS anywhere.
+	// Repeated per environment (whether `assets` is inherited by env blocks is not relied on).
+	"assets": {
+		"directory": "./apps/web/dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/healthz", "/legacy", "/legacy/*", "/static/*", "/openapi.json", "/internal/*"]
+	},
 	// The filing Workflow (edge/src/workflows/submission.ts; ADR-0003): one instance per attempt at a submission, started
 	// by the outbox relay. A non-inheritable binding: repeated per environment. The step limit covers the longest run
 	// (29 days of hourly acknowledgement polls after the deadline notice) with room to spare.
@@ -91,6 +102,13 @@
 			],
 			"durable_objects": {
 				"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
+			},
+			// The web app as static assets (see the top-level block).
+			"assets": {
+				"directory": "./apps/web/dist",
+				"binding": "ASSETS",
+				"not_found_handling": "single-page-application",
+				"run_worker_first": ["/api/*", "/healthz", "/legacy", "/legacy/*", "/static/*", "/openapi.json", "/internal/*"]
 			},
 			// The filing Workflow (edge/src/workflows/submission.ts; ADR-0003): one instance per attempt at a submission, started
 			// by the outbox relay. A non-inheritable binding: repeated per environment. The step limit covers the longest run
@@ -152,6 +170,13 @@
 			],
 			"durable_objects": {
 				"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
+			},
+			// The web app as static assets (see the top-level block).
+			"assets": {
+				"directory": "./apps/web/dist",
+				"binding": "ASSETS",
+				"not_found_handling": "single-page-application",
+				"run_worker_first": ["/api/*", "/healthz", "/legacy", "/legacy/*", "/static/*", "/openapi.json", "/internal/*"]
 			},
 			// The filing Workflow (edge/src/workflows/submission.ts; ADR-0003): one instance per attempt at a submission, started
 			// by the outbox relay. A non-inheritable binding: repeated per environment. The step limit covers the longest run

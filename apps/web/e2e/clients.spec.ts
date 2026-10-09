@@ -31,7 +31,7 @@ test("create a client, read the context bar, record the accounting basis, and se
 
   await test.step("the context bar: firm, entity, period, basis", async () => {
     const context = page.getByRole("navigation", { name: "Context" });
-    await expect(context.getByTestId("context-firm")).toHaveText("rivera-cpa");
+    await expect(context.getByTestId("context-firm")).toHaveText("Rivera CPA");
     await expect(context.getByTestId("context-period")).toHaveText(`FY${year}`);
     await expect(context.getByTestId("context-basis")).toContainText("basis not recorded");
     await expect(context.getByLabel("Engagement")).toHaveValue("");

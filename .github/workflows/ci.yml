@@ -1,0 +1,46 @@
+# Pull requests: the Python checks of release.yml's `verify` job (lint, types, the suite on SQLite and on PostgreSQL,
+# the golden regression; the steps are repeated here rather than shared, so release.yml stays the one place that
+# decides what is deployable) and the web job (.github/workflows/web.yml, shared). Nothing is deployed from here.
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency: {group: "ci-${{ github.ref }}", cancel-in-progress: true}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: ci, POSTGRES_DB: agentledger}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:ci@localhost:5432/agentledger
+      AGENTLEDGER_REQUIRE_PG: "1"
+      AGENTLEDGER_TEST_S3_ENDPOINT: http://localhost:8333
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev,oracle]"
+      - name: Lint (bugs, not style)
+        run: ruff check src tests scripts
+      - name: Types (the typed core in pyproject.toml)
+        run: mypy
+      - name: S3-compatible store for the evidence tests (R2 in production)
+        run: docker run -d --name s3 -p 8333:8333 chrislusf/seaweedfs server -s3 -dir=/data && sleep 8
+      - name: Full suite, golden regression and independent cross-checks
+        run: |
+          python -m pytest -q
+          AGENTLEDGER_HOME=$PWD agentledger golden
+      - name: The whole suite again with every firm store on PostgreSQL
+        run: AGENTLEDGER_DATABASE=postgres python -m pytest -q
+
+  web:
+    uses: ./.github/workflows/web.yml

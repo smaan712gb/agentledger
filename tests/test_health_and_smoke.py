@@ -81,7 +81,7 @@ def test_smoke_principal_is_refused_everywhere_else(api):
     assert c.get("/api/documents/1/file", headers=SMOKE).status_code == 403
     assert c.get("/api/clients/x/export/beancount_export", headers=SMOKE).status_code == 403
     # And every API route the app exposes: only the two stateless computations answer 200 to the smoke token.
-    public = {"/", "/healthz", "/api/auth/config", "/api/auth/idp/start", "/api/auth/idp/callback", "/api/auth/login",
+    public = {"/", "/legacy", "/healthz", "/api/auth/config", "/api/auth/idp/start", "/api/auth/idp/callback", "/api/auth/login",
               "/api/auth/mfa", "/api/auth/accept", "/api/auth/logout", "/api/auth/step-up", "/api/hooks/{firm_id}/{client_id}"}
     allowed = {("GET", "/api/coverage"), ("POST", "/api/returns/individual")}
     seen = set()

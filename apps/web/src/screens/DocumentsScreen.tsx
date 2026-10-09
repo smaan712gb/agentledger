@@ -1,5 +1,11 @@
-import { isApiError, type ClientDetail, type ClientDocument, type UploadResult } from "@agentledger/contracts";
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  isApiError,
+  type ClientDetail,
+  type ClientDocument,
+  type DocumentPage,
+  type UploadResult,
+} from "@agentledger/contracts";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useId, useMemo, useRef, useState, type DragEvent } from "react";
@@ -8,7 +14,7 @@ import { api } from "../api";
 import { useMe } from "../auth/AuthProvider";
 import { can } from "../auth/can";
 import { formatDateTime, formatPercent } from "../lib/format";
-import { queryKeys } from "../queries";
+import { queries, queryKeys } from "../queries";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { StatusChip } from "../ui/Chip";
@@ -24,7 +30,7 @@ export function describeUpload(file: string, results: UploadResult[]): PartialIt
   if (!results.length) return [{ key: file, label: file, outcome: "warn", detail: "the file produced no documents" }];
   return results.map((r, i) => {
     const key = `${file}:${r.id}:${i}`;
-    if (r.duplicate)
+    if ("duplicate" in r)
       return { key, label: r.name, outcome: "warn", detail: "already stored: these exact bytes were uploaded before" };
     if (r.status === "filed") {
       return {
@@ -48,12 +54,19 @@ export function DocumentsScreen() {
   return <QueryBoundary query={query}>{(detail) => <Documents detail={detail} />}</QueryBoundary>;
 }
 
+/** Every page loaded so far, newest first, and the API's count of all of them. */
+export function flattenPages(data: InfiniteData<DocumentPage>): { documents: ClientDocument[]; total: number } {
+  const documents = data.pages.flatMap((p) => p.items);
+  return { documents, total: data.pages[0]?.total ?? documents.length };
+}
+
 function Documents({ detail }: { detail: ClientDetail }) {
   const me = useMe();
   const qc = useQueryClient();
   const invalidate = useInvalidateClient();
   const { toast } = useToast();
   const clientId = detail.client.id;
+  const pages = useInfiniteQuery(queries.documents(clientId));
   const upload = can(me, "documents.upload", { clientId });
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -194,15 +207,11 @@ function Documents({ detail }: { detail: ClientDetail }) {
       </div>
       {results ? <PartialSuccess items={results} onDismiss={() => setResults(null)} /> : null}
       <Card>
-        <p className={styles.hint}>
-          The 100 most recent documents of this client (the full, paged list is an API change in progress).
-        </p>
-        <DataTable
-          data={detail.documents}
-          columns={columns}
-          caption={`Documents of ${detail.client.name}`}
-          getRowId={(d) => d.id}
-          renderEmpty={() => (
+        <QueryBoundary
+          query={pages}
+          loadingLabel="Loading documents"
+          isEmpty={(data) => flattenPages(data).total === 0}
+          empty={
             <Empty
               title="No documents yet"
               action={
@@ -217,8 +226,38 @@ function Documents({ detail }: { detail: ClientDetail }) {
             >
               <p>Everything uploaded here is read, classified and filed in this client's vault.</p>
             </Empty>
-          )}
-        />
+          }
+        >
+          {(data) => {
+            const { documents, total } = flattenPages(data);
+            return (
+              <>
+                <p className={styles.hint} data-testid="documents-count">
+                  {documents.length < total
+                    ? `${documents.length} of ${total} documents, newest first.`
+                    : `${total} document${total === 1 ? "" : "s"}, newest first.`}
+                </p>
+                <DataTable
+                  data={documents}
+                  columns={columns}
+                  caption={`Documents of ${detail.client.name}`}
+                  getRowId={(d) => d.id}
+                  renderEmpty={() => <Empty title="No documents yet" />}
+                />
+                {pages.hasNextPage ? (
+                  <p className={styles.hint}>
+                    <Button
+                      onClick={() => void pages.fetchNextPage()}
+                      disabledReason={pages.isFetchingNextPage ? "Loading the next page" : undefined}
+                    >
+                      Load more
+                    </Button>
+                  </p>
+                ) : null}
+              </>
+            );
+          }}
+        </QueryBoundary>
       </Card>
     </>
   );

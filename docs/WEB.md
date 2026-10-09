@@ -32,18 +32,25 @@ apps/web/                    the app: Vite 7 + React 19 + TypeScript 5.9 (strict
                              contract test, the axe smoke test, interaction flows
   e2e/                       Playwright: servers.mjs (launcher), seed.py (platform seed), helpers.ts, *.spec.ts
   .size-limit.js             the 250 kB gzip budget, computed from Vite's manifest (entry + static imports)
-packages/contracts/          the contract: openapi.json (snapshot), src/types.ts (hand-maintained shapes),
-                             src/schema.d.ts (generated, all-unknown today), src/client.ts (fetch layer with the
-                             session, step-up and error rules), src/endpoints.ts (typed functions per route),
-                             scripts/snapshot.mjs, generate.mjs, check.mjs (+ render.mjs)
+  public/_headers            response headers the edge adds to the static assets (frame-ancestors, nosniff,
+                             referrer policy, immutable caching of /assets); the page's CSP stays in the meta tag
+packages/contracts/          the contract: openapi.json (written by scripts/export_openapi.py from the API's models),
+                             src/schema.d.ts (generated from it by openapi-typescript), src/types.ts (names the
+                             generated schemas the app uses; hand-written only for what the API does not declare),
+                             src/client.ts (fetch layer with the session, step-up and error rules), src/endpoints.ts
+                             (typed functions per route), scripts/generate.mjs, check.mjs (+ render.mjs),
+                             snapshot.mjs (from a running server; superseded by the export script)
+src/agentledger/api/schemas.py  the API's request and response models (pydantic v2): the source of openapi.json
+scripts/export_openapi.py    writes openapi.json from the application without a server; --check is the drift gate
+.github/workflows/web.yml    the web job, a reusable workflow called by release.yml (push to main) and ci.yml (PRs)
 docs/WEB.md                  this file
 ```
 
 Routes in this slice: `/sign-in`, `/sign-in/verify`, `/accept/$token`, `/` (dispatch by role), `/clients`,
 `/clients/new`, `/clients/$clientId` (overview), `/clients/$clientId/documents`,
 `/clients/$clientId/documents/$docId`, `/clients/$clientId/profile`, `/inbox`, `/team`, `/platform/firms`,
-`/portal`. The previous interface stays reachable (the Python API serves it at `/` today; `/legacy` once the API
-change below lands).
+`/portal`. The previous interface stays reachable at `/legacy#/...` (the API serves it at `/legacy` and still at `/`
+on its own port; at the edge the app owns `/`).
 
 ## 2. How to run
 
@@ -74,6 +81,16 @@ npm run -w packages/contracts test       # the fetch layer's rules (9 tests)
 npm run -w packages/contracts typecheck
 npm run -w packages/contracts check      # schema.d.ts is what openapi.json generates
 ```
+
+The contract drift gate (CI runs exactly this; run it after any change to `src/agentledger/api/`):
+
+```sh
+.venv/Scripts/python.exe scripts/export_openapi.py   # packages/contracts/openapi.json from the API, no server needed
+npm run -w packages/contracts generate               # src/schema.d.ts from openapi.json
+git diff --exit-code packages/contracts              # anything to commit means the committed contract was stale
+```
+
+`python scripts/export_openapi.py --check` is the same gate for the JSON alone (exit 1 on drift, nothing written).
 
 ## 3. End-to-end tests
 
@@ -117,93 +134,80 @@ tags wcag2a, wcag2aa, wcag21aa, wcag22aa; serious and critical findings fail, th
 
 Results of the local run are in the hand-off report (see section 9 for the exact counts of the last run).
 
-## 4. The API changes the next slice needs
+## 4. The API changes the first slice needed
 
-None of these were made this round (the Python side was being edited concurrently); the app does the honest
-fallback in each case and says so on screen where it matters.
+Made in the follow-up (2026-10-09), after the slice shipped with honest fallbacks. What each one is now, and what is
+still open.
 
-1. **Typed response models and operationIds.** Every handler in `src/agentledger/api/app.py` returns
-   `dict[str, Any]`, so `/openapi.json` carries no response schemas and `packages/contracts/src/schema.d.ts` is all
-   `unknown`. Give each route a pydantic response model and an `operation_id`; then `schema.d.ts` replaces
-   `src/types.ts`, `endpoints.ts` becomes `createClient<paths>()` from openapi-fetch (the middleware in `client.ts`
-   has the same shape) and `openapi-react-query` can type the hooks. Until then `types.ts` is the contract and its
-   header lists where each shape was read from.
-2. **`scripts/export_openapi.py`**: write `app.openapi()` sorted with LF to `packages/contracts/openapi.json`
-   without a running server, so CI can run `npm run -w packages/contracts check` after `generate` and fail on
-   drift. Today `scripts/snapshot.mjs` fetches it from a running API (how the committed snapshot was made).
-3. **`/legacy`**: serve `src/agentledger/web` at `/legacy` (and `/static` as now) so the SPA can own `/`. The
-   Worker routes `/legacy*` to the container (section 5). The app links to `/legacy` from its boot failure screen
-   and the `<noscript>` text.
-4. **Sandboxed inline file route**: `GET /api/documents/{id}/file` sends `Content-Disposition: attachment` and
-   `application/octet-stream`. A viewer needs an inline variant with the real media type, `Content-Security-Policy:
-   sandbox` and `X-Content-Type-Options: nosniff`, served from a path the app can frame. Until then files are
-   downloaded, never rendered (`DownloadButton`).
-5. **Paginated documents list**: `GET /api/clients/{id}` embeds the 100 most recent documents; the documents tab
-   reads them from there and says so. Add `GET /api/clients/{id}/documents?cursor=&limit=` (and a `total`), then the
-   tab stops depending on the detail payload and the document page stops saying "not among the 100 most recent".
-6. **`firm` on `GET /api/me`** (`{id, name, status}`): the context bar shows `firm_id` because the name is not
-   there. Platform administrators also need `GET /api/platform/firms/{id}` for a selected-firm context.
-7. **`platform bootstrap-admin --password-env NAME`** (or `--password-stdin`): the CLI prompts interactively, so
-   the e2e seed calls `Platform.bootstrap_admin` from Python instead of the CLI. A non-interactive option lets the
-   seed (and operators) use the CLI.
-8. Smaller: `GET /api/packs` (the industry packs; the new-client form hard-codes the shipped list),
-   `PATCH /api/clients/{id}/facts` cannot remove a recorded fact (the merge keeps it; the profile screen says a
-   blank does not clear), and `POST /api/clients` has no validation of `id` (a duplicate is a 500 from SQLite; the
-   app validates the format client-side).
+1. **Typed models and operation ids** (`src/agentledger/api/schemas.py`, mypy-checked). Request models replace the
+   `Body(...)` dicts of the sign-in, invitation, disable, link, firm, client, facts and assign routes; response
+   models cover auth config, the login steps (`MfaStep | EnrolStep`), MFA and accept results, `Me` (with `firm`),
+   firm users, invites, auth events, firms, health, links, clients (list, detail, create), the dashboard, packs, the
+   documents page, the review queue, upload results (`IngestedDocument | DuplicateDocument`), assigned documents,
+   versions, the CRM pipeline and tasks. `generate_unique_id_function` makes operation ids the handler names
+   (`get_me`, `client_detail`, ...). `schema.d.ts` now carries every shape and `types.ts` names them; the hand-written
+   types left are `IdpPurpose`, `EngagementStage`, `AccountingBasis`, `DocumentStatus`, `FirmStatus` and the error
+   body. Still open: `endpoints.ts` as `createClient<paths>()` from openapi-fetch and `openapi-react-query` for the
+   hooks (the middleware in `client.ts` already has that shape); request models for the routes outside this slice
+   (grants, reviewer, SSO attestations, returns, evidence, CRM, business) which still take dicts and are `unknown` in
+   the contract.
+2. **`scripts/export_openapi.py`** writes `app.openapi()` (keys sorted, LF) to `packages/contracts/openapi.json`
+   from the application imported in a throwaway home with the test suite's environment pins; `--check` exits 1 on
+   drift. CI runs it, then `generate`, then `git diff --exit-code packages/contracts` (section 2). `snapshot.mjs`
+   remains for a running server but is no longer how the snapshot is made.
+3. **`/legacy`** serves the previous interface's page (the same page as `/`; its asset URLs are absolute `/static/...`),
+   so the old screens stay reachable through the edge at `/legacy#/...` while the app owns `/`.
+4. **Inline file route**: `GET /api/documents/{id}/file?inline=1` (a session header or the same signed `dl` link as a
+   download) serves a PDF, PNG or JPEG with its real media type, `Content-Disposition: inline`,
+   `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` and `Cache-Control:
+   private, no-store`. The allow-list checks the extension and the bytes' signature; anything else (HTML, SVG, XML,
+   Office files, a PDF-named HTML) and every request without `inline=1` stays `attachment` + `application/octet-stream`
+   (now also with `nosniff`). Tests upload HTML and SVG under their own and under image names and assert they are never
+   inline. Still open: the app does not frame files yet (`DownloadButton` downloads); the viewer is slice 2's
+   document-beside-the-field.
+5. **Paged documents**: `GET /api/clients/{id}/documents?cursor=&limit=` (newest first, `received_at` then `id`
+   descending, deleted excluded, limit 1 to 200, default 50) returns `{items, next_cursor, total}` with the same
+   fields the detail embeds. The documents tab reads it through an infinite query (`queries.documents`, key under the
+   client's so an upload invalidates it) with "Load more"; the detail's `documents` (100 most recent) remain for the
+   overview count and the document page. Still open: a single-document route, so the document page stops saying "not
+   among the 100 most recent".
+6. **`firm` on `GET /api/me`**: `{id, name, status}` for firm users, `null` for platform administrators; the context
+   bar shows the name. `GET /api/platform/firms/{id}` exists for a selected-firm context (platform administrators).
+7. **`platform bootstrap-admin --password-env NAME` and `--password-stdin`**; the interactive prompt stays the default.
+   The e2e seed still uses the `Platform` class (it needs it for the rest of the seed anyway).
+8. **Smaller**: `GET /api/packs` lists the industry packs (`id, title, description, status, facts`; the new-client form
+   still hard-codes the list, wiring it is open); `PATCH /api/clients/{id}/facts` removes a fact sent as `null` and the
+   profile screen sends `null` for a blanked recorded fact; `POST /api/clients` validates `id` against the database's
+   rule (`^[a-z0-9][a-z0-9_-]{0,63}$`, a 422 naming the field) and answers 409 for a duplicate; the app's own rule
+   was changed to the same (it allowed dots, which PostgreSQL refuses, and required two characters).
 
-## 5. Integration to add later (not done this round)
+## 5. Integration (done this round)
 
-**wrangler.jsonc** (per environment, next to the container): serve `apps/web/dist` as static assets with SPA
-fallback, and let the Worker forward `/api/*`, `/healthz`, `/legacy*`, `/static/*`, `/openapi.json` to the
-container. The app calls `/api/*` relatively, so everything is one origin and no CORS is involved.
+**wrangler.jsonc**: the `assets` block (top level and repeated in `env.staging` and `env.production`) serves
+`apps/web/dist` with the single-page-application fallback; `run_worker_first` is `/api/*`, `/healthz`, `/legacy`,
+`/legacy/*`, `/static/*`, `/openapi.json`, `/internal/*` (the union of the two earlier plans: the OpenAPI document
+stays reachable, and `/internal` keeps its explicit 404 at the Worker instead of a 200 app shell). Everything else is
+served by the assets binding before the Worker runs, so `edge/src/index.ts` only declares `ASSETS: Fetcher` and routes
+nothing to it. The app calls `/api/*` relatively: one origin, no CORS. `npx wrangler deploy --dry-run --env staging`
+lists `env.ASSETS` and the 39 files of `dist` (docs/DEPLOY.md, dry run record).
 
-```jsonc
-"assets": {
-  "directory": "./apps/web/dist",
-  "binding": "ASSETS",
-  "not_found_handling": "single-page-application",
-  "run_worker_first": ["/api/*", "/healthz", "/legacy", "/legacy/*", "/static/*", "/openapi.json"]
-}
-```
+**Headers**: `apps/web/public/_headers` (copied into `dist`) adds to every path `Content-Security-Policy:
+frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`, and
+`Cache-Control: public, max-age=31536000, immutable` to `/assets/*`. The page's policy itself has one source, the meta
+tag `vite.config.ts` injects; the header carries only what a meta tag cannot (frame-ancestors). Two policies apply
+together, which is the intended intersection. The same plugin injects `<meta name="agentledger-build">` with
+`BUILD_SHA`, which `scripts/smoke.py` checks on `GET /` against the expected build (the new `web app` check; a `--dev`
+API without assets in front passes only with `SMOKE_DEV=1`).
 
-In `edge/src/index.ts`, requests that reach the Worker for a path outside that list go to `env.ASSETS.fetch(request)`;
-the rest go to the container as today. Response headers to add at the edge for the HTML: `Content-Security-Policy`
-(the same policy as the build-time meta tag, plus `frame-ancestors 'none'`, which a meta tag cannot carry),
-`X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`. The release workflow stamps `BUILD_SHA` before
-`vite build` and `wrangler deploy` so the app's `__BUILD_SHA__` equals the API's `/healthz` `build`; a mismatch
-after a release shows the "new version available" banner.
-
-**CI `web` job** (`.github/workflows/release.yml`, alongside `verify`; `staging`/`production` need it):
-
-```yaml
-web:
-  runs-on: ubuntu-latest
-  timeout-minutes: 30
-  steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with: { node-version: "22", cache: npm }
-    - uses: actions/setup-python@v5
-      with: { python-version: "3.12" }
-    - run: pip install -e .
-    - run: npm ci
-    - run: npm run -w packages/contracts check
-    - run: npm run -w packages/contracts test
-    - run: npm run -w apps/web lint
-    - run: npm run -w apps/web typecheck
-    - run: npm run -w apps/web test
-    - run: npm run -w apps/web build
-    - run: npm run -w apps/web size
-    - run: npx --prefix apps/web playwright install --with-deps chromium
-    - run: npm run -w apps/web e2e
-      env: { E2E_PYTHON: python, CI: "true" }
-    - uses: actions/upload-artifact@v4
-      if: failure()
-      with: { name: playwright-report, path: apps/web/playwright-report }
-```
-
-`E2E_PYTHON=python` points the launcher at the interpreter `setup-python` installed (there is no `.venv` in CI).
-The deploy jobs then run `npm run -w apps/web build` before `wrangler deploy` so the assets ship with the image.
+**CI**: `.github/workflows/web.yml` is a reusable workflow (`workflow_call`, input `build_sha`): Node 22 with the npm
+cache, `npm ci`, Python 3.12, `pip install -e .`, the contract drift gate, contracts check/typecheck/test, web
+lint/typecheck/test, the build (stamped when `build_sha` is given), size, `playwright install --with-deps chromium`,
+the e2e run with `E2E_PYTHON=python` and `E2E_SKIP_BUILD=1` (the build under test is the one just made), then
+`playwright-report` (always) and `web-dist` as artifacts; `timeout-minutes: 20`. `release.yml` calls it as job `web`
+with `build_sha: github.sha`; `staging` needs it and both deploy jobs download `web-dist` into `apps/web/dist` before
+`wrangler deploy`, so the assets shipped are the ones tested and the app's build equals the API's. `ci.yml` runs on
+pull requests: the `verify` steps of release.yml (repeated, not shared, so release.yml stays the one place that
+decides what is deployable; `minimum-versions` is left to main) and the same `web` job unstamped.
 
 ## 6. Decisions
 
@@ -249,7 +253,25 @@ The deploy jobs then run `npm run -w apps/web build` before `wrangler deploy` so
 - **ESLint 9** (jsx-a11y does not yet declare ESLint 10 as a peer).
 - **Platform firms screen has a "create firm" form** although the route list said "list only": the `platform`
   e2e spec (create a firm with step-up, show the invite link) needs it, and it mirrors the previous interface.
-- **The firm name**: `GET /api/me` has only `firm_id`, which is shown as is (section 4, item 6).
+- **The firm name** comes from `me.firm.name`; the id is the fallback when a session has no firm record.
+- **Response models: rows pass extras through, assembled payloads declare every key.** A model that is a table row
+  (`Row`, `extra="allow"`) never filters a column the models do not know, so a migration cannot silently drop a
+  field the previous interface reads; a payload a handler assembles (`Shape`) declares all its keys. Keys a handler
+  sets only in some cases (`engaged` for staff, the business-only parts of a detail, the CPA parts of the dashboard)
+  are optional and those routes serialize with `response_model_exclude_unset=True`, so the JSON keeps the previous
+  key set exactly (absent, not null). The generator runs with `defaultNonNullable: false` so a defaulted field stays
+  optional in TypeScript, as it is on the wire. Two normalisations are deliberate: SQLite's `disabled` 0/1 becomes a
+  JSON boolean, and roles and client kinds are literal unions, so a malformed value is a 422 naming the field
+  (previously a 403 "invalid role" or a 500).
+- **`cursor`, not `after`**, names the documents page parameter, as this document specified; the cursor is opaque
+  (`received_at` and `id` of the last item, base64) and a malformed one is a 400.
+- **The inline allow-list checks both the extension and the bytes**: a `.pdf` whose bytes are not `%PDF-` is a download.
+  Anything renderable as a document in the app's origin (HTML, SVG, XML) is never inline, whatever the request asks.
+- **Client ids follow the database's rule**, not the looser one the form had: PostgreSQL's CHECK is the authority
+  (`pg/migrations/0001_ledger_core.sql`) and SQLite stores get the same check from the API.
+- **A reusable workflow for `web`, duplicated steps for `verify`** in `ci.yml`: the web job is new and identical in
+  both places, so it is shared; `verify` carries release.yml's `deployable` output and its service containers, and
+  keeping release.yml self-contained there was preferred over a second reusable workflow.
 - **Theme tokens** continue the previous interface's palette so both can coexist; dark mode follows the system
   (or `data-theme`), `prefers-contrast: more` removes tints and strengthens lines, `prefers-reduced-motion`
   collapses durations to zero.
@@ -264,10 +286,20 @@ read. Live regions: toasts (`aria-live="polite"`; errors `role="alert"`), state 
 
 ## 8. Open risks
 
-- The slice ships without the API changes in section 4; the two fallbacks visible to people are the firm id in the
-  context bar and the "100 most recent" note on documents.
-- `src/types.ts` is hand-maintained: a Python change to a JSON shape is not caught until a screen misbehaves (the
-  states contract and e2e tests would catch the common ones). Item 1 of section 4 removes this class of risk.
+- The document page still finds its document among the detail's 100 most recent (section 4, item 5); the firm id and
+  the "100 most recent" note on the documents tab are gone.
+- A response that does not fit its model is a 500 (`ResponseValidationError`) where it used to be served as is. The
+  models were typed from the tables and the handlers, the touched routes pass on SQLite and PostgreSQL, and `Row`
+  models accept unknown columns; a column whose type changes (an integer becoming text) would still surface this way.
+- `Content-Security-Policy: sandbox` on inline PDFs: Chrome has historically refused to run its PDF viewer in a
+  sandboxed context without `allow-scripts`; whether the inline route renders PDFs in a sandboxed frame in current
+  browsers is unverified until slice 2 frames one (PNG and JPEG are plain images and unaffected).
+- A numeric fact stored as text (`employees: "7"` through the API) makes the client detail a 500 (`TypeError` in
+  expression evaluation, pre-existing: the app sends numbers, the API does not type facts). Facts need a type rule.
+- The `web` CI job runs on Linux for the first time: `playwright install --with-deps` needs `sudo` (present on
+  GitHub's runners), the launcher is told `E2E_PYTHON=python`, the whole job has 20 minutes, and the e2e timing
+  assumptions (TOTP steps, lockout) are the same as locally. The first run on GitHub is the real test of it.
+- `_headers` and `run_worker_first` semantics are exercised by the first real deploy, not by the dry run.
 - The step-up retry after a provider round trip is a link back, not a replay; forms are not restored.
 - The initial JavaScript is 168 kB gzip of the 250 kB budget, most of it React, the router and the query library.
   Each screen's chunk is small (1 to 22 kB gzip; the verify screen carries the QR encoder, the forms carry zod).
@@ -276,17 +308,24 @@ read. Live regions: toasts (`aria-live="polite"`; errors `role="alert"`), state 
 - The e2e run creates data in a temporary home that the next run deletes; nothing touches `state/` or `tenants/`
   in the repository.
 
-## 9. Last local run (2026-10-09, Windows 11, Node 24, Python 3.13 venv; CI uses Node 22 / Python 3.12)
+## 9. Last local run (2026-10-09, after the API follow-up; Windows 11, Node 24, Python 3.13 venv; CI uses Node 22 / Python 3.12)
 
 | Check | Result |
 | --- | --- |
-| `npm ci` (root) | ok |
+| `python scripts/export_openapi.py` + `npm run -w packages/contracts generate` + `check` | 106 paths, 53 schemas; `--check` clean; schema.d.ts matches openapi.json |
+| `npm run -w packages/contracts test` / `typecheck` | 9 tests passed; ok |
 | `npm run -w apps/web lint` | eslint 0 errors (1 warning: TanStack Table's `useReactTable` is not memoisable by the React Compiler lint, expected), prettier clean |
-| `npm run -w apps/web typecheck` | ok |
-| `npm run -w apps/web test` | 9 files, 143 tests passed (unit, states contract 12 routes × up to 9 outcomes, axe smoke on 12 screens, flows) |
-| `npm run -w apps/web build` | ok; entry 525 kB / 168.6 kB gzip, 21 route and shared chunks |
-| `npm run -w apps/web size` | initial JavaScript 168.33 kB gzip of the 250 kB budget; initial CSS 3.11 kB gzip of 40 kB |
-| `npm run -w packages/contracts test` / `typecheck` / `check` | 9 tests passed; ok; schema.d.ts matches openapi.json (102 paths) |
-| `npm run -w apps/web e2e` | 17 passed, 0 failed (13 chromium-desktop: signin ×4, invite, platform, clients, documents, keyboard, fragments ×4; 4 chromium-mobile: signin ×4), 15.9 s after the servers were up. axe (wcag2a/2aa/21aa/22aa) at 23 call sites, 28 page states across the two projects: 0 serious or critical findings; no minor or moderate findings were reported |
+| `npm run -w apps/web typecheck` | ok, against the generated types |
+| `npm run -w apps/web test` | 9 files, 143 tests passed (unit, states contract 12 routes × up to 9 outcomes incl. the paged documents route, axe smoke on 12 screens, flows) |
+| `npm run -w apps/web build` | ok; entry 525.4 kB / 168.7 kB gzip; `dist/index.html` carries the CSP and build meta tags, `dist/_headers` is copied |
+| `npm run -w apps/web size` | initial JavaScript 168.43 kB gzip of the 250 kB budget; initial CSS 3.12 kB gzip of 40 kB |
+| `npm run -w apps/web e2e` (fresh servers) | 17 passed, 0 failed (13 chromium-desktop, 4 chromium-mobile), 34.8 s; axe 0 serious or critical findings |
+| `ruff check src tests scripts`, `mypy` | clean (mypy: 60 files, `api/schemas.py` included) |
+| Python, SQLite: `tests/test_health_and_smoke.py test_tenancy.py test_identity_workos.py test_security.py test_engagements.py test_reaudit_952ee96_api.py test_reaudit_fe75514.py test_audit_findings.py` | 67 passed, 1 skipped |
+| Python, SQLite: `tests/test_web_contracts.py` (new) | 14 passed |
+| Python, PostgreSQL (`AGENTLEDGER_DATABASE=postgres`, local container on 55432): the four named files + `test_web_contracts.py` + `test_engagements.py` | 50 passed, 1 skipped |
+| `npx tsc --noEmit -p edge` | ok |
+| `npx wrangler deploy --dry-run --outdir <tmp> --env staging` (placeholder credentials) | exit 0; `env.ASSETS (Assets)` listed, 39 files read from `apps/web/dist` |
+| `.github/workflows/{ci,web,release}.yml` | parse (`yaml.safe_load`); `staging` needs `[verify, minimum-versions, web]` |
 
 Re-running the suite against servers that are already up (`reuseExistingServer`) replays the data-changing specs on the same seed: the enrolment test finds its accounts enrolled and the lockout test finds them locked (15 minutes), so those four tests fail by design on a second run. `npm run -w apps/web e2e` always starts fresh servers with a fresh seed.

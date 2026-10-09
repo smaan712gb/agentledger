@@ -40,15 +40,19 @@ const CSP = [
   "form-action 'self'",
 ].join("; ");
 
-function cspMeta(): Plugin {
+// The page's own policy lives here, in the meta tag; public/_headers adds at the edge only what a meta tag cannot carry
+// (frame-ancestors) and the response headers that are not CSP. The build meta tag names the build the page was made
+// from, so the release smoke check (scripts/smoke.py) can see that the deployed app and API are the same commit.
+function buildMeta(): Plugin {
   return {
-    name: "agentledger:csp-meta",
+    name: "agentledger:build-meta",
     apply: "build",
     transformIndexHtml(html) {
       return {
         html,
         tags: [
           { tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: CSP }, injectTo: "head-prepend" },
+          { tag: "meta", attrs: { name: "agentledger-build", content: buildSha() }, injectTo: "head" },
         ],
       };
     },
@@ -56,7 +60,7 @@ function cspMeta(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), cspMeta()],
+  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), buildMeta()],
   define: { __BUILD_SHA__: JSON.stringify(buildSha()) },
   build: {
     target: "es2022",

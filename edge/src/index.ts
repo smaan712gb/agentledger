@@ -13,6 +13,10 @@ export { FilingSubmission };
 
 export interface Env {
 	API: DurableObjectNamespace<ApiContainer>;
+	// The web app (apps/web/dist) as static assets. They are served before this Worker runs for every path outside
+	// `run_worker_first` in wrangler.jsonc, with the single-page-application fallback, so no request for the app ever
+	// reaches the container and nothing here routes to the binding; it is declared for completeness and `wrangler types`.
+	ASSETS: Fetcher;
 	FILING: Workflow<FilingParams>;
 	API_INSTANCES: string;
 	ENVIRONMENT: string;

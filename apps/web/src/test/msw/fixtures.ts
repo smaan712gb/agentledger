@@ -28,8 +28,9 @@ export const firmAdmin: Me = {
   fresh_at: "2026-10-09 10:00:00",
   session_id: "s1",
   mfa_enrolled_at: "2026-10-01 09:00:00",
-  disabled: 0,
+  disabled: false,
   last_login_at: "2026-10-09 10:00:00",
+  firm: { id: "rivera-cpa", name: "Rivera CPA", status: "active" },
 };
 
 export const cpa: Me = {
@@ -70,6 +71,7 @@ export const platformAdmin: Me = {
   name: "Ops",
   role: "platform_admin",
   base_role: "platform_admin",
+  firm: null,
 };
 
 export const localConfig: AuthConfig = { identity: "local", password_sign_in: true };
@@ -130,14 +132,16 @@ export function detailOf(client: Client, year = 2026): ClientDetail {
       description: "",
       facts: ["state", "employees"],
     },
-    balances: {},
+    balances: [],
     kpis: [
-      { title: "Revenue", value: "125000.50", unit: "USD" },
-      { title: "Receipts missing", value: 3, unit: "documents", missing: null },
+      { id: "revenue", title: "Revenue", value: "125000.50", unit: "USD" },
+      { id: "receipts_missing", title: "Receipts missing", value: "3", unit: "documents", missing: null },
     ],
     findings: [
       {
         id: "f1",
+        client_id: client.id,
+        first_seen: "2026-03-01 09:00:00",
         check_id: "unsupported_expense",
         severity: "medium",
         title: "Expense without a receipt",
@@ -205,7 +209,7 @@ export const users: FirmUser[] = [
     role: "firm_admin",
     client_id: null,
     mfa_enrolled_at: "2026-10-01",
-    disabled: 0,
+    disabled: false,
     last_login_at: "2026-10-09 10:00:00",
     reviewer: false,
   },
@@ -217,7 +221,7 @@ export const users: FirmUser[] = [
     role: "cpa",
     client_id: null,
     mfa_enrolled_at: null,
-    disabled: 0,
+    disabled: false,
     last_login_at: null,
     reviewer: true,
   },

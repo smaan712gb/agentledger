@@ -18,14 +18,18 @@ export function ProfileScreen() {
   return <QueryBoundary query={query}>{(detail) => <Profile detail={detail} />}</QueryBoundary>;
 }
 
-/** Only the facts the person changed are sent; the API merges them into the recorded profile. */
+/** Only the facts the person changed are sent; the API merges them into the recorded profile, and removes a fact sent
+ * as null, which is what a blanked recorded fact becomes. */
 export function changedFacts(before: ClientFacts, after: Record<string, string>): ClientFacts {
   const out: ClientFacts = {};
   for (const [key, raw] of Object.entries(after)) {
     const value = raw.trim();
     const previous = before[key];
     if (value === "" && (previous === undefined || previous === null || previous === "")) continue;
-    if (value === "") continue; // the API merges; a blank cannot remove a recorded fact yet (docs/WEB.md)
+    if (value === "") {
+      out[key] = null;
+      continue;
+    }
     const typed: unknown =
       value === "true" ? true : value === "false" ? false : /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value;
     if (previous !== typed) out[key] = typed;

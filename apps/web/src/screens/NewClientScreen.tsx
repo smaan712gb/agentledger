@@ -31,8 +31,9 @@ const schema = z.object({
     .string()
     .trim()
     .regex(
-      /^[a-z0-9][a-z0-9._-]{1,60}$/,
-      "Lowercase letters, digits, dots, dashes; 2 to 61 characters (for example bright-dental)",
+      // The clients table's rule (pg/migrations/0001_ledger_core.sql), which the API applies to every store.
+      /^[a-z0-9][a-z0-9_-]{0,63}$/,
+      "Lowercase letters, digits, dashes or underscores; up to 64 characters (for example bright-dental)",
     ),
   name: z.string().trim().min(1, "Enter the legal name"),
   kind: z.enum(["business", "individual"]),

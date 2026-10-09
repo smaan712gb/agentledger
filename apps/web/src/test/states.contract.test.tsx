@@ -31,7 +31,7 @@ const ROUTES: RouteCase[] = [
   {
     path: "/clients/ortiz-auto/documents",
     me: fx.firmAdmin,
-    primary: ["/api/clients/:clientId"],
+    primary: ["/api/clients/:clientId", "/api/clients/:clientId/documents"],
     emptyTitle: "No documents yet",
     happy: /^Ortiz Auto$/,
   },

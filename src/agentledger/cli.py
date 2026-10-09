@@ -132,11 +132,27 @@ def platform_new_master_key():
 
 
 @platform_app.command("bootstrap-admin")
-def platform_bootstrap_admin(email: str = typer.Option(...), name: str = typer.Option(...)):
-    """Create the first platform administrator. They enrol two-step verification at first sign-in."""
+def platform_bootstrap_admin(email: str = typer.Option(...), name: str = typer.Option(...),
+                             password_env: str = typer.Option("", "--password-env", metavar="NAME",
+                                                              help="read the password from this environment variable (CI, seeds)"),
+                             password_stdin: bool = typer.Option(False, "--password-stdin",
+                                                                 help="read the password from the first line of standard input")):
+    """Create the first platform administrator. They enrol two-step verification at first sign-in. The password is
+    asked for interactively; without a terminal, pass --password-env NAME or --password-stdin."""
     from .security.platform import AuthError, Platform
 
-    password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    if password_env:
+        password = os.environ.get(password_env, "")
+        if not password:
+            con.print(f"[red]{password_env} is not set or is empty[/]")
+            raise typer.Exit(2)
+    elif password_stdin:
+        password = sys.stdin.readline().rstrip("\r\n")
+        if not password:
+            con.print("[red]no password on standard input[/]")
+            raise typer.Exit(2)
+    else:
+        password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
     plat = Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1")
     try:
         plat.bootstrap_admin(email, name, password)

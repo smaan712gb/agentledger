@@ -13,6 +13,11 @@ Read the phase gates (last section) before creating any firm on Cloudflare.
 browser / API client
    │  https://api.<zone>              (custom domain; no workers.dev hostname)
    ▼
+static assets  apps/web/dist          the web app (docs/WEB.md), served before the Worker for every path outside
+   │                                   `run_worker_first` (/api/*, /healthz, /legacy, /legacy/*, /static/*,
+   │                                   /openapi.json, /internal/*), single-page-application fallback, headers from
+   │                                   apps/web/public/_headers (frame-ancestors, nosniff, referrer, immutable /assets)
+   ▼
 Worker  agentledger-edge-<env>        edge/src/index.ts
    │  picks instance api-<hash(client ip) mod API_INSTANCES>
    │  sets X-Request-Id, X-Forwarded-For, X-Forwarded-Proto: https, X-Forwarded-Host; echoes X-Request-Id, adds HSTS
@@ -33,7 +38,9 @@ Container  (Dockerfile)               uvicorn agentledger.api.app on :8080, reac
    └── WorkOS AuthKit                 hosted sign-in for firm users (AGENTLEDGER_IDENTITY=workos)
 
 GitHub Actions
-   release.yml      verify -> staging (migrate, provision, deploy, smoke) -> production (approval, same, 15-minute soak)
+   release.yml      verify + web (web.yml: contract drift gate, lint, types, unit, build, e2e; uploads web-dist)
+                    -> staging (migrate, provision, download web-dist, deploy, smoke) -> production (approval, same, 15-minute soak)
+   ci.yml           pull requests: the verify checks and the web job; nothing deployed
    operations.yml   every 15 minutes: `agentledger platform provision` for staging and production
 ```
 
@@ -43,7 +50,9 @@ with those; the API runs with the per-store runtime role only (ADR-0002).
 
 The image is one build for every environment. `BUILD_SHA` in the repository says `dev`; the release writes the
 commit SHA into it before `wrangler deploy`, and `GET /healthz` reports it as `build`, which is how the smoke test
-knows the rollout has reached the new image. Container disk is scratch: `/app/state` and `/app/tenants` exist for
+knows the rollout has reached the new image. The web app is built in the same release with the same `BUILD_SHA`
+(its `<meta name="agentledger-build">` and `__BUILD_SHA__`), and `wrangler deploy` uploads `apps/web/dist` as the
+Worker's static assets next to the image; the smoke test checks `GET /` names that build too. Container disk is scratch: `/app/state` and `/app/tenants` exist for
 the process and hold nothing of record.
 
 Instance sizes and counts (`wrangler.jsonc`): staging `basic`, one instance, sleeps after 30 minutes idle;
@@ -284,3 +293,10 @@ real deploy. Also checked offline: `npx tsc --noEmit -p edge` is clean; the imag
 `scripts/smoke.py` passes all six checks against that image started with `AGENTLEDGER_DEV_AUTH=1` (hosted sign-in
 skipped, identity `local`); `tests/test_health_and_smoke.py` passes on SQLite and PostgreSQL. Update this record after
 the first real deploy with the cold-start time and anything the live API rejected.
+
+2026-10-09, after the `assets` block (F-10 follow-up): `--dry-run --env staging` exits 0, reads the 39 files of
+`apps/web/dist` (65 KiB uploaded, gzip 17 KiB) and lists `env.ASSETS (Assets)` next to the Durable Object and the
+Workflow; the block is repeated per environment, so whether `assets` inherits into env blocks is not relied on. The
+smoke check now has seven steps (`web app` is new); against a `--dev` API without the assets in front it passes only
+with `SMOKE_DEV=1`. Whether `run_worker_first` and the `_headers` rules behave as documented is first seen on the real
+deploy: `GET /` must be the app, `GET /legacy` the previous interface, `GET /api/auth/config` the API.

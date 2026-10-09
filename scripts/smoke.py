@@ -21,6 +21,7 @@ Every check prints one line; the exit status is 1 when any of them failed.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import sys
 import time
@@ -69,6 +70,24 @@ def check_health(c: httpx.Client, expected: str | None, wait: int) -> str:
             want = f"build {expected}" if expected else "ok"
             raise Failed(f"/healthz did not report {want} {CONSECUTIVE} times in a row within {wait}s; last answer: {last}")
         time.sleep(POLL_SECONDS)
+
+
+def check_web_app(c: httpx.Client, expected: str | None, dev: bool) -> str:
+    """GET / serves the built web app (apps/web/dist, the Worker's static assets): an HTML page whose
+    `agentledger-build` meta tag (vite.config.ts) names the expected build, so the app and the API were released
+    together. A --dev API without the built app in front serves the previous interface; that passes only with SMOKE_DEV=1."""
+    r = c.get("/")
+    if r.status_code != 200 or "text/html" not in r.headers.get("content-type", ""):
+        raise Failed(f"GET / answered {r.status_code} with content-type {r.headers.get('content-type')!r}, not an HTML page")
+    m = re.search(r'<meta name="agentledger-build" content="([^"]*)"', r.text)
+    if not m:
+        if dev and "AgentLedger" in r.text:
+            return "the previous interface is at / (no web build in front; SMOKE_DEV=1)"
+        raise Failed("GET / is not the built web app: no agentledger-build meta tag (is apps/web/dist deployed as the Worker's assets?)")
+    build = m.group(1)
+    if expected is not None and build != expected:
+        raise Failed(f"the web app at / is build {build!r}, expected {expected!r}: the assets and the image are out of step")
+    return f"web app build {build}"
 
 
 def check_auth_config(c: httpx.Client, dev: bool) -> str:
@@ -153,6 +172,7 @@ def main(argv: list[str]) -> int:
     with httpx.Client(base_url=base, timeout=TIMEOUT, follow_redirects=False) as c:
         checks = [
             ("healthz", lambda: check_health(c, expected, wait)),
+            ("web app", lambda: check_web_app(c, expected, dev)),
             ("auth config", lambda: check_auth_config(c, dev)),
             ("sign-in errors", lambda: check_login_is_generic(c)),
             ("hosted sign-in", lambda: check_idp_start(c, identity)),
