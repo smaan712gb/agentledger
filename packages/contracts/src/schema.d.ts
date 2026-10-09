@@ -1103,8 +1103,9 @@ export interface paths {
         };
         /**
          * Evidence Integrity
-         * @description Live documents whose bytes are missing, deletions not finished, and (verify=true) every stored object read back
-         *     and authenticated against its recorded hash.
+         * @description Live documents whose bytes are missing, deletions not finished, (verify=true) every stored object read back and
+         *     authenticated against its recorded hash, and `anchors` (F-13): the audit chain against every anchor in the object
+         *     store, the anchors' signatures, the lock probe's last outcome and whether an anchor is overdue.
          */
         get: operations["evidence_integrity"];
         put?: never;
