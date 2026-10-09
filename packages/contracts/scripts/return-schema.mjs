@@ -27,12 +27,29 @@ function python() {
   return existsSync(venv) ? venv : "python";
 }
 
+// Pydantic's rendering of Decimal fields changed between releases (2.13 adds a `pattern` to the string branch of
+// `anyOf: [number, string]`, 2.14 does not), and CI installs the newest release allowed while a developer's venv may be
+// older: the pattern is dropped before writing so the file depends on the model alone. The editor reads only `type`.
 const code = [
   "import json, sys",
   `sys.path.insert(0, ${JSON.stringify(resolve(repo, "src"))})`,
   "from agentledger.returns.model import IndividualReturn",
-  "print(json.dumps(IndividualReturn.model_json_schema(), indent=2))",
-].join("; ");
+  "def strip(o):",
+  "    if isinstance(o, dict):",
+  "        branches = o.get('anyOf') or []",
+  "        if any(isinstance(b, dict) and b.get('type') == 'number' for b in branches):",
+  "            for b in branches:",
+  "                if isinstance(b, dict) and b.get('type') == 'string':",
+  "                    b.pop('pattern', None)",
+  "        for v in o.values():",
+  "            strip(v)",
+  "    elif isinstance(o, list):",
+  "        for v in o:",
+  "            strip(v)",
+  "schema = IndividualReturn.model_json_schema()",
+  "strip(schema)",
+  "print(json.dumps(schema, indent=2))",
+].join("\n");
 const run = spawnSync(python(), ["-I", "-c", code], { encoding: "utf8", env: { ...process.env, PYTHONUTF8: "1" } });
 if (run.status !== 0) {
   console.error(run.stderr || `python exited with ${run.status ?? run.signal}`);
@@ -43,9 +60,14 @@ const generated = `${run.stdout.replace(/\r\n/g, "\n").trim()}\n`;
 if (check) {
   const committed = existsSync(target) ? readFileSync(target, "utf8").replace(/\r\n/g, "\n") : "";
   if (committed !== generated) {
+    const a = committed.split("\n");
+    const b = generated.split("\n");
+    const at = a.findIndex((line, i) => line !== b[i]);
+    const line = at === -1 ? Math.min(a.length, b.length) : at;
     console.error(
       "packages/contracts/src/return-schema.json is out of date with IndividualReturn: run `npm run -w packages/contracts return-schema`.",
     );
+    console.error(`first difference at line ${line + 1}:\n  committed: ${a[line] ?? "<end>"}\n  generated: ${b[line] ?? "<end>"}`);
     process.exit(1);
   }
   console.log("return-schema.json matches IndividualReturn.model_json_schema().");
