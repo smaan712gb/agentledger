@@ -143,3 +143,34 @@
              w2s: [{wages: 30000, box12: {D: 3000}}], retirement_savings: [{owner: taxpayer, testing_period_distributions: 0}]}
   expect: 200
   source: Notice 2025-67 pages 3-4 (§25B(b)(1) limits for 2026); Form 8880 (2025) lines 1-12; IRC §25B
+# Form 8889 worked by hand (Form 8889 (2025) lines 2-13; Rev. Proc. 2025-19 §2.01(1) 2026 limits): self-only HDHP coverage on
+# the first day of every month, Form 5498-SA box 2 = 4,400 of which 2,000 are employer contributions (W-2 box 12 code W):
+# line 2 = 2,400, line 3 = 4,400, line 9 = 2,000, line 12 = 2,400, line 13 = 2,400 to Schedule 1 line 13.
+- id: f1040-2026-hsa-deduction
+  calc: form_1040_line
+  inputs:
+    form: "f8889[taxpayer]"
+    line: "13"
+    return: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             w2s: [{wages: 60000, box12: {W: 2000}}], hsa_contributions: [{total_contributions: 4400}],
+             hsa_facts: [{coverage_01: self_only, coverage_02: self_only, coverage_03: self_only, coverage_04: self_only,
+                          coverage_05: self_only, coverage_06: self_only, coverage_07: self_only, coverage_08: self_only,
+                          coverage_09: self_only, coverage_10: self_only, coverage_11: self_only, coverage_12: self_only}]}
+  expect: 2400
+  source: Rev. Proc. 2025-19 §2.01(1) ($4,400 self-only for 2026); Form 8889 (2025) lines 2-13 and instructions, line 3 rule 3; IRC §223(b)
+# Form 8606 worked by hand from Pub. 590-B (2025) Worksheet 1-1 illustrated (Rose Green) with 2026 figures: basis 300, a 2,000
+# contribution while covered (wages 84,460 put modified AGI at 89,000, inside the 2026 single range 81,000-91,000: 1,500
+# deductible, 500 nondeductible), 5,000 distributed and converted to a Roth IRA, IRAs worth 20,000: ratio 2,300 / 25,000 =
+# 0.092, nontaxable 460 (lines 13 and 17), taxable conversion 4,540 on line 18 (and Form 1040 line 4b), basis carried 340.
+- id: f1040-2026-nondeductible-ira
+  calc: form_1040_line
+  inputs:
+    form: "f8606[taxpayer]"
+    line: "18"
+    return: {tax_year: 2026, filing_status: single, taxpayer: {ssn: "400-00-0001", dob: "1985-06-01"},
+             w2s: [{wages: 84460, retirement_plan: true}],
+             ira_accounts: [{ira_contributions: 2000, fmv: 20000, account_type: ira}, {roth_conversion: 5000, fmv: 5000, account_type: roth}],
+             retirement: [{gross_distribution: 5000, ira_sep_simple: true, distribution_code: "2"}],
+             prior_year: {traditional_ira_basis: 300}, ira_facts: [{contributions_after_year_end: 0}]}
+  expect: 4540
+  source: Pub. 590-B (2025) Worksheet 1-1 illustrated; Form 8606 (2025) lines 8, 13, 16-18; Notice 2025-67 page 4 (2026 phase-out 81,000-91,000); IRC §408(d)(2), §408A(d)(3)

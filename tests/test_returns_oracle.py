@@ -9,8 +9,9 @@ pytest.importorskip("policyengine_us")
 from test_returns_1040 import ctx, kid, spouse, you  # noqa: E402
 
 from agentledger.returns.individual import compute_individual  # noqa: E402
-from agentledger.returns.model import (Business, CapitalTransaction, CarLoan, Dividends, IndividualReturn, Interest,  # noqa: E402
-                                   IRAAccount, Person, PriorYear, Retirement, RetirementSavings, SocialSecurity, W2)
+from agentledger.returns.model import (Business, CapitalTransaction, CarLoan, Dividends, HSAContribution, HSAFacts,  # noqa: E402
+                                   IndividualReturn, Interest, IRAAccount, Person, PriorYear, Retirement, RetirementSavings,
+                                   SocialSecurity, W2)
 from agentledger.returns.oracle import crosscheck  # noqa: E402
 
 CASES = {
@@ -52,10 +53,23 @@ CASES = {
                                      ira_accounts=[IRAAccount(owner="spouse", roth_contributions=3000, fmv=20000)],
                                      retirement_savings=[RetirementSavings(owner="taxpayer", testing_period_distributions=0),
                                                          RetirementSavings(owner="spouse", testing_period_distributions=0)]),
+    # Form 8889: self-only coverage all year, 4,400 contributed of which 2,000 by the employer (code W): a 2,400 deduction
+    # (Form 8889 line 13), fed to PolicyEngine's health_savings_account_ald input; AGI 57,600 cross-checked.
+    "hsa_self_only": dict(filing_status="single", taxpayer=you(), w2s=[W2(wages=60000, box12={"W": 2000})],
+                          hsa_contributions=[HSAContribution(total_contributions=4400)],
+                          hsa_facts=[HSAFacts(**{f"coverage_{m:02d}": "self_only" for m in range(1, 13)})]),
+    # IRA deduction with nobody covered by an employer plan (no §219(g) phase-out) and within PolicyEngine's limit
+    # parameter: 6,000 deducted on Schedule 1 line 20 (PolicyEngine traditional_ira_contributions).
+    "ira_deduction_not_covered": dict(filing_status="single", taxpayer=you(), w2s=[W2(wages=50000)],
+                                      ira_accounts=[IRAAccount(ira_contributions=6000, fmv=6000, account_type="ira")],
+                                      prior_year=PriorYear(traditional_ira_basis=0)),
 }
 # What the engine must show for the new items before the cross-check counts as evidence (hand-worked, see
-# tests/test_returns_capital_loss_carryover.py and tests/test_returns_8880.py).
-EXPECTED = {"capital_loss_carryover": ("sch_d", "21", -3000), "savers_credit": ("sch_3", "4", 200), "savers_credit_joint_roth": ("sch_3", "4", 400)}
+# tests/test_returns_capital_loss_carryover.py, tests/test_returns_8880.py, tests/test_returns_8889.py and tests/test_returns_8606.py).
+EXPECTED = {"capital_loss_carryover": ("sch_d", "21", -3000), "savers_credit": ("sch_3", "4", 200), "savers_credit_joint_roth": ("sch_3", "4", 400),
+            "hsa_self_only": ("sch_1", "13", 2400), "ira_deduction_not_covered": ("sch_1", "20", 6000)}
+LABELS = {"capital_loss_carryover": "capital loss deduction", "savers_credit": "saver's credit", "savers_credit_joint_roth": "saver's credit",
+          "hsa_self_only": "adjusted gross income", "ira_deduction_not_covered": "IRA deduction"}
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
@@ -69,6 +83,10 @@ def test_agrees_with_policyengine(name):
     assert len(cc.compared) >= 10
     assert cc.agrees, [(d.item, str(d.agentledger), str(d.policyengine)) for d in cc.discrepancies]
     if name in EXPECTED:
-        label = "capital loss deduction" if name == "capital_loss_carryover" else "saver's credit"
+        label = LABELS[name]
         assert label in cc.compared and cc.compared[label][0] != 0            # the item itself was compared, not just AGI
         assert not any("capital loss carryovers" in u for u in cc.unmodelled)
+    if name == "hsa_self_only":
+        assert cc.compared["adjusted gross income"] == (57600, 57600) and any(u.startswith("HSA deduction") for u in cc.unmodelled)
+    if name == "ira_deduction_not_covered":
+        assert cc.compared["IRA deduction"] == (6000, 6000) and not any("IRA" in u for u in cc.unmodelled)

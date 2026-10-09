@@ -57,12 +57,28 @@ capabilities:
      evidence: ["tests/test_returns_8880.py (hand-worked from Form 8880 (2025) lines 1-12, its line 4 example, and Notice 2025-67 2026 limits)",
                 "golden/scenarios.yaml f1040-2026-savers-credit", "tests/test_returns_oracle.py savers_credit (PolicyEngine savers_credit)"],
      pending: "tax-content owner sign-off (coverage owner is null)"}
+  - {id: f8889,      name: "Form 8889 (HSA)",                   jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["one Form 8889 per spouse; both spouses with HSAs and family coverage must be treated as family for every month (the line 6 Steps 1-4 refiguring blocks: form_8889_split_coverage_spouses)",
+              "Archer MSAs and Medicare Advantage MSAs (Form 8853), death distributions (codes 4, 6), returned excess contributions (code 2) and prohibited transactions (code 5) block",
+              "excess contributions and excess employer contributions block (Form 5329's 6% tax and the other-income inclusion are not computed); the Employer Contribution Worksheet (prior-year employer contributions on this year's W-2) is not modelled",
+              "Part III covers the last-month rule from the prior year's carried amount (prior_year.hsa_last_month_rule_excess); a failed qualified HSA funding distribution (line 19) is not modelled",
+              "HDHP status per month is a stated fact (hsa_facts.coverage_01-12), not tested against plan terms; the 2026 minimums are recorded in us_fed.individual.hdhp_minimums"],
+     evidence: ["tests/test_returns_8889.py (hand-worked from Form 8889 (2025) lines 1-21 and its instructions, Pub. 969 (2025) Examples 1 and 2 and the Medicare example re-worked with the Rev. Proc. 2025-19 2026 limits)",
+                "golden/scenarios.yaml f1040-2026-hsa-deduction", "tests/test_returns_oracle.py hsa_self_only (PolicyEngine takes the deduction as an input; AGI and credits cross-checked)"],
+     pending: "tax-content owner sign-off (coverage owner is null); Schedule 2 keys follow the 2026 draft (13c, 13d, 14)"}
+  - {id: f8606,      name: "Form 8606 (nondeductible IRAs)",    jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["one Form 8606 per spouse; recharacterizations (5498 box 4, codes R, N), returned contributions (codes 8, P), QCDs from an IRA with basis, divorce transfers and inherited IRAs block",
+              "excess traditional and Roth IRA contributions block (Form 5329's 6% tax is not computed); an early Roth distribution beyond the regular contributions blocks (Form 5329 Part I: the 10% tax and the conversion recapture)",
+              "Form 8915-F disaster distributions and the Line 15c/25c worksheets are not modelled; nontaxable plan rollovers into a traditional IRA must be stated in the prior-year basis",
+              "the IRA Deduction Worksheet's modified AGI adds back only the IRA and student loan deductions (no Form 2555, 8815 or 8839 inputs exist); nontaxable combat pay is not a compensation input",
+              "the 5-year period of a Roth IRA (code T) and the first-time homebuyer lifetime limit are stated facts"],
+     evidence: ["tests/test_returns_8606.py (hand-worked from Pub. 590-A (2025) Worksheet 1-2 Examples 1 and 2 and Appendix B, Pub. 590-B (2025) Worksheet 1-1 (Rose Green) and the ordering-rules example (Amelia), the Form 8606 (2025) instructions' line 4 example and the Maximum Roth IRA Contribution Worksheet, all re-worked with the Notice 2025-67 2026 figures)",
+                "golden/scenarios.yaml f1040-2026-nondeductible-ira", "tests/test_returns_oracle.py ira_deduction_not_covered (PolicyEngine traditional_ira_contributions)"],
+     pending: "tax-content owner sign-off (coverage owner is null)"}
   # Known gaps on the 1040: the engine raises a blocking diagnostic when a return needs one of these.
   - {id: f1116,      name: "Form 1116 (foreign tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8962,      name: "Form 8962 (premium tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
-  - {id: f8606,      name: "Form 8606 (nondeductible IRAs)",    jurisdiction: US-FED, years: [2026], status: unsupported}
-  - {id: f8889,      name: "Form 8889 (HSA)",                   jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f4797,      name: "Form 4797 (business property)",     jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: sch_f,      name: "Schedule F",                        jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f2210,      name: "Form 2210 (underpayment penalty)",  jurisdiction: US-FED, years: [2026], status: unsupported}

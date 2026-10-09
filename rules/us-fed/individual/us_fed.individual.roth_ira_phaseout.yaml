@@ -1,0 +1,60 @@
+id: us_fed.individual.roth_ira_phaseout
+title: Roth IRA contribution phase-out ranges of modified AGI
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §408A(c)(3)(A), (c)(3)(B)(ii), (c)(3)(D) (indexing)
+keys:
+- mfj
+- single
+- mfs
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual IRS notice of cost-of-living adjustments for retirement plans and IRAs (Notice 2025-67 for 2026)
+  search_hint: Notice amounts relating to retirement plans and IRAs {year} section 408A(c)(3)(B)(ii) maximum Roth IRA contribution phase-out range
+bounds:
+  min: 0.0
+  max: 500000.0
+  max_change_pct: 0.1
+tags:
+- IRA
+- Roth
+- '408A'
+- Form 8606
+- inflation
+notes: >-
+  Each cell is [start, end] of the range of modified AGI (for Roth purposes: AGI without conversion income, plus the IRA
+  and student loan deductions and the excluded foreign, savings bond and adoption amounts) over which the maximum Roth
+  IRA contribution is reduced (§408A(c)(3)(A)). `mfj` is married filing jointly and a qualifying surviving spouse;
+  `single` is single, head of household and married filing separately having lived apart from the spouse all year; `mfs`
+  is married filing separately having lived with the spouse (fixed, not indexed). The Maximum Roth IRA Contribution
+  Worksheet (Form 8606 instructions) reduces the limit in proportion, rounds up to the next $10 and allows at least $200
+  until MAGI reaches the end (§408A(c)(3)(A) applying rules similar to §219(g)(2)(B), (C)).
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    mfj: [236000, 246000]
+    single: [150000, 165000]
+    mfs: [0, 10000]
+  provenance:
+    source: >-
+      Notice 2025-67, pages 4-5 (the 2025 ranges the 2026 ranges are "increased from"); Form 8606 (2025) instructions, Maximum Roth
+      IRA Contribution Worksheet line 4 ($246,000 / $165,000 / $10,000) and line 7 ($15,000 / $10,000 ranges)
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    mfj: [242000, 252000]
+    single: [153000, 168000]
+    mfs: [0, 10000]
+  provenance:
+    source: >-
+      Notice 2025-67, pages 4-5 (§408A(c)(3)(B)(ii)(I) $242,000, (II) $153,000, (III) $0 for 2026; "phase-out range ... is between
+      $242,000 and $252,000 for married couples filing jointly ... between $153,000 and $168,000 ... remains between $0 and $10,000");
+      Pub. 590-A (2025) "What's New for 2026"
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'

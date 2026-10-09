@@ -1,0 +1,65 @@
+id: us_fed.individual.ira_deduction_phaseout
+title: Traditional IRA deduction phase-out ranges of modified AGI for active participants (and their spouses)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §219(g)(2), (g)(3)(B), (g)(4), (g)(7), (g)(8) (indexing)
+keys:
+- single
+- mfj_covered
+- mfj_spouse_covered
+- mfs
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual IRS notice of cost-of-living adjustments for retirement plans and IRAs (Notice 2025-67 for 2026)
+  search_hint: Notice amounts relating to retirement plans and IRAs {year} applicable amount under section 219(g)(3)(B) phased out
+bounds:
+  min: 0.0
+  max: 500000.0
+  max_change_pct: 0.1
+tags:
+- IRA
+- '219'
+- IRA Deduction Worksheet
+- Form 8606
+- inflation
+notes: >-
+  Each cell is [start, end] of the range of modified AGI over which the deduction is reduced (§219(g)(2)(A)): below the
+  start the full limit is deductible, at or above the end nothing is. `single` is single and head of household (and
+  married filing separately having lived apart from the spouse all year, §219(g)(4)) when the person is an active
+  participant; `mfj_covered` is married filing jointly or a qualifying surviving spouse when the person is an active
+  participant; `mfj_spouse_covered` is a joint filer who is not an active participant but whose spouse is (§219(g)(7));
+  `mfs` is married filing separately having lived with the spouse, when either spouse is an active participant (fixed,
+  not indexed). The reduction is limit x (MAGI - start) / (end - start), rounded down to the next $10 (so the deductible
+  amount rounds up), and at least $200 is deductible until MAGI reaches the end (§219(g)(2)(B), (C)): the IRA Deduction
+  Worksheet's 70%/35% (80%/40% at age 50) multipliers are the 2025 limit over the $10,000 or $20,000 range.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    single: [79000, 89000]
+    mfj_covered: [126000, 146000]
+    mfj_spouse_covered: [236000, 246000]
+    mfs: [0, 10000]
+  provenance:
+    source: >-
+      Notice 2025-67, page 4 (the 2025 ranges the 2026 ranges are "increased from"); Pub. 590-A (2025) "What's New for 2025" and
+      Worksheet 1-2 table
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    single: [81000, 91000]
+    mfj_covered: [129000, 149000]
+    mfj_spouse_covered: [242000, 252000]
+    mfs: [0, 10000]
+  provenance:
+    source: >-
+      Notice 2025-67, page 4 (§219(g)(3)(B)(i) $129,000, (ii) $81,000, (iii) $0 and §219(g)(7)(A) $242,000 for 2026; "phased out ...
+      between $81,000 and $91,000 ... between $129,000 and $149,000 ... between $242,000 and $252,000 ... remains $0 to $10,000");
+      Pub. 590-A (2025) "What's New for 2026"
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'

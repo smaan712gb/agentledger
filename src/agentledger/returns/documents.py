@@ -65,7 +65,13 @@ BOXES: dict[str, dict[str, tuple[str, str]]] = {
 PRIOR_YEAR_LINES: dict[str, str] = {"agi": "agi", "tax": "tax", "filing_status": "filing_status",
                                     "capital_loss_carryover_short": "capital_loss_carryover_short",
                                     "capital_loss_carryover_long": "capital_loss_carryover_long",
-                                    "traditional_ira_basis": "traditional_ira_basis", "roth_ira_basis": "roth_ira_basis"}
+                                    "traditional_ira_basis": "traditional_ira_basis", "roth_ira_basis": "roth_ira_basis",
+                                    "spouse_traditional_ira_basis": "spouse_traditional_ira_basis",
+                                    "spouse_roth_ira_basis": "spouse_roth_ira_basis",
+                                    "roth_conversion_basis": "roth_conversion_basis",
+                                    "spouse_roth_conversion_basis": "spouse_roth_conversion_basis",
+                                    "hsa_last_month_rule_excess": "hsa_last_month_rule_excess",
+                                    "spouse_hsa_last_month_rule_excess": "spouse_hsa_last_month_rule_excess"}
 NAME_FIELDS = {"W-2": ("employer_name", "employer_name"), "1099-INT": ("payer_name", "payer"), "1099-DIV": ("payer_name", "payer"),
                "1099-R": ("payer_name", "payer"), "1099-SA": ("payer_name", "trustee"), "5498": ("payer_name", "trustee"),
                "5498-SA": ("payer_name", "trustee"), "1095-A": ("issuer_name", "issuer")}
@@ -112,7 +118,11 @@ ALIASES = {
                         "long_term_capital_loss_carryover": "capital_loss_carryover_long",
                         "capital_loss_carryover_worksheet_line13": "capital_loss_carryover_long",
                         "form_8606_line14": "traditional_ira_basis", "ira_basis": "traditional_ira_basis",
-                        "basis_in_traditional_iras": "traditional_ira_basis", "roth_basis": "roth_ira_basis"},
+                        "basis_in_traditional_iras": "traditional_ira_basis", "roth_basis": "roth_ira_basis",
+                        "form_8606_line_14": "traditional_ira_basis", "spouse_form_8606_line14": "spouse_traditional_ira_basis",
+                        "spouse_form_8606_line_14": "spouse_traditional_ira_basis", "spouse_ira_basis": "spouse_traditional_ira_basis",
+                        "spouse_roth_basis": "spouse_roth_ira_basis", "form_8606_line24": "roth_conversion_basis",
+                        "spouse_form_8606_line24": "spouse_roth_conversion_basis"},
 }
 BOX = re.compile(r"^box_?(\d{1,2}[a-z]?)(?:_[a-z_]+)?$")
 MONTH_COLUMN = re.compile(r"^(premium|slcsp|aptc)_?(0?[1-9]|1[0-2])$")                 # premium_01, slcsp_7

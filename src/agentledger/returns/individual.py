@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
 
 from ..calc.engine import D, Ctx
 from . import tax as T
-from .model import (SCHEDULE_C_LINES, Business, CapitalTransaction, Dependent, IndividualReturn, Owner, Person)
+from .model import (SCHEDULE_C_LINES, Business, CapitalTransaction, Dependent, HSAFacts, IndividualReturn, IRAAccount, IRAFacts,
+                    Owner, Person, Retirement)
 from .sheet import Sheets, pos, whole
 
 SUPPORTED_YEARS = {2026}
@@ -30,6 +31,36 @@ SAVERS_CREDIT_W2_CODES = frozenset({"D", "E", "F", "G", "H", "S", "AA", "BB", "E
 # 1099-R box 7 codes of distributions that are rollovers in full and so never reduce Form 8880 line 3 (instructions,
 # Line 4: "distributions not taxable as the result of a rollover or a trustee-to-trustee transfer").
 ROLLOVER_DISTRIBUTION_CODES = frozenset({"G", "H"})
+# 1099-R box 7 codes of Roth IRA distributions (Form 8606 Part III): J early with no known exception, Q qualified, T an
+# exception applies but the payer does not know whether the 5-year period is met.
+ROTH_DISTRIBUTION_CODES = frozenset({"J", "Q", "T"})
+# Corrective distributions the engine does not model: 8 and P return a contribution with its earnings, R and N are
+# recharacterizations (Form 8606 instructions, "Recharacterizations" and "Return of IRA Contributions").
+CORRECTIVE_DISTRIBUTION_CODES = frozenset({"8", "P", "R", "N"})
+MONTHS = [f"{m:02d}" for m in range(1, 13)]
+# Result.carryforwards keys that exist per person: the spouse's is stored under the spouse_ prefix of the next year's
+# prior_year group (model.PriorYear).
+PER_OWNER_CARRYFORWARDS = ("traditional_ira_basis", "roth_ira_basis", "roth_conversion_basis", "hsa_last_month_rule_excess")
+TWENTY_PERCENT = Decimal("0.20")
+TEN_PERCENT = Decimal("0.10")
+
+
+def carryforward_key(kind: str, owner: Owner) -> str:
+    """The prior_year input name a per-person carryforward is stored under next year."""
+    return kind if owner == "taxpayer" else f"spouse_{kind}"
+
+
+def round_up_10(amount: Decimal) -> Decimal:
+    """Rounded up to the next multiple of $10 (IRA Deduction Worksheet line 7, Maximum Roth IRA Contribution Worksheet
+    line 9: IRC §219(g)(2)(B) rounds the reduction down to the next $10, so the deductible amount rounds up)."""
+    return (amount / 10).to_integral_value(rounding=ROUND_CEILING) * 10
+
+
+def ratio3(numerator: Decimal, denominator: Decimal) -> Decimal:
+    """Form 8606 line 10: a decimal rounded to 3 places, 1.000 when 1.000 or more (or when nothing is in the IRAs)."""
+    if denominator <= 0:
+        return Decimal("1.000")
+    return min(Decimal("1.000"), (numerator / denominator).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
 
 
 def steps(amount: Decimal, step: Decimal, *, round_up: bool) -> Decimal:
@@ -55,13 +86,40 @@ class DependentStatus:
 
 
 @dataclass
+class _IRA:
+    """One person's IRA items for the year (Form 8606 and the IRA Deduction Worksheet), gathered before the deduction is
+    known: the distributions' taxable parts first (Pub. 590-B Worksheet 1-1 breaks the circularity between the taxable
+    part and the deduction), the deduction and the basis carried forward once total income is known."""
+    contributions: Decimal = Z            # Form 5498 box 1, traditional IRA contributions for the year (any date)
+    roth_contributions: Decimal = Z       # box 10
+    conversions: Decimal = Z              # box 3, net amount converted to Roth IRAs (Form 8606 lines 8 and 16)
+    distributions: Decimal = Z            # traditional IRA distributions net of rollovers and QCDs, conversions included
+    taxable_trad: Decimal = Z             # Form 8606 line 15c, or the whole amount when the IRAs have no basis
+    taxable_conversion: Decimal = Z       # line 18
+    taxable_roth: Decimal = Z             # line 25c
+    early_base: Decimal = Z               # taxable part of code 1 distributions (10% additional tax, IRC §72(t))
+    basis_prior: Decimal | None = None    # prior-year Form 8606 line 14 (prior_year group); None: not stated
+    covered: bool = False                 # active participant in an employer plan (W-2 box 13, 5498 boxes 8-9, or stated)
+    worksheet_1_1: bool = False           # the taxable part came from Pub. 590-B Worksheet 1-1 (contributions may be limited)
+    part_i: bool = False                  # Form 8606 Part I lines 4-15c apply (a distribution or conversion with basis)
+    required: bool = False                # Form 8606 is part of the return
+    lines: dict[str, Decimal] = field(default_factory=dict)
+    facts: dict[str, Any] = field(default_factory=dict)
+    roth_basis_next: Decimal | None = None        # basis in regular Roth contributions carried to next year
+    conversion_basis_next: Decimal | None = None  # basis in conversions carried to next year
+    deduction: Decimal = Z                # Schedule 1 line 20, this person's column
+    nondeductible: Decimal = Z            # Form 8606 line 1
+
+
+@dataclass
 class Result:
     tax_year: int
     filing_status: str
     sheets: Sheets
     sources: list[dict[str, Any]] = field(default_factory=list)
     # What this return carries to the next tax year, keyed by the next return's `prior_year` input names (whole dollars,
-    # positive amounts). Computed, never entered; persisted as return_carryforwards in a later slice.
+    # positive amounts; a per-person amount of the spouse is keyed spouse_*). Computed, never entered; persisted per
+    # version as return_carryforwards (returns/store.py) and rolled forward by Returns.roll_forward.
     carryforwards: dict[str, Decimal] = field(default_factory=dict)
 
     @property
@@ -117,12 +175,15 @@ class _Individual:
         self.fs = r.filing_status
         self.joint = r.filing_status == "mfj"
         self.mfs = r.filing_status == "mfs"
+        self.married = r.filing_status in ("mfj", "mfs")
         self.s = Sheets()
         self.deps: list[DependentStatus] = []
         self.se: dict[Owner, dict[str, Decimal]] = {}
         self.biz_net: list[tuple[Business, Decimal]] = []
         self._ti_unfloored = Z                  # Form 1040 line 15 as it would be if it could be negative (§1212(b)(2))
         self._carryforwards: dict[str, Decimal] = {}
+        self._ira: dict[Owner, _IRA] = {}       # Form 8606 and IRA Deduction Worksheet state per person
+        self._hsa: dict[Owner, dict[str, Decimal]] = {}  # Form 8889 lines 13, 16, 17b, 20 and 21 per HSA beneficiary
 
     # ----------------------------------------------------------------- helpers
     def p(self, rule_id: str) -> Any:
@@ -147,6 +208,11 @@ class _Individual:
         # Born before January 2 of (year - 64): a person attains an age the day before the birthday.
         return bool(person and person.dob and person.dob < date(self.y - 64, 1, 2))
 
+    def age_at_year_end(self, person: Person | None, years: int) -> bool:
+        """Whether the person is `years` or older at the end of the tax year (born on or before December 31 of year - years):
+        the Form 8889 age-55 and the IRA age-50 tests."""
+        return bool(person and person.dob and person.dob <= date(self.y - years, 12, 31))
+
     def joint_or(self, mfj: Any, other: Any) -> Any:
         return mfj if self.fs in ("mfj", "qss") else other
 
@@ -158,7 +224,9 @@ class _Individual:
         self._dependents()
         self._wages_and_dependent_care_benefits()
         self._interest_dividends()
+        self._form_8606_distributions()
         self._retirement()
+        self._form_8889()
         self._schedule_c()
         self._schedule_se()
         self._schedule_d()
@@ -300,9 +368,233 @@ class _Individual:
                         + [{"payer": k.entity_name, "amount": str(whole(k.ordinary_dividends))} for k in r.k1s if k.ordinary_dividends])
             self.set("sch_b", "6", ordinary)
 
+    # ----------------------------------------------------------------- IRAs (Form 8606) and HSAs (Form 8889)
+    @staticmethod
+    def _is_roth_distribution(d: Retirement) -> bool:
+        return bool(set(d.distribution_code.upper()) & ROTH_DISTRIBUTION_CODES)
+
+    @staticmethod
+    def _is_roth_account(a: IRAAccount) -> bool:
+        """A Form 5498 of a Roth IRA: box 7 says so, or (box 7 unread) it reports Roth contributions or a conversion received."""
+        return a.account_type == "roth" or (a.account_type is None and bool((a.roth_contributions or Z) or (a.roth_conversion or Z)))
+
+    def _covered(self, owner: Owner, hand: IRAFacts | None, accounts: list[IRAAccount]) -> bool:
+        """Active participant in an employer plan (IRA Deduction Worksheet line 1): the stated fact when there is one, else
+        W-2 box 13 or SEP/SIMPLE contributions on a Form 5498 (Pub. 590-A, "Are You Covered by an Employer Plan?")."""
+        if hand is not None and hand.covered_by_employer_plan is not None:
+            return hand.covered_by_employer_plan
+        return any(w.retirement_plan for w in self.r.w2s if w.owner == owner) or any(
+            (a.sep_contributions or Z) > 0 or (a.simple_contributions or Z) > 0 for a in accounts)
+
+    def _form_8606_distributions(self) -> None:
+        """Form 8606 Parts I-III per person, as far as they can be figured before the IRA deduction is known: the taxable
+        parts of traditional IRA distributions (§72(e)(8), §408(d)(2)), of conversions (Part II) and of Roth IRA
+        distributions (Part III, the §408A(d)(4) ordering). A traditional IRA distribution with the basis in the IRAs not
+        stated blocks: the taxable amount is never defaulted to the whole distribution."""
+        r, py = self.r, self.r.prior_year
+        f8606 = "f8606"
+        if r.adjustments.ira_deduction:
+            self.s.diag("error", "ira_deduction_deprecated_input",
+                        "adjustments.ira_deduction is no longer an input: the IRA deduction is figured by the IRA Deduction Worksheet "
+                        "from Form 5498 box 1, W-2 box 13 and the ira_facts. Remove it.", "sch_1", "20")
+        stated = {x.owner: x for x in r.ira_facts}
+        for owner in self.owners():
+            f = f"{f8606}[{owner}]"
+            hand = stated.get(owner)
+            accounts = [a for a in r.ira_accounts if a.owner == owner]
+            trad_accounts = [a for a in accounts if not self._is_roth_account(a)]
+            st = _IRA()
+            st.contributions = sum((a.ira_contributions or Z for a in accounts), Z)
+            st.roth_contributions = sum((a.roth_contributions or Z for a in accounts), Z)
+            st.conversions = sum((a.roth_conversion or Z for a in accounts), Z)
+            st.covered = self._covered(owner, hand, accounts)
+            st.basis_prior = getattr(py, carryforward_key("traditional_ira_basis", owner)) if py is not None else None
+            mine = [d for d in r.retirement if d.owner == owner]
+            for d in mine:
+                if set(d.distribution_code.upper()) & CORRECTIVE_DISTRIBUTION_CODES:
+                    self.s.diag("error", "form_8606_corrective_distribution",
+                                f"1099-R from {d.payer or 'payer'} (code {d.distribution_code}): a returned contribution or a "
+                                "recharacterization is not supported; its earnings and the statement it needs are not figured.", f)
+            if any((a.recharacterized_contributions or Z) > 0 for a in accounts):
+                self.s.diag("error", "form_8606_recharacterization",
+                            f"Form 5498 box 4 for the {owner}: a recharacterized contribution is not supported; Form 8606 treats the "
+                            "contribution as made to the second IRA and needs a statement.", f)
+            trad = [d for d in mine if d.ira_sep_simple and not self._is_roth_distribution(d)
+                    and not set(d.distribution_code.upper()) & ROLLOVER_DISTRIBUTION_CODES]
+            roth = [d for d in mine if self._is_roth_distribution(d)]
+            stated_basis = py is not None and any(getattr(py, carryforward_key(k, owner)) is not None
+                                                  for k in ("traditional_ira_basis", "roth_ira_basis", "roth_conversion_basis"))
+            if not (accounts or trad or roth or hand or stated_basis):
+                continue
+            self._ira[owner] = st
+            self._form_8606_part_i(owner, st, hand, trad, trad_accounts, f)
+            self._form_8606_part_iii(owner, st, hand, roth, f)
+
+    def _form_8606_part_i(self, owner: Owner, st: _IRA, hand: IRAFacts | None, trad: list[Retirement],
+                          trad_accounts: list[IRAAccount], f: str) -> None:
+        y = self.y
+        net = sum((pos(d.gross_distribution - d.rollover_amount - d.qcd_amount) for d in trad), Z)
+        qcd = sum((d.qcd_amount for d in trad), Z)
+        st.distributions = net
+        if net == 0 and st.conversions == 0:
+            return                                        # no distribution this year: lines 1-3 and 14 follow the deduction
+        if st.conversions > net:
+            self.s.diag("error", "form_8606_conversion_exceeds_distributions",
+                        f"Form 8606 line 8 for the {owner}: Form 5498 box 3 shows {whole(st.conversions)} converted to Roth IRAs but the "
+                        f"1099-Rs of traditional IRAs show {whole(net)} distributed (net of rollovers and QCDs). Check the documents.", f, "8")
+        l7, l8 = pos(net - st.conversions), min(st.conversions, net)
+        code1 = sum((pos(d.gross_distribution - d.rollover_amount - d.qcd_amount) for d in trad if "1" in d.distribution_code), Z)
+        if st.basis_prior is None:
+            self.s.diag("error", "form_8606_basis_unknown",
+                        f"Form 8606 line 2 for the {owner}: the basis in traditional IRAs at the end of {y - 1} is not stated "
+                        "(prior_year.traditional_ira_basis; enter 0 if no nondeductible contribution was ever made). The taxable amount "
+                        "of the IRA distributions is not figured while it is unknown.", f, "2")
+            st.taxable_trad = net
+            st.early_base = code1
+            return
+        spouse_covered = self._spouse_covered(owner)
+        limited_possible = st.contributions > 0 and (st.covered or spouse_covered)
+        election = min(hand.nondeductible_election, st.contributions) if hand and hand.nondeductible_election else Z
+        if st.basis_prior == 0 and not limited_possible and election == 0:
+            # No basis and nothing that can become basis: the whole amount is taxable (box 2a when the payer determined it).
+            st.taxable_trad = sum((pos((d.taxable_amount if d.taxable_amount is not None else d.gross_distribution)
+                                       - d.rollover_amount - d.qcd_amount) for d in trad), Z)
+            st.early_base = st.taxable_trad * (code1 / net) if net > 0 else Z
+            return
+        st.part_i = st.required = True
+        if qcd > 0:
+            self.s.diag("error", "form_8606_qcd_with_basis",
+                        f"Form 8606 for the {owner}: a qualified charitable distribution from an IRA with basis is not supported "
+                        "(the QCD is treated as made from the taxable part first, Pub. 590-B).", f, "7")
+        if not trad_accounts:
+            self.s.diag("error", "form_8606_fmv_unknown",
+                        f"Form 8606 line 6 for the {owner}: no Form 5498 of a traditional IRA is on the return, so the value of all "
+                        f"traditional IRAs on December 31, {y} is unknown; the nontaxable part cannot be figured.", f, "6")
+        fmv = sum((a.fmv or Z for a in trad_accounts), Z) + (hand.outstanding_rollovers if hand else Z)
+        if limited_possible:
+            # Pub. 590-B Worksheet 1-1 (contributions for the year may not be fully deductible): the taxable part is figured
+            # with all contributions in the basis; lines 13 and 17 take its line 8 and lines 6-12 are not completed.
+            st.worksheet_1_1 = True
+            w1 = st.basis_prior
+            w2 = st.contributions
+            w3 = w1 + w2
+            w4 = fmv
+            w5 = net
+            w6 = w4 + w5
+            w7 = ratio3(w3, w6)
+            w8 = whole(w5 * w7)
+            w9 = w5 - w8
+            w10 = whole(w9 * (l8 / w5)) if w5 > 0 else Z
+            w11 = w9 - w10
+            st.facts["worksheet_1_1"] = {"1": str(whole(w1)), "2": str(whole(w2)), "3": str(whole(w3)), "4": str(whole(w4)),
+                                         "5": str(whole(w5)), "6": str(whole(w6)), "7": str(w7), "8": str(w8), "9": str(whole(w9)),
+                                         "10": str(w10), "11": str(whole(w11))}
+            st.lines.update({"7": l7, "8": l8, "13": w8, "15a": w11, "15c": w11, "16": l8, "17": w8, "18": w10})
+            st.taxable_trad, st.taxable_conversion = w11, w10
+        else:
+            l1 = election
+            l2 = st.basis_prior
+            l3 = l1 + l2
+            l4 = Z
+            if l1 > 0:
+                if hand is None or hand.contributions_after_year_end is None:
+                    self.s.diag("error", "form_8606_late_contributions_unknown",
+                                f"Form 8606 line 4 for the {owner}: the part of the {y} contributions made from January 1 through "
+                                f"April 15, {y + 1} is not stated (ira_facts[].contributions_after_year_end; enter 0 if none).", f, "4")
+                else:
+                    l4 = min(hand.contributions_after_year_end, l1)
+            l5 = l3 - l4
+            l6 = fmv
+            l9 = l6 + l7 + l8
+            l10 = ratio3(l5, l9)
+            l11 = whole(l8 * l10)
+            l12 = whole(l7 * l10)
+            l13 = l11 + l12
+            st.facts["10"] = str(l10)
+            st.lines.update({"1": l1, "2": l2, "3": l3, "4": l4, "5": l5, "6": l6, "7": l7, "8": l8, "9": l9, "11": l11, "12": l12,
+                             "13": l13, "14": l3 - l13, "15a": l7 - l12, "15c": l7 - l12, "16": l8, "17": l11, "18": l8 - l11})
+            st.taxable_trad, st.taxable_conversion = l7 - l12, l8 - l11
+        st.early_base = st.taxable_trad * (code1 / l7) if l7 > 0 else Z
+
+    def _spouse_covered(self, owner: Owner) -> bool:
+        """Whether the other spouse is an active participant: from their documents on a joint return, else from their
+        stated fact (ira_facts with owner spouse on a separate return)."""
+        if not self.married:
+            return False
+        other: Owner = "spouse" if owner == "taxpayer" else "taxpayer"
+        hand = next((x for x in self.r.ira_facts if x.owner == other), None)
+        return self._covered(other, hand, [a for a in self.r.ira_accounts if a.owner == other])
+
+    def _form_8606_part_iii(self, owner: Owner, st: _IRA, hand: IRAFacts | None, roth: list[Retirement], f: str) -> None:
+        """Part III: nonqualified Roth IRA distributions come first from regular contributions, then conversions, then
+        earnings (IRC §408A(d)(4); Pub. 590-B, Ordering Rules for Distributions)."""
+        py = self.r.prior_year
+        basis_prior = getattr(py, carryforward_key("roth_ira_basis", owner)) if py is not None else None
+        conv_prior = getattr(py, carryforward_key("roth_conversion_basis", owner)) if py is not None else None
+        five_year = hand.roth_five_year_period_met if hand else None
+        nonqualified: list[Retirement] = []
+        for d in roth:
+            code = d.distribution_code.upper()
+            if "Q" in code or ("T" in code and five_year is True):
+                continue
+            if "T" in code and five_year is None:
+                self.s.diag("error", "form_8606_roth_five_year_unknown",
+                            f"1099-R from {d.payer or 'payer'} (code T) for the {owner}: whether the 5-year period of the Roth IRA is met "
+                            "is not stated (ira_facts[].roth_five_year_period_met); a qualified distribution is tax free, any other "
+                            "goes through Form 8606 Part III.", f, "19")
+                continue
+            nonqualified.append(d)
+        if not nonqualified:
+            st.roth_basis_next = None if basis_prior is None else basis_prior + st.roth_contributions
+            st.conversion_basis_next = None if conv_prior is None else conv_prior + st.conversions
+            return
+        st.required = True
+        l19 = sum((pos(d.gross_distribution - d.rollover_amount) for d in nonqualified), Z)
+        l20 = min(hand.first_time_homebuyer_expenses if hand else Z, Decimal(10000))
+        l21 = pos(l19 - l20)
+        st.lines.update({"19": l19, "20": l20, "21": l21})
+        if basis_prior is None:
+            self.s.diag("error", "form_8606_roth_basis_unknown",
+                        f"Form 8606 line 22 for the {owner}: the basis in regular Roth IRA contributions before {self.y} is not stated "
+                        "(prior_year.roth_ira_basis; enter 0 if none). The taxable part of the Roth IRA distribution is not figured "
+                        "while it is unknown.", f, "22")
+            st.taxable_roth = l21
+            return
+        l22 = basis_prior + st.roth_contributions
+        l23 = pos(l21 - l22)
+        st.lines.update({"22": l22, "23": l23})
+        st.roth_basis_next = pos(l22 - l21)
+        if l23 <= 0:
+            st.conversion_basis_next = None if conv_prior is None else conv_prior + st.conversions
+            return
+        if conv_prior is None:
+            self.s.diag("error", "form_8606_conversion_basis_unknown",
+                        f"Form 8606 line 24 for the {owner}: the basis in conversions and plan rollovers to Roth IRAs before {self.y} is "
+                        "not stated (prior_year.roth_conversion_basis; enter 0 if none).", f, "24")
+            st.taxable_roth = l23
+            return
+        l24 = conv_prior + st.conversions
+        l25a = pos(l23 - l24)
+        st.lines.update({"24": l24, "25a": l25a, "25c": l25a})
+        st.conversion_basis_next = pos(l24 - l23)
+        st.taxable_roth = l25a
+        if any("J" in d.distribution_code.upper() for d in nonqualified):
+            self.s.diag("error", "form_5329_required",
+                        f"Form 8606 line 23 for the {owner} is {whole(l23)}: an early Roth IRA distribution beyond the regular "
+                        "contributions needs Form 5329 Part I (the 10% additional tax, and the recapture of conversions within 5 "
+                        "years), which is not supported.", f, "23")
+
     def _retirement(self) -> None:
+        """Form 1040 lines 4a-5b. IRA and Roth IRA distributions of a person whose Form 8606 state is known take their
+        taxable amounts from it; pensions use box 2a, or the whole amount with a warning when the payer did not
+        determine it (the Simplified Method is not computed)."""
         ira_gross = ira_taxable = pen_gross = pen_taxable = early_tax = Z
         for d in self.r.retirement:
+            code = d.distribution_code.upper()
+            is_ira = d.ira_sep_simple or self._is_roth_distribution(d)
+            if is_ira and d.owner in self._ira:
+                ira_gross += d.gross_distribution
+                continue
             if d.taxable_amount is None:
                 taxable = d.gross_distribution
                 self.s.diag("warning", "1099r_taxable_not_determined",
@@ -311,23 +603,254 @@ class _Individual:
             else:
                 taxable = d.taxable_amount
             taxable = pos(taxable - d.rollover_amount - (d.qcd_amount if d.ira_sep_simple else Z))
-            if d.ira_sep_simple:
+            if is_ira:
                 ira_gross += d.gross_distribution
                 ira_taxable += taxable
             else:
                 pen_gross += d.gross_distribution
                 pen_taxable += taxable
-            code = d.distribution_code.upper()
             if "1" in code or "S" in code:
-                rate = Decimal("0.25") if "S" in code else Decimal("0.10")
+                rate = Decimal("0.25") if "S" in code else TEN_PERCENT
                 early_tax += pos(taxable - d.early_distribution_exception) * rate
                 if d.early_distribution_exception > 0:
                     self.s.diag("info", "form_5329_exception", "An early-distribution exception was claimed: Form 5329 is required.")
+        for st in self._ira.values():
+            ira_taxable += st.taxable_trad + st.taxable_conversion + st.taxable_roth
+            early_tax += st.early_base * TEN_PERCENT
         self.set("f1040", "4a", ira_gross)
         self.set("f1040", "4b", ira_taxable)
         self.set("f1040", "5a", pen_gross)
         self.set("f1040", "5b", pen_taxable)
         self._early_distribution_tax = early_tax
+
+    def _employer_hsa_contributions(self, owner: Owner) -> Decimal:
+        """Form 8889 line 9: employer contributions (including payroll contributions through a cafeteria plan), W-2 box 12 code W."""
+        return sum((amt for w in self.r.w2s if w.owner == owner for code, amt in w.box12.items() if code.upper() == "W"), Z)
+
+    def _form_8889(self) -> None:
+        """Form 8889 per HSA beneficiary: Part I (the deduction, Schedule 1 line 13), Part II (taxable distributions,
+        Schedule 1 line 8f, and the 20% tax, Schedule 2 line 13c), Part III (the prior year's last-month rule failing its
+        testing period, Schedule 1 line 8f and the 10% tax, Schedule 2 line 13d). Contributions come from Form 5498-SA and
+        W-2 code W, distributions from Form 1099-SA; coverage, use and allocation facts from hsa_facts."""
+        r = self.r
+        if r.adjustments.hsa_deduction:
+            self.s.diag("error", "form_8889_deprecated_input",
+                        "adjustments.hsa_deduction is no longer an input: the HSA deduction is figured on Form 8889 from Forms 5498-SA "
+                        "and 1099-SA, W-2 box 12 code W and the hsa_facts. Remove it.", "sch_1", "13")
+        stated = {x.owner: x for x in r.hsa_facts}
+        owners = [o for o in self.owners() if o in stated or any(c.owner == o for c in r.hsa_contributions)
+                  or any(d.owner == o for d in r.hsa_distributions) or self._employer_hsa_contributions(o) > 0]
+        if not owners:
+            return
+        lim = self.ctx.try_param("us_fed.individual.hsa_contribution_limit", self.on)
+        if lim is None:
+            self.s.diag("error", "hsa_contribution_limit_rule_missing",
+                        f"No published HSA contribution limits cover {self.on.isoformat()} (us_fed.individual.hsa_contribution_limit): "
+                        "Form 8889 is not figured.", "sch_1", "13")
+            return
+        # Spouses who both have HSAs are both treated as having family coverage when either has it (Form 8889 instructions,
+        # "How To Complete Part I"; Pub. 969, "Rules for married people").
+        both = self.joint and all(any(c.owner == o for c in r.hsa_contributions) or self._employer_hsa_contributions(o) > 0
+                                  for o in ("taxpayer", "spouse"))
+        family_any = any(getattr(stated[o], f"coverage_{m}") == "family" for o in owners if o in stated for m in MONTHS)
+        for owner in owners:
+            self._form_8889_owner(owner, stated.get(owner), stated, lim, treat_family=both and family_any)
+
+    def _form_8889_owner(self, owner: Owner, hf: HSAFacts | None, stated: dict[Owner, HSAFacts], lim: dict[str, Any], *,
+                         treat_family: bool) -> None:
+        r, y = self.r, self.y
+        f = f"f8889[{owner}]"
+        p = self.person(owner)
+        contribs = [c for c in r.hsa_contributions if c.owner == owner]
+        dists = [d for d in r.hsa_distributions if d.owner == owner]
+        if any(c.account_type in ("archer_msa", "ma_msa") or (c.archer_msa_contributions or Z) > 0 for c in contribs) or any(
+                d.account_type in ("archer_msa", "ma_msa") for d in dists):
+            self.s.diag("error", "form_8853_required",
+                        f"An Archer MSA or Medicare Advantage MSA of the {owner} needs Form 8853, which is not supported.", f)
+            return
+        employer = self._employer_hsa_contributions(owner)
+        funding = hf.qualified_funding_distribution if hf else Z
+        for_last_year = hf.contributions_for_last_year if hf else Z
+        box_total = sum(((c.total_contributions or Z) + (c.following_year_contributions or Z) for c in contribs), Z)
+        has_contributions = bool(contribs) or employer > 0 or funding > 0
+        problems: list[tuple[str, str, str | None]] = []
+        self_limit, family_limit, catch = D(lim["self_only"]), D(lim["family"]), D(lim["catch_up"])
+        lines: dict[str, Decimal] = {}
+        facts: dict[str, Any] = {}
+        carry = Z
+        # ---------------------------------------------------------------- Part I
+        if has_contributions:
+            if not contribs:
+                problems.append(("form_8889_contributions_unknown",
+                                 f"Form 8889 line 2 for the {owner}: W-2 box 12 code W shows employer contributions of {whole(employer)} but "
+                                 "no Form 5498-SA is on the return, so the year's total HSA contributions are unknown.", "2"))
+            coverage = [getattr(hf, f"coverage_{m}") if hf else None for m in MONTHS]
+            if any(c is None for c in coverage):
+                problems.append(("form_8889_coverage_unknown",
+                                 f"Form 8889 line 3 for the {owner}: the HDHP coverage on the first day of each month of {y} is not stated "
+                                 "(hsa_facts[].coverage_01 to coverage_12: self_only, family or none). The deduction is not figured "
+                                 "while a month is unknown.", "3"))
+            if p is None or p.dob is None:
+                problems.append(("form_8889_age_unknown",
+                                 f"Form 8889 for the {owner}: the date of birth is needed for the age-55 additional contribution and the "
+                                 "age-65 exception.", None))
+            if not problems and hf is not None and p is not None:
+                cov: list[str] = [str(c) for c in coverage]
+                if treat_family:
+                    cov = ["family" if c != "none" else "none" for c in cov]
+                dependent = p.can_be_claimed_as_dependent
+                medicare = hf.medicare_from_month
+                eligible = [c != "none" and not dependent and not (medicare is not None and i + 1 >= medicare) for i, c in enumerate(cov)]
+                age55 = self.age_at_year_end(p, 55)
+                married_family_any = self.married and any(c == "family" for c, e in zip(cov, eligible) if e)
+                chart: list[Decimal] = []
+                for c, e in zip(cov, eligible):
+                    if not e:
+                        chart.append(Z)
+                    elif c == "self_only":
+                        chart.append(self_limit + (catch if age55 and not married_family_any else Z))
+                    else:
+                        chart.append(family_limit + (catch if age55 and not self.married else Z))
+                chart_total = sum(chart, Z)
+                chart_limit = chart_total / 12
+                facts["chart"] = {m: str(whole(a)) for m, a in zip(MONTHS, chart)}
+                facts["chart_total"] = str(whole(chart_total))
+                if eligible[11]:
+                    # Last-month rule (§223(b)(8)): eligible on December 1, so treated as eligible all year with that coverage.
+                    full = family_limit if cov[11] == "family" else self_limit
+                    if age55 and not married_family_any:
+                        full += catch
+                    l3 = max(chart_limit, full)
+                    facts["last_month_rule"] = l3 > chart_limit
+                    facts["1"] = cov[11]
+                else:
+                    l3 = chart_limit
+                    facts["last_month_rule"] = False
+                    kinds = [c for c, e in zip(cov, eligible) if e]
+                    facts["1"] = "family" if kinds.count("family") > kinds.count("self_only") else "self_only"
+                n_eligible = sum(1 for e in eligible if e)
+                l7 = catch * n_eligible / 12 if age55 and married_family_any else Z
+                l5 = l3                                         # line 4 (Archer MSA contributions) is zero: Form 8853 is refused above
+                l6 = l5
+                if treat_family and n_eligible > 0:
+                    if n_eligible < 12:
+                        problems.append(("form_8889_split_coverage_spouses",
+                                         f"Form 8889 line 6 for the {owner}: spouses who both have HSAs and were not treated as having "
+                                         "family coverage for every month must refigure the limit for the family months (instructions, "
+                                         "line 6, Steps 1-4), which is not supported.", "6"))
+                    other: Owner = "spouse" if owner == "taxpayer" else "taxpayer"
+                    mine, theirs = hf.family_limit_share, (stated[other].family_limit_share if other in stated else None)
+                    if mine is None and theirs is None:
+                        l6 = l5 / 2
+                    elif mine is not None:
+                        l6 = mine
+                        if theirs is not None and mine + theirs != l5:
+                            problems.append(("form_8889_family_allocation_mismatch",
+                                             f"Form 8889 line 6: the spouses' agreed shares of the family limit ({whole(mine)} and "
+                                             f"{whole(theirs)}) do not add up to the limit of {whole(l5)}.", "6"))
+                    else:
+                        l6 = pos(l5 - theirs) if theirs is not None else l5
+                elif self.mfs and any(c == "family" for c, e in zip(cov, eligible) if e):
+                    if hf.family_limit_share is None:
+                        problems.append(("form_8889_family_allocation_unknown",
+                                         f"Form 8889 line 6 for the {owner}: married filing separately with family HDHP coverage, the share "
+                                         "of the family limit allocated to this spouse is not stated (hsa_facts[].family_limit_share; the "
+                                         "whole limit if the other spouse has no HSA).", "6"))
+                    else:
+                        l6 = hf.family_limit_share
+                l8 = l6 + l7
+                l9 = employer
+                l10 = funding
+                l11 = l9 + l10
+                l12 = pos(l8 - l11)
+                l2 = box_total - employer - funding - for_last_year
+                if l2 < 0:
+                    problems.append(("form_8889_contributions_inconsistent",
+                                     f"Form 8889 line 2 for the {owner}: Form 5498-SA boxes 2 and 3 total {whole(box_total)}, less than the "
+                                     f"employer contributions ({whole(employer)}), funding distribution and prior-year contributions "
+                                     "taken out of it. Check the documents.", "2"))
+                    l2 = Z
+                l13 = min(l2, l12)
+                if l2 > l13:
+                    problems.append(("form_5329_excess_hsa_contributions",
+                                     f"Form 8889 for the {owner}: contributions of {whole(l2)} exceed the deductible limit of {whole(l12)}; "
+                                     "the excess owes the 6% tax of Form 5329 (not supported) unless withdrawn with its earnings by the "
+                                     "due date, after which the 5498-SA amounts and hsa_facts are entered as corrected.", "13"))
+                if employer > pos(l8 - l10):
+                    problems.append(("form_8889_excess_employer_contributions",
+                                     f"Form 8889 for the {owner}: employer contributions of {whole(employer)} exceed the limit of "
+                                     f"{whole(pos(l8 - l10))}; the excess is other income (instructions, Excess Employer Contributions), "
+                                     "which is not supported.", "9"))
+                lines.update({"2": l2, "3": l3, "5": l5, "6": l6, "7": l7, "8": l8, "9": l9, "10": l10, "11": l11, "12": l12, "13": l13})
+                contributed = l2 + l9 + l10
+                if facts["last_month_rule"]:
+                    carry = pos(min(contributed, l8) - chart_limit - l7)
+        # ---------------------------------------------------------------- Part II
+        if dists:
+            codes = {str(d.distribution_code) for d in dists}
+            if codes & {"2", "5"}:
+                problems.append(("form_8889_distribution_code_unsupported",
+                                 f"Form 1099-SA box 3 code {sorted(codes & {'2', '5'})[0]} for the {owner}: a returned excess contribution or "
+                                 "a prohibited-transaction deemed distribution is not supported (its earnings or value are other income).", "14a"))
+            if codes & {"4", "6"}:
+                problems.append(("form_8889_death_distribution",
+                                 f"Form 1099-SA box 3 code 4 or 6 for the {owner}: a distribution on the account beneficiary's death is "
+                                 "reported on the beneficiary's own Form 8889 (fair market value at death), which is not supported.", "14a"))
+            l14a = sum((d.gross_distribution or Z for d in dists), Z)
+            l14b = hf.rollovers_and_withdrawn_excess if hf else Z
+            l14c = pos(l14a - l14b)
+            l15 = l16 = Z
+            if l14c > 0:
+                if hf is None or hf.qualified_medical_expenses is None:
+                    problems.append(("form_8889_medical_expenses_unknown",
+                                     f"Form 8889 line 15 for the {owner}: the distributions used for qualified medical expenses are not stated "
+                                     "(hsa_facts[].qualified_medical_expenses; enter 0 if none). The taxable distributions are not figured "
+                                     "while it is unknown.", "15"))
+                else:
+                    l15 = min(hf.qualified_medical_expenses, l14c)
+                    l16 = l14c - l15
+            l17b = Z
+            if l16 > 0 and p is not None:
+                exempt: Decimal | None
+                if codes <= {"3"} or (p.dob is not None and p.dob <= date(y - 65, 1, 1)):
+                    exempt = l16                                  # disability, or 65 before the year began: no 20% tax
+                elif hf is not None and hf.additional_tax_exception is not None:
+                    exempt = min(hf.additional_tax_exception, l16)
+                elif p.dob is None or p.dob <= date(y - 65, 12, 31) or "3" in codes:
+                    exempt = None
+                    problems.append(("form_8889_exception_unknown",
+                                     f"Form 8889 line 17a for the {owner}: the part of the taxable distributions made after turning 65, or "
+                                     "because of disability or death, is not stated (hsa_facts[].additional_tax_exception; enter 0 if none).", "17a"))
+                else:
+                    exempt = Z
+                if exempt is not None:
+                    facts["17a"] = exempt > 0
+                    l17b = (l16 - exempt) * TWENTY_PERCENT
+            lines.update({"14a": l14a, "14b": l14b, "14c": l14c, "15": l15, "16": l16, "17b": l17b})
+        # ---------------------------------------------------------------- Part III
+        if hf is not None and hf.testing_period_failed:
+            py = r.prior_year
+            prior = getattr(py, carryforward_key("hsa_last_month_rule_excess", owner)) if py is not None else None
+            if prior is None:
+                problems.append(("form_8889_last_month_rule_excess_unknown",
+                                 f"Form 8889 line 18 for the {owner}: the {y - 1} contributions allowed only by the last-month rule are not "
+                                 f"stated (prior_year.{carryforward_key('hsa_last_month_rule_excess', owner)}, from the {y - 1} Form 8889's "
+                                 "Line 3 Limitation Chart).", "18"))
+            else:
+                l18 = prior
+                l20 = l18                                         # line 19 (a failed qualified HSA funding distribution) is not modelled
+                lines.update({"18": l18, "19": Z, "20": l20, "21": l20 * TEN_PERCENT})
+        if problems:
+            for code, message, line in problems:
+                self.s.diag("error", code, message, f, line)
+            return
+        for k, v in lines.items():
+            self.set(f, k, v)
+        for k, v in facts.items():
+            self.s.fact(f, k, v)
+        if has_contributions:
+            self._carryforwards[carryforward_key("hsa_last_month_rule_excess", owner)] = whole(carry)
+        self._hsa[owner] = {k: self.g(f, k) for k in ("13", "16", "17b", "20", "21")}
 
     def _schedule_c(self) -> None:
         meals_pct = self.dec("us_fed.business.meals_deductible_pct")
@@ -531,9 +1054,10 @@ class _Individual:
                     allowance, start = allowance / 2, start / 2
                 else:
                     allowance = Z
+            # _adj_pre does not yet hold the IRA deduction (figured after total income is known), as §469(i)(3)(F) requires.
             magi = (self.g("f1040", "1z") + self.g("f1040", "2b") + self.g("f1040", "3b") + self.g("f1040", "4b")
                     + self.g("f1040", "5b") + self.g("f1040", "7a") + self.g("sch_1", "3") + nonpassive_rentals
-                    + self._k1_nonpassive_income() + self._other_sch1_income() - (self._adj_pre - self.r.adjustments.ira_deduction))
+                    + self._k1_nonpassive_income() + self._other_sch1_income() - self._adj_pre)
             allowance = pos(allowance - pos(magi - start) * D(ra["phaseout_rate"]))
             if not all(p.active_participation for p, n in rental_net if not p.real_estate_professional and n < 0):
                 allowance = Z
@@ -560,7 +1084,7 @@ class _Individual:
         self.set("sch_1", "2a", r.alimony_received)
         self.set("sch_1", "5", self.g("sch_e", "41"), "Schedule E, line 41")
         self.set("sch_1", "7", sum((u.amount for u in r.unemployment), Z), "Unemployment compensation (1099-G box 1)")
-        other = Z
+        other = self.set("sch_1", "8f", sum((h["16"] + h["20"] for h in self._hsa.values()), Z), "Form 8889, lines 16 and 20")
         for key, amount in r.other_income.items():
             line = key if key.startswith("8") and len(key) == 2 else "8z"
             sign = -1 if line in ("8a", "8d", "8s") else 1
@@ -569,6 +1093,7 @@ class _Individual:
         self.set("sch_1", "10", sum((self.g("sch_1", x) for x in ("1", "2a", "3", "4", "5", "6", "7", "9")), Z),
                  "Additional income")
         self.set("f1040", "8", self.g("sch_1", "10"))
+        self._ira_deduction()
 
     def _k1_nonpassive_income(self) -> Decimal:
         return sum((k.ordinary_income + k.net_rental_income + k.guaranteed_payments for k in self.r.k1s if not k.passive), Z)
@@ -584,7 +1109,7 @@ class _Individual:
         if a.educator_expenses_taxpayer > edu_limit or (self.joint and a.educator_expenses_spouse > edu_limit):
             self.s.diag("info", "educator_limit", f"Educator expenses limited to {edu_limit} per eligible educator (IRC §62(a)(2)(D)).")
         self.set("sch_1", "11", educator)
-        self.set("sch_1", "13", a.hsa_deduction, "Form 8889")
+        self.set("sch_1", "13", sum((h["13"] for h in self._hsa.values()), Z), "Form 8889, line 13")
         self.set("sch_1", "15", self._se_half, "Schedule SE, line 13")
         self.set("sch_1", "16", a.self_employed_retirement)
         se_profit = pos(sum((v["profit"] for v in self.se.values()), Z) - self._se_half - a.self_employed_retirement)
@@ -595,33 +1120,209 @@ class _Individual:
         self.set("sch_1", "17", min(a.self_employed_health_insurance, se_profit))
         self.set("sch_1", "18", sum((i.early_withdrawal_penalty for i in self.r.interest), Z))
         self.set("sch_1", "19a", a.alimony_paid)
-        if a.ira_deduction:
-            self.s.diag("info", "ira_deduction_as_entered",
-                        "IRA deduction taken as entered; confirm the IRA Deduction Worksheet (coverage and MAGI limits).", "sch_1", "20")
-        self.set("sch_1", "20", a.ira_deduction)
+        self.set("sch_1", "20", Z)                      # the IRA Deduction Worksheet runs once total income is known (_ira_deduction)
         self.set("sch_1", "24z", a.other)
         self.set("sch_1", "25", a.other)
         self._adj_pre = sum((self.g("sch_1", x) for x in ("11", "12", "13", "14", "15", "16", "17", "18", "19a", "20", "23", "25")), Z)
 
-    def _social_security(self) -> None:
+    def _compensation(self, owner: Owner) -> Decimal:
+        """Taxable compensation for IRA purposes (IRA Deduction Worksheet lines 8-9; Pub. 590-A, "What Is Compensation?"):
+        wages, alimony received (attributed to the taxpayer) and net self-employment earnings less the deductible part of
+        self-employment tax and the self-employed plan deduction (shared by positive profit)."""
+        wages = sum((w.wages for w in self.r.w2s if w.owner == owner), Z)
+        alimony = self.r.alimony_received if owner == "taxpayer" else Z
+        se = self.se.get(owner)
+        se_comp = Z
+        if se is not None:
+            total_profit = sum((pos(v["profit"]) for v in self.se.values()), Z)
+            share = pos(se["profit"]) / total_profit if total_profit > 0 else Z
+            se_comp = pos(se["profit"] - se["half"] - self.r.adjustments.self_employed_retirement * share)
+        return wages + alimony + se_comp
+
+    def _ira_deduction(self) -> None:
+        """IRA Deduction Worksheet (Schedule 1 line 20; IRC §219(b), (g)) per person, the Maximum Roth IRA Contribution
+        Worksheet (Form 8606 instructions; §408A(c)(3)), then Form 8606 lines 1-3 and 14 and the basis carried forward.
+        Modified AGI is total income less the adjustments other than this deduction and student loan interest; for a
+        Social Security recipient the taxable benefits in it are figured without the IRA deduction (Pub. 590-A Appendix B,
+        Worksheet 1), and the return's taxable benefits are then refigured with it (Worksheet 3, in _social_security)."""
         r = self.r
-        benefits = sum((s.net_benefits for s in r.social_security), Z)
-        self.set("f1040", "6a", benefits, "SSA-1099 / RRB-1099 box 5")
-        if benefits <= 0:
-            self.set("f1040", "6b", Z)
+        active = {o: st for o, st in self._ira.items() if st.contributions or st.roth_contributions or st.required or st.basis_prior is not None
+                  or st.roth_basis_next is not None or st.conversion_basis_next is not None}
+        if not active:
             return
+        f = "ws_ira_deduction"
+        lim = self.ctx.try_param("us_fed.individual.ira_contribution_limit", self.on)
+        ph = self.ctx.try_param("us_fed.individual.ira_deduction_phaseout", self.on)
+        rph = self.ctx.try_param("us_fed.individual.roth_ira_phaseout", self.on)
+        if any(st.contributions or st.roth_contributions for st in active.values()) and (lim is None or ph is None or rph is None):
+            self.s.diag("error", "ira_rules_missing",
+                        f"No published IRA limits cover {self.on.isoformat()} (us_fed.individual.ira_contribution_limit, "
+                        "ira_deduction_phaseout, roth_ira_phaseout): the IRA deduction is not figured.", "sch_1", "20")
+            return
+        income_wo_ss = sum((self.g("f1040", x) for x in ("1z", "2b", "3b", "4b", "5b", "7a", "8")), Z)
+        benefits = sum((s.net_benefits for s in r.social_security), Z)
+        taxable_ss, ss_lines = self._ss_worksheet(benefits, income_wo_ss, self.g("f1040", "2a"), self._adj_pre)
+        magi = income_wo_ss + taxable_ss - self._adj_pre
+        self.set(f, "3", income_wo_ss + taxable_ss, "Form 1040 line 9, with Social Security benefits taxable before the IRA deduction")
+        self.set(f, "4", self._adj_pre, "Schedule 1 lines 11 through 19a, 23 and 25")
+        self.set(f, "5", magi, "Modified AGI for the IRA deduction")
+        if benefits > 0:
+            self.s.fact(f, "appendix_b_worksheet_1", {"1": str(whole(income_wo_ss - self._adj_pre)), "2": str(whole(benefits)),
+                                                      "17": str(whole(taxable_ss)), "19": str(whole(magi)), "lines": ss_lines})
+        lived_apart = self.mfs and r.mfs_lived_apart_all_year
+        single_rules = self.fs in ("single", "hoh") or lived_apart
+        conversions_taxable = sum((st.taxable_conversion for st in active.values()), Z)
+        total = Z
+        col = {"taxpayer": "a", "spouse": "b"}
+        for owner, st in active.items():
+            c = col[owner]
+            p = self.person(owner)
+            hand = next((x for x in r.ira_facts if x.owner == owner), None)
+            if st.contributions == 0 and st.roth_contributions == 0:
+                self._finish_8606(owner, st)
+                continue
+            assert lim is not None and ph is not None and rph is not None
+            age50 = self.age_at_year_end(p, 50)
+            limit = D(lim["limit"]) + (D(lim["catch_up"]) if age50 else Z)
+            spouse_covered = self._spouse_covered(owner)
+            other_hand = next((x for x in r.ira_facts if x.owner != owner), None)
+            if (self.mfs and not lived_apart and not st.covered and st.contributions > 0
+                    and (other_hand is None or other_hand.covered_by_employer_plan is None)):
+                self.s.diag("error", "ira_deduction_spouse_coverage_unknown",
+                            f"IRA Deduction Worksheet for the {owner}: married filing separately and living with the spouse, whether the "
+                            "spouse is covered by an employer plan decides the $0-$10,000 phase-out (IRC §219(g)(1), (3)(B)(iii)); state "
+                            "it in ira_facts for the spouse (covered_by_employer_plan).", f, "1b")
+            self.s.fact(f, f"1{c}", st.covered)
+            rng: list[Any] | None
+            if single_rules:
+                rng = ph["single"] if st.covered else None
+            elif self.fs in ("mfj", "qss"):
+                rng = ph["mfj_covered"] if st.covered else (ph["mfj_spouse_covered"] if spouse_covered else None)
+            else:
+                rng = ph["mfs"] if (st.covered or spouse_covered) else None
+            if rng is None:
+                l7 = limit
+            else:
+                start, end = D(rng[0]), D(rng[1])
+                self.set(f, f"2{c}", end)
+                if magi >= end:
+                    l7 = Z
+                else:
+                    l6 = self.set(f, f"6{c}", end - magi)
+                    width = end - start
+                    l7 = limit if l6 >= width else max(Decimal(200), round_up_10(l6 * limit / width))
+            self.set(f, f"7{c}", l7)
+            comp = self._compensation(owner)
+            if self.joint:
+                other: Owner = "spouse" if owner == "taxpayer" else "taxpayer"
+                other_comp = self._compensation(other)
+                if comp < other_comp:                        # Pub. 590-A Worksheet 1-2 line 5 (Kay Bailey Hutchison spousal IRA)
+                    other_st = self._ira.get(other)
+                    comp += pos(other_comp - ((other_st.contributions + other_st.roth_contributions) if other_st else Z))
+            self.set(f, f"10{c}", comp, "Taxable compensation")
+            l11 = self.set(f, f"11{c}", st.contributions)
+            if st.contributions + st.roth_contributions > limit:
+                self.s.diag("error", "form_5329_excess_ira_contributions",
+                            f"IRA contributions of the {owner} ({whole(st.contributions + st.roth_contributions)} traditional and Roth) exceed "
+                            f"the {self.y} limit of {whole(limit)}; the excess owes the 6% tax of Form 5329 (not supported) unless withdrawn "
+                            "with its earnings by the due date.", f, f"11{c}")
+            elif st.contributions + st.roth_contributions > comp:
+                self.s.diag("error", "form_5329_excess_ira_contributions",
+                            f"IRA contributions of the {owner} ({whole(st.contributions + st.roth_contributions)}) exceed taxable compensation "
+                            f"of {whole(comp)}; the excess owes the 6% tax of Form 5329 (not supported) unless withdrawn by the due date.",
+                            f, f"11{c}")
+            l12 = min(l7, comp, l11)
+            if hand is not None and hand.nondeductible_election:
+                l12 = max(Z, min(l12, l11 - hand.nondeductible_election))
+            l12 = self.set(f, f"12{c}", l12, "IRA deduction")
+            st.deduction, st.nondeductible = l12, pos(l11 - l12)
+            total += l12
+            if st.roth_contributions > 0:
+                self._roth_contribution_limit(owner, st, limit, comp, magi - conversions_taxable, rph, single_rules)
+            self._finish_8606(owner, st)
+        if total == 0 and not any(st.contributions for st in active.values()):
+            self.s.forms.pop(f, None)
+        self.set("sch_1", "20", total, "IRA Deduction Worksheet, line 12")
+        self._adj_pre += total
+
+    def _roth_contribution_limit(self, owner: Owner, st: _IRA, limit: Decimal, comp: Decimal, magi_roth: Decimal,
+                                 rph: dict[str, Any], single_rules: bool) -> None:
+        """Maximum Roth IRA Contribution Worksheet (Form 8606 instructions; IRC §408A(c)(2), (3)): contributions over the
+        maximum are excess contributions (Form 5329, 6%), a blocking diagnostic."""
+        f = "ws_roth_contribution"
+        c = {"taxpayer": "a", "spouse": "b"}[owner]
+        l1 = self.set(f, f"1{c}", limit if self.joint else min(limit, comp))
+        l2 = self.set(f, f"2{c}", st.contributions)
+        l3 = self.set(f, f"3{c}", pos(l1 - l2))
+        rng = rph["mfj"] if self.fs in ("mfj", "qss") else rph["single"] if single_rules else rph["mfs"]
+        start, end = D(rng[0]), D(rng[1])
+        l4 = self.set(f, f"4{c}", end)
+        l5 = self.set(f, f"5{c}", magi_roth, "Modified AGI for Roth IRA purposes")
+        l6 = self.set(f, f"6{c}", l4 - l5)
+        if l6 <= 0:
+            allowed = Z
+        else:
+            l7 = self.set(f, f"7{c}", end - start)
+            if l6 >= l7:
+                allowed = l3
+            else:
+                l8 = (l6 / l7).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+                self.s.fact(f, f"8{c}", str(l8))
+                l9 = self.set(f, f"9{c}", max(Decimal(200), round_up_10(l1 * l8)))
+                allowed = min(l3, l9)
+        l10 = self.set(f, f"10{c}", allowed, "Maximum Roth IRA contribution")
+        if st.roth_contributions > l10:
+            self.s.diag("error", "form_5329_excess_roth_contributions",
+                        f"Roth IRA contributions of the {owner} ({whole(st.roth_contributions)}, Form 5498 box 10) exceed the maximum of "
+                        f"{whole(l10)} for modified AGI {whole(magi_roth)}; the excess owes the 6% tax of Form 5329 (not supported) unless "
+                        "withdrawn with its earnings by the due date, or recharacterized.", f, f"10{c}")
+
+    def _finish_8606(self, owner: Owner, st: _IRA) -> None:
+        """Form 8606 lines 1-3 and 14 once the deduction is known, the form's lines on the sheet, and the basis carried to
+        next year (line 14; the Roth bases of Part III)."""
+        f = f"f8606[{owner}]"
+        if st.nondeductible > 0:
+            st.required = True
+        if st.nondeductible > 0 and st.basis_prior is None:
+            self.s.diag("error", "form_8606_basis_unknown",
+                        f"Form 8606 line 2 for the {owner}: nondeductible contributions of {whole(st.nondeductible)} add to a basis that is not "
+                        "stated (prior_year.traditional_ira_basis; enter 0 if no Form 8606 was filed before).", f, "2")
+        if st.required and st.basis_prior is not None:
+            if st.worksheet_1_1 or not st.part_i:
+                l1 = st.nondeductible
+                l3 = l1 + st.basis_prior
+                st.lines.update({"1": l1, "2": st.basis_prior, "3": l3, "14": l3 - st.lines.get("13", Z)})
+        if st.required:
+            for k, v in st.lines.items():
+                self.set(f, k, v, "Form 8606")
+            for k, v in st.facts.items():
+                self.s.fact(f, k, v)
+        if st.basis_prior is not None:
+            basis_next = st.lines["14"] if "14" in st.lines else st.basis_prior + st.nondeductible
+            self._carryforwards[carryforward_key("traditional_ira_basis", owner)] = whole(basis_next)
+        if st.roth_basis_next is not None:
+            self._carryforwards[carryforward_key("roth_ira_basis", owner)] = whole(st.roth_basis_next)
+        if st.conversion_basis_next is not None:
+            self._carryforwards[carryforward_key("roth_conversion_basis", owner)] = whole(st.conversion_basis_next)
+
+    def _ss_worksheet(self, benefits: Decimal, other_income: Decimal, exempt_interest: Decimal,
+                      adjustments: Decimal) -> tuple[Decimal, dict[str, str]]:
+        """Social Security Benefits Worksheet (Form 1040 instructions, lines 1-18) for the given income and adjustments:
+        the taxable benefits and the worksheet lines."""
+        if benefits <= 0:
+            return Z, {}
         ss = self.p("us_fed.individual.social_security_taxability")
         w: dict[str, Decimal] = {}
         w["1"] = benefits
         w["2"] = benefits * Decimal("0.5")
-        w["3"] = sum((self.g("f1040", x) for x in ("1z", "2b", "3b", "4b", "5b", "7a", "8")), Z)
-        w["4"] = self.g("f1040", "2a")
+        w["3"] = other_income
+        w["4"] = exempt_interest
         w["5"] = w["2"] + w["3"] + w["4"]
-        w["6"] = self._adj_pre
+        w["6"] = adjustments
         taxable = Z
         if w["6"] < w["5"]:
             w["7"] = w["5"] - w["6"]
-            if self.mfs and not r.mfs_lived_apart_all_year:
+            if self.mfs and not self.r.mfs_lived_apart_all_year:
                 w["16"] = w["7"] * Decimal("0.85")
             else:
                 base = D(ss["base_mfj"] if self.joint else ss["base_other"])
@@ -639,7 +1340,18 @@ class _Individual:
             if "16" in w:
                 w["17"] = w["1"] * Decimal("0.85")
                 taxable = min(w["16"], w["17"])
-        self.s.fact("ws_social_security", "lines", {k: str(whole(v)) for k, v in w.items()})
+        return taxable, {k: str(whole(v)) for k, v in w.items()}
+
+    def _social_security(self) -> None:
+        r = self.r
+        benefits = sum((s.net_benefits for s in r.social_security), Z)
+        self.set("f1040", "6a", benefits, "SSA-1099 / RRB-1099 box 5")
+        if benefits <= 0:
+            self.set("f1040", "6b", Z)
+            return
+        other = sum((self.g("f1040", x) for x in ("1z", "2b", "3b", "4b", "5b", "7a", "8")), Z)
+        taxable, lines = self._ss_worksheet(benefits, other, self.g("f1040", "2a"), self._adj_pre)
+        self.s.fact("ws_social_security", "lines", lines)
         self.set("f1040", "6b", taxable, "Social Security Benefits Worksheet")
         if self.mfs and r.mfs_lived_apart_all_year:
             self.s.fact("f1040", "6d", True)
@@ -1027,7 +1739,7 @@ class _Individual:
         cf = {"capital_loss_carryover_short": Z, "capital_loss_carryover_long": Z}
         l21 = self.g("sch_d", "21")
         if "sch_d" not in self.s.forms or l21 >= 0:          # no net capital loss: nothing carries
-            self._carryforwards = cf
+            self._carryforwards.update(cf)
             return
         f = "ws_capital_loss_carryover"
         sd7, sd15 = self.g("sch_d", "7"), self.g("sch_d", "15")
@@ -1049,7 +1761,7 @@ class _Individual:
             cf["capital_loss_carryover_long"] = self.set(f, "13", pos(l9 - l12),
                                                          f"Long-term capital loss carryover to {self.y + 1} (Schedule D line 14)")
         self.s.fact(f, "carries_to", self.y + 1)
-        self._carryforwards = cf
+        self._carryforwards.update(cf)
 
     # ----------------------------------------------------------------- tax
     def _tax(self) -> None:
@@ -1458,7 +2170,10 @@ class _Individual:
         self.set("sch_2", "6", self._form_8960(), "Form 8960")
         part_i, part_ii = self._form_8959()
         self.set("sch_2", "11", part_ii, "Form 8959, Part II")
-        self.set("sch_2", "14", Z)
+        self.set("sch_2", "13c", sum((h["17b"] for h in self._hsa.values()), Z), "Additional 20% tax on HSA distributions, Form 8889 line 17b")
+        self.set("sch_2", "13d", sum((h["21"] for h in self._hsa.values()), Z),
+                 "Additional 10% tax for failure to remain an eligible individual, Form 8889 line 21")
+        self.set("sch_2", "14", self.g("sch_2", "13c") + self.g("sch_2", "13d"), "Total additional income taxes, lines 13a through 13z")
         self.set("sch_2", "15", sum((self.g("sch_2", x) for x in ("4", "5", "6", "7", "8", "9", "10", "11", "12", "14")), Z))
         self.set("sch_2", "17a", r.household_employment_taxes, "Schedule H")
         self.set("sch_2", "17b", part_i, "Form 8959, Part I")

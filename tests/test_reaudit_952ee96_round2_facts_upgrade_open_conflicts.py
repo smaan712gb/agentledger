@@ -98,7 +98,7 @@ def test_migration_0005_upgrades_a_store_with_two_open_conflicts_on_one_field(tm
         for conflict in STORED:
             insert(*conflict)
         monkeypatch.setattr(pg, "MIGRATIONS", current)
-        assert pg.migrate(owner, schema) == ["0005_reaudit_952ee96.sql", "0006_filing.sql"]   # every migration after 0004
+        assert pg.migrate(owner, schema) == ["0005_reaudit_952ee96.sql", "0006_filing.sql", "0007_carryforwards.sql"]   # every migration after 0004
         _check([tuple(r) for r in owner.execute("SELECT document_id, anchor, resolution, resolved_by, note FROM fact_conflicts "
                                                 "ORDER BY id").fetchall()])
         assert owner.execute("SELECT resolved_at FROM fact_conflicts WHERE resolved_by = 'upgrade'").fetchone()[0]

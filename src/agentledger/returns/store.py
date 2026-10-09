@@ -25,7 +25,7 @@ from ..calc.engine import Ctx
 from ..kb.store import KnowledgeBase
 from ..workflow.engine import Definition, Engine, State, Transition, TransitionError
 from . import documents as docs
-from .individual import compute_individual
+from .individual import PER_OWNER_CARRYFORWARDS, compute_individual
 from .model import IndividualReturn
 
 SCHEMA = """
@@ -133,6 +133,23 @@ CREATE TRIGGER IF NOT EXISTS return_retention_facts_no_update BEFORE UPDATE ON r
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS return_retention_facts_no_delete BEFORE DELETE ON return_retention_facts
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+-- What a return version carries to the next tax year (Result.carryforwards: capital loss carryovers, IRA basis, the HSA
+-- last-month-rule amount), per kind and detail (the owner of a per-person kind, else empty). The amount is sealed with
+-- the firm key like the version; kind and detail are in clear so the roll-forward can find them (migration 0007 on
+-- PostgreSQL).
+CREATE TABLE IF NOT EXISTS return_carryforwards (
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    version INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    amount TEXT NOT NULL,
+    at TEXT NOT NULL,
+    PRIMARY KEY (return_id, version, kind, detail)
+);
+CREATE TRIGGER IF NOT EXISTS return_carryforwards_no_update BEFORE UPDATE ON return_carryforwards
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+CREATE TRIGGER IF NOT EXISTS return_carryforwards_no_delete BEFORE DELETE ON return_carryforwards
+BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS return_document_uses_no_update BEFORE UPDATE ON return_document_uses
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS return_document_uses_no_delete BEFORE DELETE ON return_document_uses
@@ -167,8 +184,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS filing_submissions_planned ON filing_submissio
 """
 
 CPA = ("cpa",)
-ENGINE_VERSION = "1040-2026.2"
+ENGINE_VERSION = "1040-2026.3"
 USES_INDEXED = "return_document_uses_indexed"
+CARRYFORWARDS_INDEXED = "return_carryforwards_indexed"
+# A return whose figures are final for the next year's roll-forward: filed and accepted, or filed on paper.
+FILED = ("accepted", "paper_filed")
 
 
 # The filed documents that feed an individual return: each one must be on the return or accounted for by a person.
@@ -384,8 +404,25 @@ CARRYOVER_INPUTS = frozenset({"capital_loss_carryover_short", "capital_loss_carr
                               "prior_year_overpayment_applied",
                               # the prior-year group (model.PriorYear) and the Form 8880 testing-period distributions
                               "prior_year", "ftc_carryovers", "carryover", "nonrecaptured_loss", "traditional_ira_basis",
-                              "roth_ira_basis", "testing_period_distributions"})
+                              "spouse_traditional_ira_basis", "roth_ira_basis", "spouse_roth_ira_basis", "roth_conversion_basis",
+                              "spouse_roth_conversion_basis", "hsa_last_month_rule_excess", "spouse_hsa_last_month_rule_excess",
+                              "testing_period_distributions"})
 NOL_LINES = frozenset({"8a", "a"})        # Schedule 1 line 8a, the net operating loss deduction (other_income)
+
+
+def carryforward_row(key: str) -> tuple[str, str]:
+    """A Result.carryforwards key as stored: (kind, detail), the detail being the owner of a per-person kind."""
+    for kind in PER_OWNER_CARRYFORWARDS:
+        if key == kind:
+            return kind, "taxpayer"
+        if key == f"spouse_{kind}":
+            return kind, "spouse"
+    return key, ""
+
+
+def carryforward_name(kind: str, detail: str) -> str:
+    """The inverse of carryforward_row: the next year's prior_year input name."""
+    return kind if detail in ("", "taxpayer") else f"{detail}_{kind}"
 
 
 def _nonzero(v: Any) -> bool:
@@ -492,6 +529,7 @@ class Returns:
         # One engine for the return's stream and for its submissions' streams (returns/filing.py).
         self.wf = Engine(conn, {"return_1040": RETURN_1040, SUBMISSION.kind: SUBMISSION})
         self._backfill_uses()
+        self._backfill_carryforwards()
 
     def _backfill_uses(self) -> None:
         """Returns saved before return_document_uses existed: index once every document any of their versions relied
@@ -517,6 +555,26 @@ class Returns:
                                   (USES_INDEXED, audit.now()))
         except PermissionError:
             return                                                    # opened without the firm key: done later
+
+    def _backfill_carryforwards(self) -> None:
+        """Versions computed before return_carryforwards existed (engine 1040-2026.2 already reported Result.carryforwards):
+        record each version's carryforwards once, so the roll-forward sees every filed return."""
+        if self.conn.execute("SELECT 1 FROM kv WHERE key = ?", (CARRYFORWARDS_INDEXED,)).fetchone():
+            return
+        if is_pg(self.conn) and self.conn.execute("SELECT current_setting('agentledger.clients', true)").fetchone()[0] != "*":
+            return                                                    # a client-scoped session sees only some returns
+        try:
+            with unit_of_work(self.conn):
+                for (client,) in sorted({(r["client_id"],) for r in self.conn.execute("SELECT client_id FROM tax_returns").fetchall()}):
+                    lock(self.conn, f"evidence:{client}")
+                for r in self.conn.execute("SELECT id FROM tax_returns ORDER BY id").fetchall():
+                    for v in self.conn.execute("SELECT version, result FROM tax_return_versions WHERE return_id = ? AND result IS NOT NULL "
+                                               "ORDER BY version", (r["id"],)).fetchall():
+                        self._record_carryforwards(r["id"], self.sealer.open(v["result"], f"return-result:{r['id']}"), int(v["version"]))
+                self.conn.execute("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING",
+                                  (CARRYFORWARDS_INDEXED, audit.now()))
+        except PermissionError:
+            return
 
     # ------------------------------------------------------------------ records
     def create(self, client_id: str, tax_year: int, actor: str, inputs: dict[str, Any] | None = None, *,
@@ -587,7 +645,48 @@ class Returns:
              datetime.now(timezone.utc).isoformat(timespec="seconds"), actor, note))
         self._record_uses(rid, relied_on(inputs, provenance), last + 1)
         self._record_retention_facts(rid, inputs, result, last + 1)
+        self._record_carryforwards(rid, result, last + 1)
         return last + 1
+
+    def _record_carryforwards(self, rid: str, result: dict[str, Any] | None, version: int) -> None:
+        """What the version carries to the next year, sealed, one row per kind and detail (append-only)."""
+        for key, amount in sorted(((result or {}).get("carryforwards") or {}).items()):
+            kind, detail = carryforward_row(key)
+            self.conn.execute("INSERT INTO return_carryforwards (return_id, version, kind, detail, amount, at) VALUES (?, ?, ?, ?, ?, ?) "
+                              "ON CONFLICT (return_id, version, kind, detail) DO NOTHING",
+                              (rid, version, kind, detail, self.sealer.seal({"v": str(amount)}, f"carryforward:{rid}"), audit.now()))
+
+    def carryforwards(self, rid: str, version: int | None = None) -> dict[str, Decimal]:
+        """A version's carryforwards (the latest version's by default), keyed by the next year's prior_year input names."""
+        if version is None:
+            version = int(self.latest(rid, decrypt=False)["version"])
+        out: dict[str, Decimal] = {}
+        for row in self.conn.execute("SELECT kind, detail, amount FROM return_carryforwards WHERE return_id = ? AND version = ? "
+                                     "ORDER BY kind, detail", (rid, version)).fetchall():
+            out[carryforward_name(row["kind"], row["detail"])] = Decimal(str(self.sealer.open(row["amount"], f"carryforward:{rid}")["v"]))
+        return out
+
+    def roll_forward(self, rid: str, *, require_filed: bool = True) -> dict[str, Any]:
+        """The next year's `prior_year` group from this return: its carryforwards as recorded with its latest version,
+        and its filing status, AGI and total tax, each with provenance naming the return and version it came from (source
+        "return"; a prior-year document that later disagrees raises a fact conflict, like any other value). Only a filed
+        return rolls forward unless require_filed is False (an estimate from a return still in preparation). The tax
+        organizer (T1-03) puts the block into the next year's return."""
+        st = self.wf.state(rid)
+        if require_filed and st.status not in FILED:
+            raise TransitionError(f"only a filed return (accepted or filed on paper) rolls forward; this one is {st.status}")
+        r = self.get(rid)
+        v = self.latest(rid)
+        if not v["result"]:
+            raise ValueError("compute the return before rolling it forward")
+        block: dict[str, Any] = {"filing_status": v["inputs"].get("filing_status"), "agi": (v["result"].get("summary") or {}).get("agi"),
+                                 "tax": (v["result"].get("summary") or {}).get("total_tax")}
+        block.update({k: str(x) for k, x in self.carryforwards(rid, int(v["version"])).items()})
+        prior_year = {k: str(x) for k, x in block.items() if x is not None}
+        provenance = {f"prior_year.{k}": {"source": "return", "return_id": rid, "version": int(v["version"]), "box": k, "value": x,
+                                          "confirmed": False} for k, x in prior_year.items()}
+        return {"client_id": r["client_id"], "tax_year": r["tax_year"] + 1, "from_return": rid, "version": int(v["version"]),
+                "prior_year": prior_year, "provenance": provenance}
 
     def _record_retention_facts(self, rid: str, inputs: dict[str, Any], result: dict[str, Any] | None, version: int) -> None:
         facts_now = {"carryover": ",".join(carryovers(inputs))}
@@ -801,10 +900,11 @@ class Returns:
         used |= {d["document_id"] for d in self.dispositions(rid)}
         out = []
         # A filed tax form with no known year may belong to this return: it is listed until a CPA confirms its year
-        # (evidence.records.confirm_retention) or a person accounts for it here.
-        for d in self.conn.execute("SELECT id, doc_type FROM documents WHERE client_id = ? AND (tax_year = ? OR tax_year IS NULL) "
-                                   "AND status = 'filed' AND deleted_at IS NULL ORDER BY received_at, id",
-                                   (r["client_id"], r["tax_year"])):
+        # (evidence.records.confirm_retention) or a person accounts for it here. The prior year's filed return is this
+        # return's document too (documents.populate reads it into the prior_year group).
+        for d in self.conn.execute("SELECT id, doc_type FROM documents WHERE client_id = ? AND (tax_year = ? OR tax_year IS NULL "
+                                   "OR (tax_year = ? AND doc_type = ?)) AND status = 'filed' AND deleted_at IS NULL ORDER BY received_at, id",
+                                   (r["client_id"], r["tax_year"], r["tax_year"] - 1, docs.PRIOR_YEAR_RETURN)):
             if d["doc_type"] in TAX_FORMS and d["id"] not in used:
                 out.append(d["id"])
         return out
@@ -820,10 +920,11 @@ class Returns:
         if len(note.strip()) < 10:
             raise ValueError("say why (for example 'entered as two Form 8949 rows from the 1099-B')")
         r = self.get(rid)
-        d = self.conn.execute("SELECT id FROM documents WHERE id = ? AND client_id = ? AND (tax_year = ? OR tax_year IS NULL) "
-                              "AND status = 'filed' AND deleted_at IS NULL", (document_id, r["client_id"], r["tax_year"])).fetchone()
+        d = self.conn.execute("SELECT id FROM documents WHERE id = ? AND client_id = ? AND (tax_year = ? OR tax_year IS NULL "
+                              "OR (tax_year = ? AND doc_type = ?)) AND status = 'filed' AND deleted_at IS NULL",
+                              (document_id, r["client_id"], r["tax_year"], r["tax_year"] - 1, docs.PRIOR_YEAR_RETURN)).fetchone()
         if not d:
-            raise KeyError(f"{document_id} is not a filed {r['tax_year']} document of this client")
+            raise KeyError(f"{document_id} is not a filed {r['tax_year']} document of this client (or its prior-year return)")
         v = self.latest(rid)
         if document_id in relied_on(v["inputs"], v["provenance"]):
             raise ValueError("this document is on the return; remove its item first (an entry by hand then replaces it)")

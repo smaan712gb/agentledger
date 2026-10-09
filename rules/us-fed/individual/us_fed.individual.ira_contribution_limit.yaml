@@ -1,0 +1,55 @@
+id: us_fed.individual.ira_contribution_limit
+title: IRA contribution limit (traditional and Roth combined) and the age-50 catch-up contribution
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §219(b)(5)(A), (b)(5)(B)(ii), (b)(5)(C) (indexing); §408A(c)(2)
+keys:
+- limit
+- catch_up
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual IRS notice of cost-of-living adjustments for retirement plans and IRAs (Notice 2025-67 for 2026)
+  search_hint: Notice amounts relating to retirement plans and IRAs {year} deductible amount under section 219(b)(5)(A)
+bounds:
+  min: 1000.0
+  max: 30000.0
+  max_change_pct: 0.15
+tags:
+- IRA
+- '219'
+- '408A'
+- Form 8606
+- inflation
+notes: >-
+  The most a person may contribute to all traditional and Roth IRAs for the year is the smaller of `limit` (plus
+  `catch_up` for a person who is 50 or older at the end of the year) or their taxable compensation (IRA Deduction
+  Worksheet, Schedule 1 line 20, lines 7 and 10-12; Form 8606 instructions, "Overall Contribution Limit"). The deduction
+  phases out for active participants under us_fed.individual.ira_deduction_phaseout; Roth contributions phase out under
+  us_fed.individual.roth_ira_phaseout. The catch-up is indexed from 2024 (SECURE 2.0 §108), so its 2026 value changes.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    limit: 7000
+    catch_up: 1000
+  provenance:
+    source: >-
+      Notice 2025-67, page 4 (the 2025 amounts the 2026 §219(b)(5)(A) and (B)(ii) amounts are "increased from"); Pub. 590-A (2025)
+      "Overall Contribution Limit" ($7,000; $8,000 if age 50 or older)
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    limit: 7500
+    catch_up: 1100
+  provenance:
+    source: >-
+      Notice 2025-67, page 4 ("The deductible amount under section 219(b)(5)(A) ... is increased from $7,000 to $7,500. The
+      deductible amount pursuant to section 219(b)(5)(B)(ii) for individuals who have attained age 50 ... is increased from $1,000 to
+      $1,100"); Pub. 590-A (2025) "What's New for 2026" ($7,500; $8,600 for individuals age 50 or older)
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'

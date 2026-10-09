@@ -256,8 +256,17 @@ class PriorYear(BaseModel):
     capital_loss_carryover_long: Money | None = None   # worksheet line 13, to Schedule D line 14
     ftc_carryovers: list[ForeignTaxCarryover] = []
     nonrecaptured_1231_losses: list[Section1231Loss] = []
+    # Form 8606 is per person: the unprefixed fields are the taxpayer's, the spouse_ fields the spouse's.
     traditional_ira_basis: Money | None = None    # Form 8606 line 14 of the prior year (basis in traditional IRAs)
-    roth_ira_basis: Money | None = None           # basis in Roth IRA contributions (Form 8606 Part III)
+    spouse_traditional_ira_basis: Money | None = None
+    roth_ira_basis: Money | None = None           # basis in regular Roth IRA contributions (Form 8606 line 22 before this year)
+    spouse_roth_ira_basis: Money | None = None
+    roth_conversion_basis: Money | None = None    # basis in conversions and plan rollovers to Roth IRAs (Form 8606 line 24 before this year)
+    spouse_roth_conversion_basis: Money | None = None
+    # Form 8889 Part III: the prior year's HSA contributions over the Line 3 Limitation Chart amount, allowed only by the
+    # last-month rule; income (and a 10% tax) this year if the person failed the testing period (Pub 969, Example 1).
+    hsa_last_month_rule_excess: Money | None = None
+    spouse_hsa_last_month_rule_excess: Money | None = None
 
 
 class RetirementSavings(BaseModel):
@@ -270,6 +279,55 @@ class RetirementSavings(BaseModel):
     # end but before the return's due date (the testing period, IRC §25B(d)(2)). None: not stated; the credit is never
     # claimed while it is unknown. Enter 0 when there were none.
     testing_period_distributions: Money | None = None
+
+
+HDHPCoverage = Literal["self_only", "family", "none"]
+
+
+class HSAFacts(BaseModel):
+    """Form 8889 facts for one HSA beneficiary that no information return carries. Contributions come from Form 5498-SA
+    (boxes 2-4) and W-2 box 12 code W, distributions from Form 1099-SA; these are the eligibility and use facts."""
+    owner: Owner = "taxpayer"
+    # HDHP coverage on the first day of each month (Form 8889 line 1; Line 3 Limitation Chart): "self_only", "family",
+    # or "none" when the person was not an eligible individual that month (no HDHP, other coverage, someone's
+    # dependent). None: not stated; the deduction is never figured while a month is unknown.
+    coverage_01: HDHPCoverage | None = None
+    coverage_02: HDHPCoverage | None = None
+    coverage_03: HDHPCoverage | None = None
+    coverage_04: HDHPCoverage | None = None
+    coverage_05: HDHPCoverage | None = None
+    coverage_06: HDHPCoverage | None = None
+    coverage_07: HDHPCoverage | None = None
+    coverage_08: HDHPCoverage | None = None
+    coverage_09: HDHPCoverage | None = None
+    coverage_10: HDHPCoverage | None = None
+    coverage_11: HDHPCoverage | None = None
+    coverage_12: HDHPCoverage | None = None
+    medicare_from_month: int | None = Field(None, ge=1, le=12)  # first month enrolled in Medicare (the limit is zero from then on)
+    qualified_medical_expenses: Money | None = None  # line 15; None blocks when there are distributions (never taken as zero)
+    rollovers_and_withdrawn_excess: Money = Z       # line 14b: distributions rolled over, and excess withdrawn by the due date
+    qualified_funding_distribution: Money = Z       # line 10: a one-time IRA-to-HSA funding distribution
+    contributions_for_last_year: Money = Z          # part of 5498-SA box 2 made this year for the prior year (not this year's line 2)
+    family_limit_share: Money | None = None         # line 6: this spouse's agreed share of the family limit when both have HSAs; None = equal
+    testing_period_failed: bool = False             # Part III: ceased to be eligible this year, within the prior year's testing period
+    # Line 17a: the part of the taxable distributions (line 16) made after the beneficiary turned 65, or because of death or
+    # disability, which escape the 20% tax. Known without being stated when the person was 65 all year, or under 65 all year
+    # with only normal (code 1) distributions; otherwise None blocks.
+    additional_tax_exception: Money | None = None
+
+
+class IRAFacts(BaseModel):
+    """IRA Deduction Worksheet and Form 8606 facts for one person that no information return carries. Contributions come
+    from Form 5498 (boxes 1, 3, 10), distributions from Form 1099-R, plan coverage from W-2 box 13 and 5498 boxes 8-9."""
+    owner: Owner = "taxpayer"
+    covered_by_employer_plan: bool | None = None     # worksheet line 1, when stated it overrides what the documents show
+    nondeductible_election: Money | None = None      # Form 8606 line 1: contributions the person elects to treat as nondeductible
+    #                                                  although deductible ("you can deduct a smaller amount", IRA Deduction Worksheet line 12)
+    contributions_after_year_end: Money | None = None  # Form 8606 line 4: this year's contributions made January 1 - April 15 of next
+    #                                                  year (part of 5498 box 1); None blocks when lines 4-13 are needed (enter 0 if none)
+    outstanding_rollovers: Money = Z                 # Form 8606 line 6: distributions after November 1 rolled over next year within 60 days
+    roth_five_year_period_met: bool | None = None    # Part III: a code T distribution is qualified only after the 5-year period
+    first_time_homebuyer_expenses: Money = Z         # Form 8606 line 20 (lifetime $10,000)
 
 
 class Unemployment(BaseModel):  # 1099-G box 1
@@ -386,11 +444,15 @@ class Itemized(BaseModel):
 class Adjustments(BaseModel):
     educator_expenses_taxpayer: Money = Z
     educator_expenses_spouse: Money = Z
-    hsa_deduction: Money = Z             # from Form 8889 line 13
+    # Deprecated: Form 8889 is computed from Forms 5498-SA, 1099-SA, W-2 code W and hsa_facts. Kept so that returns stored
+    # with it still load; any entry is a blocking diagnostic (form_8889_deprecated_input).
+    hsa_deduction: Money = Z
     self_employed_retirement: Money = Z  # SEP, SIMPLE, qualified plans
     self_employed_health_insurance: Money = Z
     alimony_paid: Money = Z              # pre-2019 instruments only
     alimony_recipient_ssn: str = ""
+    # Deprecated: the IRA deduction is figured by the IRA Deduction Worksheet from Form 5498 and ira_facts; any entry is a
+    # blocking diagnostic (ira_deduction_deprecated_input).
     ira_deduction: Money = Z
     student_loan_interest_paid: Money = Z
     other: Money = Z
@@ -425,6 +487,8 @@ class IndividualReturn(BaseModel):
     ira_accounts: list[IRAAccount] = []            # Form 5498
     hsa_distributions: list[HSADistribution] = []  # Form 1099-SA
     hsa_contributions: list[HSAContribution] = []  # Form 5498-SA
+    hsa_facts: list[HSAFacts] = []                 # Form 8889 facts not on any document, one per HSA beneficiary
+    ira_facts: list[IRAFacts] = []                 # IRA Deduction Worksheet and Form 8606 facts, one per person
     marketplace_coverage: list[MarketplaceCoverage] = []  # Form 1095-A
     social_security: list[SocialSecurity] = []
     unemployment: list[Unemployment] = []

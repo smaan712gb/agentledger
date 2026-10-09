@@ -1,0 +1,59 @@
+id: us_fed.individual.hdhp_minimums
+title: High deductible health plan definition - minimum annual deductible and maximum out-of-pocket expenses
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §223(c)(2)(A); §223(g) (indexing)
+keys:
+- self_only_deductible
+- family_deductible
+- self_only_out_of_pocket
+- family_out_of_pocket
+indexed:
+  cadence: annual
+  expected_by: 06-30
+  publication: Annual IRS revenue procedure of HSA inflation adjusted amounts (Rev. Proc. 2025-19 for 2026)
+  search_hint: Revenue Procedure {year} high deductible health plan annual deductible not less than out-of-pocket expenses do not exceed
+bounds:
+  min: 500.0
+  max: 50000.0
+  max_change_pct: 0.1
+tags:
+- HSA
+- HDHP
+- '223'
+- Form 8889
+- inflation
+notes: >-
+  Whether a plan is an HDHP is an eligibility fact the preparer states per month (hsa_facts.coverage_MM); the engine
+  does not test plan terms. These figures are recorded so the fact can be checked against the plan documents: an HDHP has
+  an annual deductible of at least the minimum and out-of-pocket expenses (deductibles, co-payments and other amounts,
+  not premiums) of at most the maximum (Form 8889 instructions, "High Deductible Health Plan"). Preventive care,
+  telehealth (P.L. 119-21 for plan years after 2024) and insulin safe harbors do not disqualify a plan.
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    self_only_deductible: 1650
+    family_deductible: 3300
+    self_only_out_of_pocket: 8300
+    family_out_of_pocket: 16600
+  provenance:
+    source: >-
+      Instructions for Form 8889 (2025), page 3, "High Deductible Health Plan" table
+    url: https://www.irs.gov/pub/irs-pdf/i8889.pdf
+    verified_on: '2026-10-09'
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    self_only_deductible: 1700
+    family_deductible: 3400
+    self_only_out_of_pocket: 8500
+    family_out_of_pocket: 17000
+  provenance:
+    source: >-
+      Rev. Proc. 2025-19 §2.01(2), page 2 (deductible not less than $1,700 self-only / $3,400 family; out-of-pocket not more than
+      $8,500 / $17,000 for calendar year 2026)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-19.pdf
+    verified_on: '2026-10-09'

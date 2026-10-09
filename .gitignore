@@ -36,3 +36,6 @@ apps/web/playwright-report/
 apps/web/test-results/
 apps/web/e2e/.state/
 packages/contracts/dist/
+
+# agent worktrees (git worktree checkouts used for parallel work)
+.claude/worktrees/

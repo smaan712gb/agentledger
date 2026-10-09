@@ -1,0 +1,58 @@
+id: us_fed.individual.hsa_contribution_limit
+title: Health savings account annual contribution limits (self-only, family) and the age-55 additional contribution
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §223(b)(2)(A), (b)(2)(B), (b)(3); §223(g) (indexing)
+keys:
+- self_only
+- family
+- catch_up
+indexed:
+  cadence: annual
+  expected_by: 06-30
+  publication: Annual IRS revenue procedure of HSA inflation adjusted amounts (Rev. Proc. 2025-19 for 2026), published by June 1 of the prior year
+  search_hint: Revenue Procedure {year} inflation adjusted amounts Health Savings Accounts section 223 annual limitation on deductions
+bounds:
+  min: 500.0
+  max: 30000.0
+  max_change_pct: 0.1
+tags:
+- HSA
+- '223'
+- Form 8889
+- inflation
+notes: >-
+  Form 8889 line 3: the limit for an eligible individual with the same HDHP coverage on the first day of every month
+  (self_only or family); the Line 3 Limitation Chart and Worksheet prorates it by month otherwise, and the last-month rule
+  (§223(b)(8)) treats a person eligible on December 1 as eligible all year. catch_up is the §223(b)(3) additional
+  contribution for a person who is 55 or older at the end of the year and not enrolled in Medicare; it is a fixed
+  statutory amount, not indexed (Form 8889 line 3 for the unmarried and for married people with self-only coverage all
+  year; line 7, prorated by eligible month, for a married person with family coverage at any time). The limit is zero
+  for any month the person is enrolled in Medicare (§223(b)(7)).
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    self_only: 4300
+    family: 8550
+    catch_up: 1000
+  provenance:
+    source: >-
+      Instructions for Form 8889 (2025), page 4 ("Figuring Your HSA Deduction": $4,300 self-only, $8,550 family, additional $1,000 at
+      age 55) and the Line 3 Limitation Chart, page 6; Pub. 969 (2025), page 5
+    url: https://www.irs.gov/pub/irs-pdf/i8889.pdf
+    verified_on: '2026-10-09'
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    self_only: 4400
+    family: 8750
+    catch_up: 1000
+  provenance:
+    source: >-
+      Rev. Proc. 2025-19 §2.01(1), pages 1-2 ($4,400 self-only, $8,750 family for calendar year 2026); IRC §223(b)(3)(B) ($1,000
+      additional contribution, not indexed; Pub. 969 (2025) page 6)
+    url: https://www.irs.gov/pub/irs-drop/rp-25-19.pdf
+    verified_on: '2026-10-09'

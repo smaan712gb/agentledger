@@ -38,6 +38,9 @@ COMPARISONS: list[tuple[str, str, Any]] = [
     ("net investment income tax", "net_investment_income_tax", lambda r: r.line("sch_2", "6")),
     ("capital loss deduction", "limited_capital_loss", lambda r: -r.line("sch_d", "21")),
     ("saver's credit", "savers_credit", lambda r: r.line("sch_3", "4")),
+    # PolicyEngine deducts traditional IRA contributions up to its combined limit; the comparison holds when nobody is an
+    # active participant (no §219(g) phase-out) and the contributions are within its limit parameter.
+    ("IRA deduction", "traditional_ira_contributions", lambda r: r.line("sch_1", "20")),
 ]
 # W-2 box 12 deferral codes PolicyEngine takes as inputs, and whether the deferral was pre-tax. Box 1 wages exclude a
 # pre-tax deferral while PolicyEngine subtracts its retirement inputs from employment_income itself, so the deferral is
@@ -88,8 +91,26 @@ def _unmodelled(r: IndividualReturn) -> list[str]:
         codes & {"D", "E", "F", "G", "H", "S", "AA", "BB", "EE"})
     if saving and r.retirement:
         out.append("saver's credit line 4 (PolicyEngine nets only this year's IRA and plan distributions)")
-    if any(a.ira_contributions for a in r.ira_accounts):
-        out.append("traditional IRA contributions (PolicyEngine figures the IRA deduction; the return takes it as entered)")
+    trad = {a.owner: sum((x.ira_contributions or Decimal(0) for x in r.ira_accounts if x.owner == a.owner), Decimal(0)) for a in r.ira_accounts}
+    if any(v > 0 for v in trad.values()):
+        covered = any(w.retirement_plan for w in r.w2s) or any(x.covered_by_employer_plan for x in r.ira_facts) or any(
+            (a.sep_contributions or a.simple_contributions) for a in r.ira_accounts)
+        if covered:
+            out.append("IRA deduction of an active participant (PolicyEngine deducts the contributions without the §219(g) phase-out)")
+        if any(v > 7000 for v in trad.values()):
+            out.append("traditional IRA contributions above $7,000 (PolicyEngine's IRA limit parameter is not yet updated for 2026)")
+        if any(x.nondeductible_election for x in r.ira_facts):
+            out.append("nondeductible IRA contributions elected (PolicyEngine deducts every traditional IRA contribution)")
+    if r.hsa_contributions or r.hsa_facts or any(c.upper() == "W" for w in r.w2s for c in w.box12):
+        out.append("HSA deduction (PolicyEngine takes the §223 deduction as an input, fed from Form 8889 line 13: only its effects on "
+                   "AGI, the credits and taxable Social Security are cross-checked)")
+    if r.hsa_distributions:
+        out.append("taxable HSA distributions and the 20% additional tax (Form 8889 Part II: not in PolicyEngine)")
+    py = r.prior_year
+    basis = py is not None and any(getattr(py, k) for k in ("traditional_ira_basis", "spouse_traditional_ira_basis", "roth_ira_basis",
+                                                             "spouse_roth_ira_basis", "roth_conversion_basis", "spouse_roth_conversion_basis"))
+    if basis or any(set(x.distribution_code.upper()) & {"J", "Q", "T"} for x in r.retirement) or any(a.roth_conversion for a in r.ira_accounts):
+        out.append("Form 8606 (PolicyEngine takes taxable IRA distributions as an input, fed from Form 1040 line 4b)")
     return out
 
 
@@ -112,10 +133,16 @@ def _prune(d: dict[str, Any], known: set[str] | None, skipped: set[str]) -> dict
     return out
 
 
-def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[str] | None = None) -> dict[str, Any]:
+def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[str] | None = None, *,
+              ours: Result | None = None) -> dict[str, Any]:
+    """PolicyEngine's situation for the return. `ours`, when given, supplies the two amounts PolicyEngine takes as inputs
+    rather than figuring: the HSA deduction (Form 8889 line 13) and the taxable IRA distributions (Form 1040 line 4b,
+    after Form 8606), so that their downstream effects are cross-checked while the items themselves are flagged in
+    _unmodelled."""
     skipped = skipped if skipped is not None else set()
     y = r.tax_year
     yr = str(y)
+    ira_taxable = ours.line("f1040", "4b") if ours is not None else None
 
     def per(owner: str) -> dict[str, Any]:
         p = r.taxpayer if owner == "taxpayer" else r.spouse
@@ -154,6 +181,8 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
             "taxable_ira_distributions": {yr: float(sum((x.taxable_amount or x.gross_distribution for x in r.retirement
                                                           if x.owner == owner and x.ira_sep_simple), Decimal(0)))},
         }
+        if ira_taxable is not None:                       # the engine's line 4b (Form 8606 applied), all on the taxpayer
+            d["taxable_ira_distributions"] = {yr: float(ira_taxable) if owner == "taxpayer" else 0.0}
         if owner == "taxpayer":
             st = lt = Decimal(0)
             for t in r.capital_transactions:
@@ -198,6 +227,8 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
         tax_unit["state_and_local_sales_or_income_tax"] = {yr: float(r.itemized.state_local_income_tax)}
     if r.itemized.mortgage_interest_1098:
         tax_unit["deductible_mortgage_interest"] = {yr: float(r.itemized.mortgage_interest_1098)}
+    if ours is not None and ours.line("sch_1", "13") > 0:
+        tax_unit["health_savings_account_ald"] = {yr: float(ours.line("sch_1", "13"))}
     return {
         "people": people,
         "tax_units": {"tu": _prune(tax_unit, known, skipped)},
@@ -243,7 +274,7 @@ def crosscheck(ret: IndividualReturn, ours: Result, tolerance: Decimal = TOLERAN
     from policyengine_us.system import system
 
     skipped: set[str] = set()
-    sit = situation(ret, set(system.variables), skipped)
+    sit = situation(ret, set(system.variables), skipped, ours=ours)
     _route(sit, system.variables)
     sim = Simulation(situation=sit)
     compared, bad = {}, []
