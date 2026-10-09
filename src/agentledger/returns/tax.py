@@ -109,9 +109,14 @@ def qdcg_tax(ctx: Ctx, year: int, filing_status: str, taxable_income: Decimal, q
 
 def schedule_d_tax(ctx: Ctx, year: int, filing_status: str, taxable_income: Decimal, qualified_dividends: Decimal,
                    sch_d_15: Decimal, sch_d_16: Decimal, sch_d_18: Decimal, sch_d_19: Decimal,
-                   f4952_4g: Decimal = Z, f4952_4e: Decimal = Z) -> tuple[Decimal, dict[str, Decimal]]:
-    """Schedule D Tax Worksheet (28% rate gain and unrecaptured §1250 gain)."""
+                   f4952_4g: Decimal = Z, f4952_4e: Decimal = Z, *,
+                   unrecaptured_total: Decimal | None = None) -> tuple[Decimal, dict[str, Decimal]]:
+    """Schedule D Tax Worksheet (28% rate gain and unrecaptured §1250 gain). `unrecaptured_total` is what line 35 is
+    limited to when it is not Schedule D line 19 itself: on the Form 8615 line 9 variant, the total of the Schedule D
+    line 19 amounts of the child, the parent and the other children, while `sch_d_19` is the part included on Form 8615
+    line 8 (Form 8615 instructions, Using the Schedule D Tax Worksheet for line 9 tax, step 13)."""
     zero_max, fifteen_max = _cg_breakpoints(ctx, year, filing_status)
+    line_35_cap = sch_d_19 if unrecaptured_total is None else unrecaptured_total
     bracket_32 = brackets(ctx, year, filing_status)[4][0]
     w: dict[str, Decimal] = {}
     w["1"] = l1 = pos(taxable_income)
@@ -153,7 +158,7 @@ def schedule_d_tax(ctx: Ctx, year: int, filing_status: str, taxable_income: Deci
             w["34"] = l34 = l33 * Decimal("0.20")
             l39 = Z
             if sch_d_19 > 0:
-                w["35"] = l35 = min(l9, sch_d_19)
+                w["35"] = l35 = min(l9, line_35_cap)
                 w["36"] = l36 = l10 + l21
                 w["37"] = l37 = l1
                 w["38"] = l38 = pos(l36 - l37)

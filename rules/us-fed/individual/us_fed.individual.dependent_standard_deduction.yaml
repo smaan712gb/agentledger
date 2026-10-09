@@ -4,7 +4,7 @@ jurisdiction: US-FED
 category: individual
 value_type: table
 unit: USD
-citation: IRC §63(c)(5)
+citation: IRC §63(c)(5); §1(g)(4)(A)(ii)(I) (the same amount reduces a child's net unearned income on Form 8615, twice it is the form's threshold)
 keys:
 - minimum
 - earned_income_addon
@@ -23,5 +23,6 @@ values:
     minimum: 1350
     earned_income_addon: 450
   provenance:
-    source: Rev. Proc. 2025-32 §4.14(2)
+    source: Rev. Proc. 2025-32 §4.14(2); §4.02 ($1,350 is also the §1(g)(4)(A)(ii)(I) kiddie tax amount for 2026)
     url: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf
+    verified_on: '2026-10-09'

@@ -119,7 +119,21 @@ def _unmodelled(r: IndividualReturn) -> list[str]:
     if _foreign_taxes(r):
         out.append("foreign tax credit limitation (PolicyEngine credits min(foreign taxes, tax before credits), without the §904 "
                    "limitation, the separate categories or carryovers: compared as an upper bound only)")
+    if r.form_8615.parent is not None or r.form_8615.parent_return_id:
+        out.append("Form 8615 inputs (the parent's return, the other children): PolicyEngine has no parent-rate tax")
     return out
+
+
+def _kiddie_skips(ours: Result) -> tuple[set[str], list[str]]:
+    """Form 8615: PolicyEngine models only the IRC §59(j) AMT exemption limit (amt_kiddie_tax_applies, by age alone), figuring
+    the child's AMT from taxable income rather than AMTI, and has no §1(g) tax at the parent's rate. When the engine figured
+    the tax on Form 8615, the tax before credits and the AMT are not comparable; AGI, taxable income and the rest still are."""
+    f = ours.forms.get("f8615") or {}
+    if "18" not in f:
+        return set(), []
+    return {"tax before credits incl. AMT", "alternative minimum tax"}, [
+        "Form 8615 tax at the parent's rate (IRC §1(g); Form 1040 line 16 from Form 8615 line 18) and the child's AMT with the §59(j) exemption "
+        "limit (PolicyEngine models the limit by age alone and from taxable income, not AMTI): tax before credits and the AMT are not compared"]
 
 
 def _foreign_taxes(r: IndividualReturn) -> Decimal:
@@ -293,7 +307,10 @@ def crosscheck(ret: IndividualReturn, ours: Result, tolerance: Decimal = TOLERAN
     _route(sit, system.variables)
     sim = Simulation(situation=sit)
     compared, bad = {}, []
+    skips, notes = _kiddie_skips(ours)
     for label, var, fn in COMPARISONS:
+        if label in skips:
+            continue
         try:
             theirs = Decimal(str(round(float(sim.calculate(var, ret.tax_year).sum()), 2)))
         except Exception:  # variable missing in this PolicyEngine release
@@ -311,4 +328,4 @@ def crosscheck(ret: IndividualReturn, ours: Result, tolerance: Decimal = TOLERAN
         compared[label] = (mine, theirs)
         if mine - theirs > tolerance:
             bad.append(Discrepancy(label, mine, theirs))
-    return CrossCheck(compared, bad, _unmodelled(ret) + sorted(f"input not in PolicyEngine: {k}" for k in skipped))
+    return CrossCheck(compared, bad, _unmodelled(ret) + notes + sorted(f"input not in PolicyEngine: {k}" for k in skipped))

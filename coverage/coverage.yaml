@@ -90,7 +90,6 @@ capabilities:
                 "golden/scenarios.yaml f1040-2026-foreign-tax-credit",
                 "tests/test_returns_oracle.py foreign_tax_credit, foreign_tax_credit_de_minimis (PolicyEngine credits min(foreign taxes, tax before credits): an upper bound, not an equality)"],
      pending: "tax-content owner sign-off (coverage owner is null)"}
-  - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8962,      name: "Form 8962 (premium tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f4797,      name: "Form 4797 (business property)",     jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: sch_f,      name: "Schedule F",                        jurisdiction: US-FED, years: [2026], status: unsupported}
@@ -98,6 +97,16 @@ capabilities:
   - {id: f8582,      name: "Form 8582 (passive activity loss)", jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f1040x,     name: "Form 1040-X (amended)",             jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f1040nr,    name: "Form 1040-NR",                      jurisdiction: US-FED, years: [2026], status: unsupported}
+  - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["the parent's return is a preparer's transcription (form_8615.parent) or a return of the same firm (form_8615.parent_return_id: its latest computed result, recorded with its version; the child's return must be recomputed when the parent's changes); which parent's return applies when it is not a joint return is a stated basis (form_8615.which_parent), never inferred",
+              "earned income is Form 1040 line 1z plus Schedule 1 lines 3 and 6 (the instructions' general rule; a Schedule C profit is a warning): the 30% allowance where capital is a material income-producing factor, qualified disability trust distributions and Form 2555 are not modelled",
+              "line 9 and line 15 by the Tax Table, the Tax Computation Worksheet, the Qualified Dividends and Capital Gain Tax Worksheet or the Schedule D Tax Worksheet (Line 5 Worksheets #1-#3 and the Worksheets for Line 11); Schedule J, Form 4952 amounts and a parent with a different tax year are not modelled; the Form 8814 election blocks",
+              "the other children's line 5 totals and the dividends and gains in them are stated facts (form_8615.other_children_*); the child's support test and a living parent are stated facts asked only when they change the tax",
+              "the IRC §59(j) AMT exemption limit (us_fed.individual.kiddie_tax_amt_exemption) applies to every child to whom §1(g) applies, Form 8615 or not; the Form 8615 figures are the 2026 draft form (May 7, 2026) and draft instructions (June 11, 2026)"],
+     evidence: ["tests/test_returns_8615.py (hand-worked from the Form 8615 (2026 draft) instructions' examples Roger, Eleanor, Amanda Black and the Persimmon children, Line 5 Worksheets #1 and #3, the January 1 birthday chart, and the §59(j) limit of Rev. Proc. 2025-32 §4.11, all with the Rev. Proc. 2025-32 figures)",
+                "golden/scenarios.yaml f1040-2026-kiddie-tax",
+                "tests/test_returns_oracle.py kiddie_tax (PolicyEngine: AGI and taxable income agree; it has no §1(g) tax and figures the child's AMT from taxable income, so the tax before credits and the AMT are not compared)"],
+     pending: "tax-content owner sign-off (coverage owner is null); re-read the final 2026 Form 8615 and instructions when posted"}
   # ---------------------------------------------------------------- business, federal (owner priority: certify next)
   - {id: f1120s,     name: "Form 1120-S and K-1s",              jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f1065,      name: "Form 1065 and K-1s",                jurisdiction: US-FED, years: [2026], status: unsupported}
