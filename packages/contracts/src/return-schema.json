@@ -128,6 +128,157 @@
       "title": "Adjustments",
       "type": "object"
     },
+    "Amendment": {
+      "description": "Form 1040-X facts no document carries (returns/amendment.py). Column A comes from the original return as it was\napproved, signed and filed (the sealed version the approval pinned), column C from this return's inputs; these are the\nrest of the form.\n\n`explanation` is Part III (\"Explanation of Changes\"): required, at least 10 characters, a review blocker until stated.\n`paid_with_original_return` is the tax paid with the original return (line 16; 0 when nothing was paid): None is not\nstated and blocks when the original showed an amount owed. `paid_after_filing` is additional tax paid after the original\nwas filed (notices, installments; line 16) and `last_payment_on` the date of the latest such payment (IRC \u00a76511(a): a\nrefund claim is timely within 2 years of a payment). `original_refund_received` and `original_overpayment_applied` are\nchecked against the original's lines 35a and 36 (line 18 takes the original's overpayment as filed or as adjusted; a\ndifference is a warning naming `as_previously_adjusted`). `superseding`: a return filed before the due date, extensions\nincluded, supersedes the original rather than amending it; None derives it from today's date and the IRC \u00a77503 due date\n(`extension_filed` moves the due date to October 15). `original_filed_on` overrides the filing date on record (a paper\nreturn's postmark) for the \u00a76511 and superseding dates. `apply_to_estimated_tax` is line 23, the part of the new\noverpayment (line 21) applied to next year's estimated tax; the original's election already stands in line 18.",
+      "properties": {
+        "explanation": {
+          "default": "",
+          "title": "Explanation",
+          "type": "string"
+        },
+        "as_previously_adjusted": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PreviousAdjustment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "paid_with_original_return": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paid With Original Return"
+        },
+        "paid_after_filing": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Paid After Filing"
+        },
+        "last_payment_on": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Payment On"
+        },
+        "original_refund_received": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Refund Received"
+        },
+        "original_overpayment_applied": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Overpayment Applied"
+        },
+        "superseding": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Superseding"
+        },
+        "extension_filed": {
+          "default": false,
+          "title": "Extension Filed",
+          "type": "boolean"
+        },
+        "original_filed_on": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Filed On"
+        },
+        "apply_to_estimated_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Apply To Estimated Tax"
+        },
+        "direct_deposit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DirectDeposit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Amendment",
+      "type": "object"
+    },
     "Business": {
       "properties": {
         "owner": {
@@ -707,6 +858,39 @@
         "relationship"
       ],
       "title": "Dependent",
+      "type": "object"
+    },
+    "DirectDeposit": {
+      "description": "Where a Form 1040-X refund goes (the routing number, account number and account type under line 22). Only an\nelectronically filed Form 1040-X is refunded by direct deposit; a paper one is refunded by check.",
+      "properties": {
+        "routing_number": {
+          "default": "",
+          "title": "Routing Number",
+          "type": "string"
+        },
+        "account_number": {
+          "default": "",
+          "title": "Account Number",
+          "type": "string"
+        },
+        "account_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "checking",
+                "savings"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Type"
+        }
+      },
+      "title": "DirectDeposit",
       "type": "object"
     },
     "Disposition": {
@@ -3864,6 +4048,34 @@
       "title": "Person",
       "type": "object"
     },
+    "PreviousAdjustment": {
+      "description": "The IRS changed the return as filed (a math error notice, an examination, an agreed CP2000): Form 1040-X column A\nthen shows the adjusted amounts, not the return's (Form 1040-X instructions, Column A). `lines` is keyed by the\nengine's Form 1040 line keys (\"11a\" adjusted gross income, \"15\" taxable income, \"16\" tax, \"24c\" total tax, \"33\" total\npayments, \"34\" overpayment, ...): each stated line replaces the as-filed figure; lines not stated stay as filed. The\nreason names the notice or transcript the amounts come from and is part of the approved package.",
+      "properties": {
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "lines": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Lines",
+          "type": "object"
+        }
+      },
+      "title": "PreviousAdjustment",
+      "type": "object"
+    },
     "PriorYear": {
       "description": "Amounts carried from the prior-year return (a 2025 Form 1040 for a 2026 return), with the return as their\ndocument. None means not stated, never zero: a line the preparer or the document did not supply is unknown, and a\ncomputation that needs it blocks instead of assuming zero.",
       "properties": {
@@ -5346,6 +5558,17 @@
       "default": true,
       "title": "Want Federal Public Benefit",
       "type": "boolean"
+    },
+    "amendment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Amendment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
