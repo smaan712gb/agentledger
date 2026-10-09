@@ -66,3 +66,12 @@ Credentials (2026-10-08, after the re-audit of 9333fde): owner credentials migra
 its own runtime login role with privileges in that store alone; the API connects as that role and never holds owner
 credentials in production (migrations run as a release step). Provisioning is journaled in the platform store and
 resumes or cleans up only what it recorded creating.
+
+Platform store (2026-10-09): the platform database of decision 5 (firms, users, sessions, wrapped data keys,
+provisioning journal, offboarding records) is PostgreSQL in production: the schema `platform` of the runtime database,
+with its own migrations (`pg/migrations/platform/`, applied by `agentledger platform migrate`) and its own runtime role
+`rt_<database>_platform`, which has exactly the table privileges the code uses and none outside the schema. Firm
+stores and the platform store share one switch (`AGENTLEDGER_DATABASE`); `AGENTLEDGER_PLATFORM_DATABASE` overrides it.
+Read-modify-write sections (a firm's status, an account's failure count, an invitation's single use) are transactions
+holding a per-key advisory lock, so several API containers share one store safely. SQLite (`state/platform.db`)
+remains the local development profile.

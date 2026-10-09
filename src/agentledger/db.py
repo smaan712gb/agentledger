@@ -19,7 +19,7 @@ import threading
 import weakref
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -430,13 +430,16 @@ class ThreadLocalConnection:
     safest with one connection per thread, serialized for writes by BEGIN IMMEDIATE.
     """
 
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, *, opener: Callable[[Path], sqlite3.Connection] | None = None):
+        """`opener` opens one connection to the file with its schema applied; the default is the firm store's
+        (`connect`), the platform store passes its own."""
         self._path = Path(path)
         self.location = str(self._path.resolve())
+        self._opener = opener or connect
         self._local = threading.local()
         self._all: list[sqlite3.Connection] = []
         self._closed = False
-        connect(self._path).close()  # create schema once up front
+        self._opener(self._path).close()  # create schema once up front
         _OPEN.add(self)
 
     def _get(self) -> sqlite3.Connection:
@@ -444,7 +447,7 @@ class ThreadLocalConnection:
             raise DatabaseError("this firm store has been closed")
         c = getattr(self._local, "conn", None)
         if c is None:
-            c = connect(self._path)
+            c = self._opener(self._path)
             self._local.conn = c
             self._all.append(c)
         return c

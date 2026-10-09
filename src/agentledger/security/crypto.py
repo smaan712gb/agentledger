@@ -18,9 +18,9 @@ import hashlib
 import hmac
 import os
 import secrets
-import sqlite3
 import threading
 from pathlib import Path
+from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -60,9 +60,12 @@ def _open(key_for_version, blob: bytes, aad: bytes) -> bytes:
 
 
 class Keyring:
-    """Per-firm data keys, stored wrapped in the platform database (table firm_keys)."""
+    """Per-firm data keys, stored wrapped in the platform database (table firm_keys).
 
-    def __init__(self, conn: sqlite3.Connection, master: bytes):
+    `conn` is the platform store's connection on either backend (a sqlite3 connection in autocommit mode, or the
+    PostgreSQL store): statements commit on their own, or as part of the unit of work a caller has open."""
+
+    def __init__(self, conn: Any, master: bytes):
         self.conn = conn
         self.master = master
         self._cache: dict[tuple[str, int], bytes] = {}
@@ -78,7 +81,6 @@ class Keyring:
             dek = secrets.token_bytes(32)
             wrapped = _seal(self.master, dek, self._wrap_aad(firm_id, version), 1)
             self.conn.execute("INSERT INTO firm_keys (firm_id, version, wrapped) VALUES (?, ?, ?)", (firm_id, version, wrapped))
-            self.conn.commit()
             self._cache[(firm_id, version)] = dek
             return version
 
@@ -126,7 +128,7 @@ class Keyring:
     def destroy(self, firm_id: str) -> None:
         """Crypto-shred: every ciphertext for this firm becomes permanently unreadable."""
         with self._lock:
-            self.conn.execute("UPDATE firm_keys SET wrapped = X'', destroyed_at = datetime('now') WHERE firm_id = ?", (firm_id,))
-            self.conn.commit()
+            # The empty key material is a parameter: a blob literal (X'') is SQLite's spelling only.
+            self.conn.execute("UPDATE firm_keys SET wrapped = ?, destroyed_at = datetime('now') WHERE firm_id = ?", (b"", firm_id))
             for k in [k for k in self._cache if k[0] == firm_id]:
                 del self._cache[k]

@@ -90,6 +90,14 @@ Each milestone ends with: full test suite green, golden scenarios green, a commi
 - BL.md cites Rev. Proc. 2008-35 for §7216 consents. The current consent rules are in Treas. Reg.
   §301.7216-3 and Rev. Proc. 2013-14. AgentLedger follows the current authority.
 
+## Deploying (2026-10-09)
+
+The Cloudflare deployment (API container behind a Worker, Neon, R2, WorkOS), its secrets inventory, the owner's
+checklist of accounts and credentials, the release and rollback procedures and the staging acceptance criteria are in
+[docs/DEPLOY.md](DEPLOY.md). The pipeline exists in `.github/workflows/release.yml` and stays skipped until the
+repository variable `DEPLOY_ENABLED` is `true` and the secrets it names exist. No firm may be created on Cloudflare
+before the platform store runs on PostgreSQL there (`agentledger platform migrate` as the release step; shipped).
+
 ## Operator settings for identity and provisioning (2026-10-08)
 
 - WorkOS environment: MFA set to **Required**; the callback `https://<app>/api/auth/idp/callback` registered and set as
@@ -98,6 +106,17 @@ Each milestone ends with: full test suite green, golden scenarios green, a commi
   evidence, and review it periodically; until then their SSO sign-ins are refused for lack of MFA.
 - The API environment holds no owner database credentials. Run `agentledger platform provision` with
   `AGENTLEDGER_MIGRATION_URL` as a release or scheduled operations job; firms stay in `provisioning` until it runs.
+- The platform store (firms, users, sessions, wrapped data keys, provisioning journal) is PostgreSQL in production: the
+  schema `platform` of the runtime database, with its own login role `rt_<database>_platform` whose password derives from
+  `AGENTLEDGER_DB_ROLE_KEY` and whose privileges stop at that schema (no DDL, no UPDATE or DELETE of the authentication
+  log or offboarding records). Run `agentledger platform migrate` with `AGENTLEDGER_MIGRATION_URL` as a release step
+  before the API starts (it needs no master key; it creates the schema and role, and applies new platform migrations);
+  an API started against a schema that was never migrated stops with a message naming that command. The API, the
+  worker and operations jobs read and write the platform tables as the runtime role only; `platform migrate` and
+  `platform provision` run with owner credentials and without `AGENTLEDGER_MASTER_KEY` (the key stays in the API
+  container). Each container holds one connection to the direct endpoint per request thread, so bound uvicorn's
+  thread pool with the endpoint's connection limit in mind. Set `AGENTLEDGER_PLATFORM_DATABASE` only to put the
+  platform store on another backend than the firm stores (tests do).
 - Evidence storage: enable R2 on the Cloudflare account (dashboard), create the bucket and an R2 API token scoped to
   it, and set `AGENTLEDGER_BLOBS=s3` with the `AGENTLEDGER_BLOB_*` values. Objects are sealed and content addressed
   before upload; bucket lock rules per prefix come with F-13.

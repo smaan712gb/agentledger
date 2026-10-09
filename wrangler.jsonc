@@ -1,0 +1,169 @@
+{
+	// The edge Worker and the API container (docs/DEPLOY.md). A deploy always names its environment:
+	//     npx wrangler deploy --env staging | --env production
+	// Bindings and vars are not inherited by environments, so each one repeats the whole set. The default (top-level)
+	// configuration serves `wrangler dev` and type generation; nothing is deployed from it.
+	//
+	// Never here, in any form: AGENTLEDGER_MIGRATION_URL, DATABASE_URL, DATABASE_URL_UNPOOLED, NEON_API_KEY. Owner
+	// database credentials and the Neon API key belong to the GitHub release and operations jobs only; the Worker and
+	// the container run with the per-store runtime role (AGENTLEDGER_RUNTIME_DATABASE_URL + AGENTLEDGER_DB_ROLE_KEY).
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "agentledger-edge",
+	"main": "edge/src/index.ts",
+	"compatibility_date": "2026-10-08",
+	"observability": { "enabled": true },
+	// No workers.dev hostname and no preview URLs: the API is reachable only through its custom domain.
+	"workers_dev": false,
+	"preview_urls": false,
+	// Durable Object classes this Worker exports, declared rather than migrated (`exports` and a legacy `migrations`
+	// array must never be combined). ApiContainer is defined in edge/src/index.ts.
+	"exports": {
+		"ApiContainer": { "type": "durable-object", "storage": "sqlite" }
+	},
+	"containers": [
+		{
+			"class_name": "ApiContainer",
+			"image": "./Dockerfile",
+			"image_build_context": ".",
+			"instance_type": "basic",
+			"max_instances": 1,
+			"constraints": { "regions": ["ENAM"] }
+		}
+	],
+	"durable_objects": {
+		"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
+	},
+	// Non-secret container settings; the Worker copies every AGENTLEDGER_*/WORKOS_*/ANTHROPIC_* var and secret into
+	// the container's environment at start.
+	"vars": {
+		"ENVIRONMENT": "dev",
+		"API_INSTANCES": "1",
+		"AGENTLEDGER_DATABASE": "postgres",
+		"AGENTLEDGER_PG_TENANCY": "schema",
+		"AGENTLEDGER_IDENTITY": "workos",
+		"AGENTLEDGER_AGENTS": "0",
+		"AGENTLEDGER_BLOBS": "s3",
+		"AGENTLEDGER_BLOB_ENDPOINT": "https://REPLACE-WITH-ACCOUNT-ID.r2.cloudflarestorage.com",
+		"AGENTLEDGER_BLOB_BUCKET": "agentledger-dev-evidence",
+		"AGENTLEDGER_BLOB_PREFIX": "",
+		"WORKOS_REDIRECT_URI": "http://localhost:8787/api/auth/idp/callback"
+	},
+	// Worker secrets (`npx wrangler secret put NAME --env <environment>`): a deploy fails until each is set.
+	// Optional, not listed: ANTHROPIC_API_KEY, AGENTLEDGER_WEBHOOK_SECRET, AGENTLEDGER_SMTP_*.
+	"secrets": {
+		"required": [
+			"AGENTLEDGER_MASTER_KEY",
+			"AGENTLEDGER_DB_ROLE_KEY",
+			"AGENTLEDGER_RUNTIME_DATABASE_URL",
+			"AGENTLEDGER_BLOB_ACCESS_KEY_ID",
+			"AGENTLEDGER_BLOB_SECRET_ACCESS_KEY",
+			"WORKOS_API_KEY",
+			"WORKOS_CLIENT_ID",
+			"AGENTLEDGER_SMOKE_TOKEN"
+		]
+	},
+	"env": {
+		"staging": {
+			"name": "agentledger-edge-staging",
+			// REPLACE: the staging hostname, in a DNS zone on this Cloudflare account (custom domains create the record).
+			"routes": [{ "pattern": "staging-api.agentledger.example", "custom_domain": true }],
+			"exports": {
+				"ApiContainer": { "type": "durable-object", "storage": "sqlite" }
+			},
+			"containers": [
+				{
+					"class_name": "ApiContainer",
+					"image": "./Dockerfile",
+					"image_build_context": ".",
+					"instance_type": "basic",
+					"max_instances": 1,
+					"constraints": { "regions": ["ENAM"] }
+				}
+			],
+			"durable_objects": {
+				"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
+			},
+			"vars": {
+				"ENVIRONMENT": "staging",
+				"API_INSTANCES": "1",
+				"AGENTLEDGER_DATABASE": "postgres",
+				"AGENTLEDGER_PG_TENANCY": "schema",
+				"AGENTLEDGER_IDENTITY": "workos",
+				"AGENTLEDGER_AGENTS": "0",
+				"AGENTLEDGER_BLOBS": "s3",
+				// REPLACE: the account's R2 endpoint and the staging bucket (docs/DEPLOY.md, owner checklist).
+				"AGENTLEDGER_BLOB_ENDPOINT": "https://REPLACE-WITH-ACCOUNT-ID.r2.cloudflarestorage.com",
+				"AGENTLEDGER_BLOB_BUCKET": "agentledger-staging-evidence",
+				"AGENTLEDGER_BLOB_PREFIX": "",
+				// REPLACE: must match the route above and the callback registered in the WorkOS staging environment.
+				"WORKOS_REDIRECT_URI": "https://staging-api.agentledger.example/api/auth/idp/callback"
+			},
+			"secrets": {
+				"required": [
+					"AGENTLEDGER_MASTER_KEY",
+					"AGENTLEDGER_DB_ROLE_KEY",
+					"AGENTLEDGER_RUNTIME_DATABASE_URL",
+					"AGENTLEDGER_BLOB_ACCESS_KEY_ID",
+					"AGENTLEDGER_BLOB_SECRET_ACCESS_KEY",
+					"WORKOS_API_KEY",
+					"WORKOS_CLIENT_ID",
+					"AGENTLEDGER_SMOKE_TOKEN"
+				]
+			}
+		},
+		"production": {
+			"name": "agentledger-edge-production",
+			// REPLACE: the production API hostname (same zone rules as staging).
+			"routes": [{ "pattern": "api.agentledger.example", "custom_domain": true }],
+			"exports": {
+				"ApiContainer": { "type": "durable-object", "storage": "sqlite" }
+			},
+			"containers": [
+				{
+					"class_name": "ApiContainer",
+					"image": "./Dockerfile",
+					"image_build_context": ".",
+					"instance_type": "standard-1",
+					"max_instances": 3,
+					// Rollouts replace 10% of the instances (at least one), then the rest; an instance connected to its
+					// Durable Object for under five minutes is left alone until it passes that window.
+					"rollout_step_percentage": [10, 100],
+					"rollout_active_grace_period": 300,
+					"constraints": { "regions": ["ENAM"] }
+				}
+			],
+			"durable_objects": {
+				"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
+			},
+			"vars": {
+				"ENVIRONMENT": "production",
+				// Named container instances the Worker spreads clients over (by client IP); max_instances above is the
+				// ceiling. Raise only after the platform store runs on PostgreSQL (docs/DEPLOY.md, phase gates).
+				"API_INSTANCES": "1",
+				"AGENTLEDGER_DATABASE": "postgres",
+				"AGENTLEDGER_PG_TENANCY": "database",
+				"AGENTLEDGER_IDENTITY": "workos",
+				"AGENTLEDGER_AGENTS": "0",
+				"AGENTLEDGER_BLOBS": "s3",
+				// REPLACE: the account's R2 endpoint and the production bucket.
+				"AGENTLEDGER_BLOB_ENDPOINT": "https://REPLACE-WITH-ACCOUNT-ID.r2.cloudflarestorage.com",
+				"AGENTLEDGER_BLOB_BUCKET": "agentledger-production-evidence",
+				"AGENTLEDGER_BLOB_PREFIX": "",
+				// REPLACE: must match the route above and the callback registered in the WorkOS production environment.
+				"WORKOS_REDIRECT_URI": "https://api.agentledger.example/api/auth/idp/callback"
+			},
+			"secrets": {
+				"required": [
+					"AGENTLEDGER_MASTER_KEY",
+					"AGENTLEDGER_DB_ROLE_KEY",
+					"AGENTLEDGER_RUNTIME_DATABASE_URL",
+					"AGENTLEDGER_BLOB_ACCESS_KEY_ID",
+					"AGENTLEDGER_BLOB_SECRET_ACCESS_KEY",
+					"WORKOS_API_KEY",
+					"WORKOS_CLIENT_ID",
+					"AGENTLEDGER_SMOKE_TOKEN"
+				]
+			}
+		}
+	}
+}

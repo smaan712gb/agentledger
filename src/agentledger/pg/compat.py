@@ -22,6 +22,7 @@ import re
 import threading
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 from .. import db
@@ -36,13 +37,19 @@ IDENTITY = {"info_returns": "id", "finding_resolutions": "id", "precedents": "id
             "return_document_dispositions": "id", "document_moves": "id", "basis_releases": "id"}
 _INSERT = re.compile(r"^\s*INSERT\s+INTO\s+\"?(\w+)\"?", re.I)
 _DDL = re.compile(r"^\s*(INSERT|UPDATE|DELETE)\b", re.I | re.M)
+# SQLite's datetime('now') is the UTC wall clock as 'YYYY-MM-DD HH:MM:SS' text; the same text on PostgreSQL, so a
+# column written by either backend reads the same (the platform store writes it; its date columns are text).
+_SQLITE_NOW = re.compile(r"datetime\(\s*'now'\s*\)", re.I)
+PG_NOW = "to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')"
 
 
 def translate_sql(sql: str, params: bool = True) -> str:
-    """`?` placeholders to `%s` outside quoted strings and identifiers. With parameters psycopg interpolates, so a
-    literal `%` (LIKE 'bank%') is doubled; without parameters the text is sent as is."""
+    """`?` placeholders to `%s` outside quoted strings and identifiers, and SQLite's datetime('now') to the equivalent
+    text expression. With parameters psycopg interpolates, so a literal `%` (LIKE 'bank%') is doubled; without
+    parameters the text is sent as is."""
     if sql.strip().upper() == "BEGIN IMMEDIATE":
         return "BEGIN"
+    sql = _SQLITE_NOW.sub(PG_NOW, sql)
     if not params:
         return sql
     out, quote = [], None
@@ -220,11 +227,13 @@ class PgStore:
     dialect = "postgres"
 
     def __init__(self, schema: str, *, url: str | None = None, scope: str = "*", migrate_on_open: bool = True,
-                 own_database: bool = False):
+                 own_database: bool = False, migrations: Path | None = None):
         """`url` names the server and database (its credentials are ignored); the store connects as its runtime role.
         With owner credentials in the environment, pending migrations are applied first (development); production
-        runs them as a release step and the API never holds owner credentials."""
+        runs them as a release step and the API never holds owner credentials. `migrations` is the schema's migration
+        directory (a firm store's by default; the platform store passes its own)."""
         self.schema, self.scope = schema, scope
+        self.migrations = migrations
         base = url or runtime_base_url()
         if not base:
             raise RuntimeError("AGENTLEDGER_DATABASE=postgres needs DATABASE_URL_UNPOOLED (or DATABASE_URL)")
@@ -239,7 +248,7 @@ class PgStore:
         if migrate_on_open and owner_url:
             owner = connect(with_database(owner_url, self.database))
             try:
-                migrate(owner, schema, self.role, own_database=own_database)
+                migrate(owner, schema, self.role, own_database=own_database, migrations=self.migrations)
             finally:
                 owner.close()
         db._OPEN.add(self)

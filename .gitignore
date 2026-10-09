@@ -26,3 +26,6 @@ node_modules/
 node_modules/
 # local Claude Code settings
 .claude/settings.local.json
+
+# wrangler state and dry-run output
+.wrangler/

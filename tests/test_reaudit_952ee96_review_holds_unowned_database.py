@@ -35,6 +35,7 @@ def neon(tmp_path, monkeypatch):
     from agentledger.pg import provision
 
     monkeypatch.setenv("AGENTLEDGER_DATABASE", "postgres")
+    monkeypatch.setenv("AGENTLEDGER_PLATFORM_DATABASE", "sqlite")      # the database URLs below are never reached
     monkeypatch.setenv("AGENTLEDGER_PG_TENANCY", "database")
     monkeypatch.setenv("AGENTLEDGER_MIGRATION_URL", "postgresql://owner:pw@ep-x.neon.tech/neondb")
     monkeypatch.setenv("AGENTLEDGER_RUNTIME_DATABASE_URL", "postgresql://ignored@ep-x.neon.tech/neondb")

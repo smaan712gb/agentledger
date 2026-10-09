@@ -90,6 +90,8 @@ def test_record_of_a_re_run_offboarding_lists_what_the_store_held_when_destroyed
     assert cancelled == [("ops", CANCEL)]
 
     for statement in ("UPDATE firm_offboarding SET summary = '{}' WHERE firm_id = ?", "DELETE FROM firm_offboarding WHERE firm_id = ?"):
-        with pytest.raises(sqlite3.DatabaseError, match="append-only"):
+        # SQLite: the append-only trigger. PostgreSQL: the platform's runtime role has no UPDATE or DELETE on the table
+        # (the trigger refuses the owner as well).
+        with pytest.raises(sqlite3.DatabaseError, match="append-only|permission denied"):
             plat.conn.execute(statement, (FIRM,))
     assert plat.offboarding_records(FIRM) == [first, last]

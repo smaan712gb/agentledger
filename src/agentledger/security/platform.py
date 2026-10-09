@@ -20,10 +20,11 @@ import secrets
 import shutil
 import sqlite3
 import threading
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -148,6 +149,50 @@ class AuthError(Exception):
     """Raised with a message that is safe to show to the person signing in."""
 
 
+class _Refused(Exception):
+    """Raised inside a critical section (Platform._critical) to refuse the operation once what the section recorded
+    (the refusal's event, a failure count) is committed: the AuthError it carries is raised after the unit of work."""
+
+    def __init__(self, error: AuthError):
+        super().__init__(str(error))
+        self.error = error
+
+
+def platform_backend() -> str:
+    """Where the platform store lives: AGENTLEDGER_PLATFORM_DATABASE ('sqlite' or 'postgres'), else the firm stores'
+    backend (db.backend()). The override exists for tests that put firm stores on a database they never reach."""
+    value = (os.environ.get("AGENTLEDGER_PLATFORM_DATABASE") or db.backend()).strip().lower() or db.backend()
+    if value not in ("sqlite", "postgres"):
+        raise ValueError(f"AGENTLEDGER_PLATFORM_DATABASE must be 'sqlite' or 'postgres', not {value!r}")
+    return value
+
+
+def _open_platform_sqlite(path: Path) -> sqlite3.Connection:
+    """One connection to the SQLite platform store, schema applied (idempotent) and its per-connection pragmas set.
+    `check_same_thread=False` only so the store can close every thread's connection from one place."""
+    c = sqlite3.connect(path, check_same_thread=False, isolation_level=None, timeout=30)
+    c.row_factory = sqlite3.Row
+    c.executescript(SCHEMA)
+    return c
+
+
+def migrate_platform() -> list[str]:
+    """Create or upgrade the platform schema and its runtime role on PostgreSQL as the owner (`agentledger platform
+    migrate`: a release step, before the API starts). Returns the migration files applied. The schema lives in the
+    database runtime connections use (AGENTLEDGER_RUNTIME_DATABASE_URL, else the owner URL's); the owner credentials
+    come from AGENTLEDGER_MIGRATION_URL (else DATABASE_URL_UNPOOLED). No master key is needed."""
+    from ..pg import PLATFORM_MIGRATIONS, PLATFORM_SCHEMA, connect, database_of, migrate, migration_url, runtime_base_url, with_database
+
+    owner_url = migration_url()
+    if not owner_url:
+        raise RuntimeError("migrating the platform store needs owner credentials (AGENTLEDGER_MIGRATION_URL or DATABASE_URL_UNPOOLED)")
+    owner = connect(with_database(owner_url, database_of(runtime_base_url() or owner_url)))
+    try:
+        return migrate(owner, db.pg_name(PLATFORM_SCHEMA), migrations=PLATFORM_MIGRATIONS)
+    finally:
+        owner.close()
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -182,7 +227,18 @@ class Enrolment:
 
 
 class Platform:
-    def __init__(self, root: Path, *, dev: bool = False, identity: str = "local"):
+    """The platform store: on PostgreSQL (platform_backend() == "postgres") the schema `platform` of the admin database,
+    opened as its own runtime role with one connection per thread (pg.compat.PgStore; a container's connections to the
+    direct endpoint number its request threads); otherwise the SQLite file state/platform.db on one shared connection.
+
+    Read-modify-write sections (a firm's status, an account's failure count, an invitation's single use) run in
+    `_critical`: one unit of work serialized across every process on a key, so two API containers never both admit
+    the same invitation or lose a failed-login count."""
+
+    def __init__(self, root: Path, *, dev: bool = False, identity: str = "local", need_keys: bool = True):
+        """`need_keys=False` is for jobs that hold owner database credentials and not the master key (the release
+        step's `platform migrate`, the provisioning worker): the master key is not loaded, no data key is created,
+        and `self.keys` refuses with a clear error."""
         self.root = Path(root)
         if "tenants" in Path(root).resolve().parts:
             raise ValueError("the platform root must not lie inside a directory named 'tenants': firm stores are located "
@@ -193,19 +249,82 @@ class Platform:
             raise ValueError("identity must be 'local' or 'workos'")
         self.identity = identity
         state = self.root / "state"
-        state.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(state / "platform.db", check_same_thread=False, isolation_level=None)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA)
-        self._upgrade()
-        self.lock = threading.RLock()
-        self.keys = Keyring(self.conn, load_master_key(state, allow_dev_file=dev))
+        # The master key first: a deployment without one refuses to start before any store is created or touched.
+        master = load_master_key(state, allow_dev_file=dev) if need_keys else None
+        self.backend = platform_backend()
+        self.lock = threading.RLock()     # SQLite: one shared connection, one critical section at a time in this process
+        self.conn: Any
+        if self.backend == "postgres":
+            from ..pg import PLATFORM_MIGRATIONS, PLATFORM_SCHEMA, runtime_base_url
+            from ..pg.compat import PgStore
+
+            # With owner credentials in the environment (development, the release and provisioning jobs) the schema
+            # is migrated first; the API holds none and needs `agentledger platform migrate` to have run. Nothing is
+            # written under state/ (the development master key file apart).
+            self.conn = PgStore(db.pg_name(PLATFORM_SCHEMA), url=runtime_base_url(), migrations=PLATFORM_MIGRATIONS)
+            self._check_open()
+        else:
+            state.mkdir(parents=True, exist_ok=True)
+            # One connection per thread: a critical section's transaction (BEGIN IMMEDIATE on this thread's
+            # connection) never captures another request's statements, so a rolled-back section loses only its own.
+            self.conn = db.ThreadLocalConnection(state / "platform.db", opener=_open_platform_sqlite)
+            self._upgrade()
+        self._keys = Keyring(self.conn, master) if master is not None else None
         self.ph = PasswordHasher()
-        if not self.conn.execute("SELECT 1 FROM firm_keys WHERE firm_id = ?", (PLATFORM_FIRM,)).fetchone():
-            self.keys.create(PLATFORM_FIRM)
+        if self._keys is not None and not self.conn.execute("SELECT 1 FROM firm_keys WHERE firm_id = ?", (PLATFORM_FIRM,)).fetchone():
+            try:
+                self._keys.create(PLATFORM_FIRM)
+            except sqlite3.IntegrityError:    # created meanwhile by another process (two containers booting at once)
+                pass
+
+    @property
+    def keys(self) -> Keyring:
+        if self._keys is None:
+            raise RuntimeError("this job runs without the master key (Platform(need_keys=False)): firm data keys cannot be "
+                               "created, read or destroyed here")
+        return self._keys
+
+    def _check_open(self) -> None:
+        """The first statement as the runtime role, so a platform schema that was never migrated (no role, no tables)
+        is reported with the step that creates it, not as a login failure in the first request."""
+        try:
+            self.conn.execute("SELECT 1 FROM firm_keys WHERE firm_id = ?", (PLATFORM_FIRM,)).fetchone()
+        except Exception as exc:
+            import psycopg
+
+            if not isinstance(exc, (psycopg.OperationalError, db.DatabaseError)):
+                raise
+            raise RuntimeError(
+                f"the platform store ({self.conn.location}) could not be opened as its runtime role {self.conn.role}: {exc}. "
+                "If the platform schema was never created, run `agentledger platform migrate` with owner credentials "
+                "(AGENTLEDGER_MIGRATION_URL); otherwise check AGENTLEDGER_RUNTIME_DATABASE_URL and AGENTLEDGER_DB_ROLE_KEY") from exc
+
+    def close(self) -> None:
+        """Close the store's connections (command-line jobs, tests); the object cannot be used afterwards."""
+        self.conn.close()
+
+    @contextmanager
+    def _critical(self, key: str) -> Iterator[None]:
+        """A read-modify-write section as one unit of work, serialized on `key` ("firm:<id>", "user:<id>", ...) across
+        every process: on PostgreSQL a transaction holding an advisory lock (db.lock; keyed by schema, so the firm
+        stores never contend), on SQLite this process's lock and the database's write lock (BEGIN IMMEDIATE). Nested
+        sections join the outer one. A `_Refused` raised inside commits what the section recorded (the refusal's
+        event, a failure count) and raises its AuthError afterwards; any other exception rolls the section back."""
+        refused: AuthError | None = None
+        with self.lock if self.backend != "postgres" else nullcontext():
+            with db.unit_of_work(self.conn):
+                if self.backend == "postgres":
+                    db.lock(self.conn, key)
+                try:
+                    yield
+                except _Refused as r:
+                    refused = r.error
+        if refused is not None:
+            raise refused
 
     def _upgrade(self) -> None:
-        """Columns added after the first release, for platform stores created before them."""
+        """Columns added after the first release, for platform stores created before them (SQLite only: on PostgreSQL
+        the schema comes from pg/migrations/platform, which has them from the start)."""
         for table, col, ddl in (("users", "idp_subject", "TEXT"), ("users", "reviewer", "INTEGER NOT NULL DEFAULT 0"),
                                 ("users", "reviewer_credential", "TEXT"), ("sessions", "auth_method", "TEXT NOT NULL DEFAULT 'password+totp'"),
                                 ("sessions", "stepped_up_at", "TEXT"),
@@ -235,13 +354,16 @@ class Platform:
         'provisioning' (nobody can use it) until its store is ready; a failure is recorded and the same call retries."""
         if not FIRM_ID.fullmatch(firm_id) or firm_id in RESERVED_FIRM_IDS:
             raise AuthError("firm id must be 2-41 lowercase letters, digits or hyphens, and not a reserved name")
-        with self.lock:
+        with self._critical(f"firm:{firm_id}"):
             row = self.conn.execute("SELECT status FROM firms WHERE id = ?", (firm_id,)).fetchone()
             if row and row["status"] != "provisioning":
                 raise AuthError("that firm id is taken")
             if not row:
                 status = "provisioning" if db.backend() == "postgres" else "active"
-                self.conn.execute("INSERT INTO firms (id, name, status) VALUES (?, ?, ?)", (firm_id, name, status))
+                try:
+                    self.conn.execute("INSERT INTO firms (id, name, status) VALUES (?, ?, ?)", (firm_id, name, status))
+                except sqlite3.IntegrityError as exc:       # inserted meanwhile by a writer not holding this lock
+                    raise AuthError("that firm id is taken") from exc
                 self.keys.create(firm_id)
                 self.tenant_dir(firm_id).mkdir(parents=True, exist_ok=True)
                 if db.backend() != "postgres":   # the store exists from the start: a missing one is never "no holds"
@@ -307,7 +429,7 @@ class Platform:
             if ref is not None:                                  # the firm may yet be provisioned and used
                 self._unseal_or_record(firm_id, ref, by=by)
             raise
-        with self.lock:
+        with self._critical(f"firm:{firm_id}"):
             self.conn.execute("UPDATE firms SET status = 'deleted', deleted_at = datetime('now') WHERE id = ?", (firm_id,))
             self.keys.destroy(firm_id)
         self.event("firm_abandoned", firm_id=firm_id, user_id=by, detail=detail)
@@ -353,7 +475,7 @@ class Platform:
         self.conn.execute(f"UPDATE provisioning SET {sets} WHERE firm_id = ?", (*fields.values(), firm_id))
 
     def claim(self, firm_id: str, holder: str, seconds: int) -> bool:
-        with self.lock:
+        with self._critical(f"provisioning:{firm_id}"):
             self.conn.execute("INSERT INTO provisioning (firm_id) VALUES (?) ON CONFLICT (firm_id) DO NOTHING", (firm_id,))
             cur = self.conn.execute("UPDATE provisioning SET holder = ?, lease_until = ? WHERE firm_id = ? "
                                     "AND (lease_until IS NULL OR lease_until < ?)",
@@ -412,7 +534,7 @@ class Platform:
 
     # The offboarding run's lease: one run at a time, and a cancellation never lands in the middle of one.
     def _claim_run(self, firm_id: str, holder: str) -> bool:
-        with self.lock:
+        with self._critical(f"offboarding:{firm_id}"):
             self.conn.execute("INSERT INTO offboarding_runs (firm_id) VALUES (?) ON CONFLICT (firm_id) DO NOTHING", (firm_id,))
             cur = self.conn.execute("UPDATE offboarding_runs SET holder = ?, lease_until = ? WHERE firm_id = ? "
                                     "AND (holder IS NULL OR lease_until < ?)",
@@ -502,7 +624,7 @@ class Platform:
             raise AuthError("say why: what the location was checked against")
         if location != "file" and not re.fullmatch(r"s3:[^/\s]+/\S*", location):
             raise AuthError("a location is 'file' or 's3:<bucket>/<prefix>'")
-        with self.lock:
+        with self._critical(f"firm:{firm_id}"):
             cur = self.conn.execute("UPDATE firms SET blob_location = ? WHERE id = ? AND blob_location IS NULL",
                                     (location, firm_id))
             if cur.rowcount != 1:
@@ -557,7 +679,7 @@ class Platform:
             if not migration_url():       # sealing and removal need them; without, the firm would be left out of use
                 raise AuthError("firm offboarding runs as an operations job with owner database credentials "
                                 "(AGENTLEDGER_MIGRATION_URL)")
-        with self.lock:
+        with self._critical(f"firm:{firm_id}"):
             f = self.firm(firm_id)
             if f["status"] == "deleted":
                 raise AuthError("this firm is already deleted; use destroy_firm_data to finish removing its data")
@@ -603,7 +725,7 @@ class Platform:
                 raise
         finally:
             self._release_run(firm_id, holder)
-        with self.lock:
+        with self._critical(f"firm:{firm_id}"):
             self.conn.execute("UPDATE firms SET status = 'deleted', deleted_at = datetime('now') WHERE id = ?", (firm_id,))
             self.conn.execute("UPDATE users SET disabled = 1 WHERE firm_id = ?", (firm_id,))
             self.conn.execute("UPDATE sessions SET revoked_at = datetime('now') WHERE user_id IN "
@@ -611,7 +733,7 @@ class Platform:
             self.event("firm_deleted", firm_id=firm_id, user_id=by, detail=reason.strip()[:300])
 
     def _end_offboarding(self, firm_id: str) -> None:
-        with self.lock:
+        with self._critical(f"firm:{firm_id}"):
             self.conn.execute("UPDATE firms SET status = coalesce(offboarding_from, 'active'), offboarding_from = NULL "
                               "WHERE id = ? AND status = 'offboarding'", (firm_id,))
 
@@ -630,7 +752,7 @@ class Platform:
             raise AuthError("this firm is not being offboarded")
         holder = f"{os.getpid()}:{secrets.token_hex(6)}"
         if not self._claim_run(firm_id, holder):          # a run is in progress: ask it to stop at its next stage
-            with self.lock:                               # the request is made against a run still holding the lease
+            with self._critical(f"offboarding:{firm_id}"):   # the request is made against a run still holding the lease
                 cur = self.conn.execute(
                     "UPDATE offboarding_runs SET cancel_requested_at = ?, cancel_by = ?, cancel_reason = ? WHERE firm_id = ? "
                     "AND holder IS NOT NULL AND lease_until >= ? "
@@ -692,9 +814,10 @@ class Platform:
 
     def bootstrap_admin(self, email: str, name: str, password: str) -> str:
         """First platform administrator; allowed only while no platform admin exists."""
-        if self.conn.execute("SELECT 1 FROM users WHERE role = 'platform_admin'").fetchone():
-            raise AuthError("a platform administrator already exists")
-        return self._create_user(PLATFORM_FIRM, email, name, "platform_admin", None, password)
+        with self._critical("platform:bootstrap"):
+            if self.conn.execute("SELECT 1 FROM users WHERE role = 'platform_admin'").fetchone():
+                raise AuthError("a platform administrator already exists")
+            return self._create_user(PLATFORM_FIRM, email, name, "platform_admin", None, password)
 
     def invite(self, firm_id: str, email: str, role: str, *, by: dict[str, Any], client_id: str | None = None) -> str:
         if role not in ROLES or role == "platform_admin":
@@ -716,7 +839,7 @@ class Platform:
     def accept_invite(self, token: str, name: str, password: str, ip: str | None = None) -> Enrolment:
         if self.identity == "workos":
             raise AuthError("this firm signs in through its sign-in provider; open the invitation link to continue there")
-        with self.lock:
+        with self._critical(f"invite:{_hash(token)}"):            # single use, whichever acceptance arrives first
             inv = self.conn.execute("SELECT * FROM invites WHERE token_hash = ?", (_hash(token),)).fetchone()
             if not inv or inv["accepted_at"] or inv["expires_at"] < _iso(_now()):
                 raise AuthError("this invitation is invalid or has expired")
@@ -729,11 +852,15 @@ class Platform:
         problems = password_problems(password, email)
         if problems:
             raise AuthError("password: " + "; ".join(problems))
-        if self.conn.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone():
+        address = email.strip().lower()           # stored and looked up in one form; the unique index is on lower(email)
+        if self.conn.execute("SELECT 1 FROM users WHERE email = ?", (address,)).fetchone():
             raise AuthError("an account with this email already exists")
         user_id = "u_" + secrets.token_hex(8)
-        self.conn.execute("INSERT INTO users (id, firm_id, email, name, role, client_id, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                          (user_id, firm_id, email.strip().lower(), name, role, client_id, self.ph.hash(password)))
+        try:
+            self.conn.execute("INSERT INTO users (id, firm_id, email, name, role, client_id, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                              (user_id, firm_id, address, name, role, client_id, self.ph.hash(password)))
+        except sqlite3.IntegrityError as exc:       # the same address, accepted elsewhere at the same moment
+            raise AuthError("an account with this email already exists") from exc
         self.event("user_created", firm_id=firm_id, user_id=user_id, email=email, detail=role)
         return user_id
 
@@ -816,52 +943,66 @@ class Platform:
                           (_hash(challenge), user_id, sealed, _iso(_now() + timedelta(minutes=15))))
         return Enrolment(challenge, secret, totp.provisioning_uri(secret, u["email"]))
 
+    def _count_failure(self, user_id: str) -> int:
+        """One more failed password or code for the account, inside the account's critical section: the counter is
+        incremented in place (never written from a value read earlier, so concurrent attempts all count) and
+        MAX_FAILURES locks the account. Returns the count reached."""
+        self.conn.execute("UPDATE users SET failed_logins = failed_logins + 1 WHERE id = ?", (user_id,))
+        failures = int(self.conn.execute("SELECT failed_logins FROM users WHERE id = ?", (user_id,)).fetchone()[0])
+        if failures >= MAX_FAILURES:
+            self.conn.execute("UPDATE users SET failed_logins = 0, locked_until = ? WHERE id = ?", (_iso(_now() + LOCKOUT), user_id))
+        return failures
+
     def login(self, email: str, password: str, ip: str | None = None) -> dict[str, Any]:
-        """Step 1. Returns {"mfa": challenge} or {"enroll": Enrolment}. Never a session."""
-        with self.lock:
-            r = self.conn.execute("SELECT * FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
-            generic = AuthError("email or password is incorrect")
-            if not r:
-                self.ph.hash(password)  # equalise timing for unknown accounts
-                self.event("login_failed", email=email, ip=ip, detail="unknown account")
-                raise generic
-            u = dict(r)
-            if self.identity == "workos" and u["role"] != "platform_admin":
-                self.ph.hash(password)
-                self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="password sign-in is off for firm users")
-                raise generic
-            if u["disabled"]:
-                self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="disabled")
-                raise generic
-            if u["locked_until"] and u["locked_until"] > _iso(_now()):
-                self.event("login_locked", firm_id=u["firm_id"], user_id=u["id"], ip=ip)
-                raise AuthError("too many attempts; try again in 15 minutes")
-            try:
-                if u["password_hash"] == NO_PASSWORD:
-                    raise VerifyMismatchError()
-                self.ph.verify(u["password_hash"], password)
-            except (VerifyMismatchError, VerificationError, InvalidHashError):
-                failures = u["failed_logins"] + 1
-                locked = _iso(_now() + LOCKOUT) if failures >= MAX_FAILURES else None
-                self.conn.execute("UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?",
-                                  (0 if locked else failures, locked, u["id"]))
+        """Step 1. Returns {"mfa": challenge} or {"enroll": Enrolment}. Never a session. The password check (Argon2
+        work) runs outside any lock; a failure is counted in the account's own critical section."""
+        r = self.conn.execute("SELECT * FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
+        generic = AuthError("email or password is incorrect")
+        if not r:
+            self.ph.hash(password)  # equalise timing for unknown accounts
+            self.event("login_failed", email=email, ip=ip, detail="unknown account")
+            raise generic
+        u = dict(r)
+        if self.identity == "workos" and u["role"] != "platform_admin":
+            self.ph.hash(password)
+            self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="password sign-in is off for firm users")
+            raise generic
+        if u["disabled"]:
+            self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="disabled")
+            raise generic
+        if u["locked_until"] and u["locked_until"] > _iso(_now()):
+            self.event("login_locked", firm_id=u["firm_id"], user_id=u["id"], ip=ip)
+            raise AuthError("too many attempts; try again in 15 minutes")
+        try:
+            if u["password_hash"] == NO_PASSWORD:
+                raise VerifyMismatchError()
+            self.ph.verify(u["password_hash"], password)
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
+            with self._critical(f"user:{u['id']}"):
+                failures = self._count_failure(u["id"])
                 self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail=f"failure {failures}")
-                raise generic
-            if self.ph.check_needs_rehash(u["password_hash"]):
-                self.conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (self.ph.hash(password), u["id"]))
-            self.conn.execute("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?", (u["id"],))
-            if not u["mfa_enrolled_at"]:
-                return {"enroll": self._enrolment(u["id"])}
-            challenge = secrets.token_urlsafe(32)
-            self.conn.execute("INSERT INTO challenges (token_hash, user_id, kind, expires_at) VALUES (?, ?, 'mfa', ?)",
-                              (_hash(challenge), u["id"], _iso(_now() + CHALLENGE_TTL)))
-            self.event("password_ok", firm_id=u["firm_id"], user_id=u["id"], ip=ip)
-            return {"mfa": challenge}
+            raise generic
+        if self.ph.check_needs_rehash(u["password_hash"]):
+            self.conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (self.ph.hash(password), u["id"]))
+        self.conn.execute("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?", (u["id"],))
+        if not u["mfa_enrolled_at"]:
+            return {"enroll": self._enrolment(u["id"])}
+        challenge = secrets.token_urlsafe(32)
+        self.conn.execute("INSERT INTO challenges (token_hash, user_id, kind, expires_at) VALUES (?, ?, 'mfa', ?)",
+                          (_hash(challenge), u["id"], _iso(_now() + CHALLENGE_TTL)))
+        self.event("password_ok", firm_id=u["firm_id"], user_id=u["id"], ip=ip)
+        return {"mfa": challenge}
 
     def complete_mfa(self, challenge: str, code: str, ip: str | None = None, user_agent: str | None = None) -> str:
-        """Step 2. Verifies the one-time code (enrolling it if this is the first time) and issues a session token."""
-        with self.lock:
-            ch = self.conn.execute("SELECT * FROM challenges WHERE token_hash = ?", (_hash(challenge),)).fetchone()
+        """Step 2. Verifies the one-time code (enrolling it if this is the first time) and issues a session token.
+        One code check per account at a time, so a step used by a concurrent attempt is seen and the challenge is
+        spent exactly once."""
+        h = _hash(challenge)
+        pre = self.conn.execute("SELECT user_id FROM challenges WHERE token_hash = ?", (h,)).fetchone()
+        if not pre:
+            raise AuthError("this sign-in attempt has expired; start again")
+        with self._critical(f"user:{pre['user_id']}"):
+            ch = self.conn.execute("SELECT * FROM challenges WHERE token_hash = ?", (h,)).fetchone()
             if not ch or ch["used_at"] or ch["expires_at"] < _iso(_now()):
                 raise AuthError("this sign-in attempt has expired; start again")
             u = self.user(ch["user_id"])
@@ -873,15 +1014,11 @@ class Platform:
                 last = u["totp_last_step"]
             step = totp.verify(secret, code, last_used_step=last)
             if step is None:
-                failures = u["failed_logins"] + 1
-                locked = _iso(_now() + LOCKOUT) if failures >= MAX_FAILURES else None
-                self.conn.execute("UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?",
-                                  (0 if locked else failures, locked, u["id"]))
-                if locked:
-                    self.conn.execute("UPDATE challenges SET used_at = datetime('now') WHERE token_hash = ?", (_hash(challenge),))
+                if self._count_failure(u["id"]) >= MAX_FAILURES:
+                    self.conn.execute("UPDATE challenges SET used_at = datetime('now') WHERE token_hash = ?", (h,))
                 self.event("mfa_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip)
-                raise AuthError("that code is not valid")
-            self.conn.execute("UPDATE challenges SET used_at = datetime('now') WHERE token_hash = ?", (_hash(challenge),))
+                raise _Refused(AuthError("that code is not valid"))
+            self.conn.execute("UPDATE challenges SET used_at = datetime('now') WHERE token_hash = ?", (h,))
             if ch["kind"] == "enroll":
                 self.conn.execute("UPDATE users SET totp_secret = ?, mfa_enrolled_at = datetime('now') WHERE id = ?",
                                   (self.keys.seal_text(u["firm_id"], secret, f"totp:{u['id']}"), u["id"]))
@@ -930,10 +1067,10 @@ class Platform:
 
     def step_up_totp(self, token: str, code: str, ip: str | None = None) -> None:
         """Re-verify a local account with its one-time code."""
-        with self.lock:
-            r = self.conn.execute("SELECT * FROM sessions WHERE token_hash = ? AND revoked_at IS NULL", (_hash(token),)).fetchone()
-            if not r:
-                raise AuthError("sign in required")
+        r = self.conn.execute("SELECT * FROM sessions WHERE token_hash = ? AND revoked_at IS NULL", (_hash(token),)).fetchone()
+        if not r:
+            raise AuthError("sign in required")
+        with self._critical(f"user:{r['user_id']}"):          # one code check per account at a time (used steps)
             u = self.user(r["user_id"])
             if not u["totp_secret"]:
                 raise AuthError("this account steps up through its sign-in provider")
@@ -941,7 +1078,7 @@ class Platform:
             step = totp.verify(secret, code, last_used_step=u["totp_last_step"])
             if step is None:
                 self.event("step_up_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip)
-                raise AuthError("that code is not valid")
+                raise _Refused(AuthError("that code is not valid"))
             self.conn.execute("UPDATE users SET totp_last_step = ? WHERE id = ?", (step, u["id"]))
             self.conn.execute("UPDATE sessions SET stepped_up_at = ? WHERE token_hash = ?", (_iso(_now()), _hash(token)))
             self.event("step_up", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="totp")
@@ -1017,15 +1154,14 @@ class Platform:
         """Finish a hosted sign-in. Returns {"purpose", "token"?}. Refuses a callback in another browser, unverified
         email, impersonation and sign-ins without a second factor; never creates an account without a matching
         invitation. Freshness comes from the provider's signed auth_time, not from when this session was created."""
-        with self.lock:
+        with self._critical(f"idp:{_hash(state)}"):         # the state is spent once, whichever callback arrives first
             st = self.conn.execute("SELECT * FROM idp_states WHERE state_hash = ?", (_hash(state),)).fetchone()
             if not st or st["used_at"] or st["expires_at"] < _iso(_now()):
                 raise AuthError("this sign-in attempt has expired; start again")
-            if not st["browser_hash"] or not hmac.compare_digest(st["browser_hash"], _hash(browser_nonce or "")):
-                self.conn.execute("UPDATE idp_states SET used_at = datetime('now') WHERE state_hash = ?", (_hash(state),))
-                self.event("idp_refused", ip=ip, detail="callback from a different browser")
-                raise AuthError("finish signing in from the same browser you started in")
             self.conn.execute("UPDATE idp_states SET used_at = datetime('now') WHERE state_hash = ?", (_hash(state),))
+            if not st["browser_hash"] or not hmac.compare_digest(st["browser_hash"], _hash(browser_nonce or "")):
+                self.event("idp_refused", ip=ip, detail="callback from a different browser")
+                raise _Refused(AuthError("finish signing in from the same browser you started in"))
         verifier = self.keys.open_text(PLATFORM_FIRM, st["verifier"], f"idp:{st['state_hash']}")
         try:
             auth = idp.authenticate(code, verifier, ip=ip, user_agent=user_agent)
@@ -1051,55 +1187,63 @@ class Platform:
         if not self._multi_factor(idp, auth, firm_for_mfa):
             self.event("idp_refused", firm_id=firm_for_mfa, email=email, ip=ip, detail=f"no second factor ({auth.get('authentication_method')})")
             raise AuthError("turn on two-step verification or use a passkey in your sign-in settings, then try again")
-        with self.lock:
-            if st["purpose"] == "invite":
+        if st["purpose"] == "invite":
+            with self._critical(f"invite:{st['invite_hash']}"):    # single use, whichever acceptance arrives first
                 inv = self.conn.execute("SELECT * FROM invites WHERE token_hash = ?", (st["invite_hash"],)).fetchone()
                 if not inv or inv["accepted_at"] or inv["expires_at"] < _iso(_now()):
                     raise AuthError("this invitation is invalid or has expired")
                 if inv["email"] != email:
                     self.event("idp_refused", firm_id=inv["firm_id"], email=email, ip=ip, detail="email does not match invitation")
-                    raise AuthError("sign in with the email address the invitation was sent to")
+                    raise _Refused(AuthError("sign in with the email address the invitation was sent to"))
                 if self.conn.execute("SELECT 1 FROM users WHERE email = ? OR idp_subject = ?", (email, subject)).fetchone():
                     raise AuthError("an account with this email already exists")
                 user_id = "u_" + secrets.token_hex(8)
                 name = " ".join(x for x in (wu.get("first_name"), wu.get("last_name")) if x) or email
-                self.conn.execute("INSERT INTO users (id, firm_id, email, name, role, client_id, password_hash, idp_subject, mfa_enrolled_at) "
-                                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-                                  (user_id, inv["firm_id"], email, name, inv["role"], inv["client_id"], NO_PASSWORD, subject))
+                try:
+                    self.conn.execute("INSERT INTO users (id, firm_id, email, name, role, client_id, password_hash, idp_subject, "
+                                      "mfa_enrolled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                                      (user_id, inv["firm_id"], email, name, inv["role"], inv["client_id"], NO_PASSWORD, subject))
+                except sqlite3.IntegrityError as exc:       # the same address or sign-in, linked elsewhere at the same moment
+                    raise AuthError("an account with this email already exists") from exc
                 self.conn.execute("UPDATE invites SET accepted_at = datetime('now') WHERE token_hash = ?", (st["invite_hash"],))
                 self.event("invite_accepted", firm_id=inv["firm_id"], user_id=user_id, email=email, ip=ip, detail=method)
-                return {"purpose": "invite", "token": self._start_session(self.user(user_id), ip, user_agent, method, auth_time)}
-            if st["purpose"] in ("link", "step_up"):
-                r = self.conn.execute("SELECT * FROM sessions WHERE token_hash = ? AND revoked_at IS NULL", (st["session_hash"],)).fetchone()
-                if not r:
-                    raise AuthError("sign in required")
+                token = self._start_session(self.user(user_id), ip, user_agent, method, auth_time)
+            return {"purpose": "invite", "token": token}
+        if st["purpose"] in ("link", "step_up"):
+            r = self.conn.execute("SELECT * FROM sessions WHERE token_hash = ? AND revoked_at IS NULL", (st["session_hash"],)).fetchone()
+            if not r:
+                raise AuthError("sign in required")
+            with self._critical(f"user:{r['user_id']}"):
                 u = self.user(r["user_id"])
                 if st["purpose"] == "link":
                     if u["idp_subject"] or self.conn.execute("SELECT 1 FROM users WHERE idp_subject = ?", (subject,)).fetchone():
                         raise AuthError("this account or sign-in is already linked")
                     if u["email"] != email:
                         raise AuthError("sign in with the same email address as this account")
-                    self.conn.execute("UPDATE users SET idp_subject = ? WHERE id = ?", (subject, u["id"]))
+                    try:
+                        self.conn.execute("UPDATE users SET idp_subject = ? WHERE id = ?", (subject, u["id"]))
+                    except sqlite3.IntegrityError as exc:
+                        raise AuthError("this account or sign-in is already linked") from exc
                     self.event("idp_linked", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail=method)
                     return {"purpose": "link"}
                 if u["idp_subject"] != subject:
                     self.event("step_up_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="different identity")
-                    raise AuthError("step up with the account you are signed in as")
+                    raise _Refused(AuthError("step up with the account you are signed in as"))
                 if auth_time < _now() - FRESH:      # max_age=0 asked for a fresh sign-in; the token must show one
                     self.event("step_up_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="provider session not re-authenticated")
-                    raise AuthError("the sign-in provider did not re-authenticate you; try again")
+                    raise _Refused(AuthError("the sign-in provider did not re-authenticate you; try again"))
                 self.conn.execute("UPDATE sessions SET stepped_up_at = ? WHERE token_hash = ?", (_iso(auth_time), st["session_hash"]))
                 self.event("step_up", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail=method)
                 return {"purpose": "step_up"}
-            row = self.conn.execute("SELECT * FROM users WHERE idp_subject = ?", (subject,)).fetchone()
-            if not row:   # never by email alone: an account is linked through an invitation or from a signed-in session
-                self.event("login_failed", email=email, ip=ip, detail="no linked account")
-                raise AuthError("no AgentLedger account is linked to this sign-in; ask your firm for an invitation")
-            u = dict(row)
-            if u["disabled"] or (u["firm_id"] != PLATFORM_FIRM and self.firm(u["firm_id"])["status"] != "active"):
-                self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="disabled or inactive firm")
-                raise AuthError("this account cannot sign in")
-            return {"purpose": "login", "token": self._start_session(u, ip, user_agent, method, auth_time)}
+        row = self.conn.execute("SELECT * FROM users WHERE idp_subject = ?", (subject,)).fetchone()
+        if not row:   # never by email alone: an account is linked through an invitation or from a signed-in session
+            self.event("login_failed", email=email, ip=ip, detail="no linked account")
+            raise AuthError("no AgentLedger account is linked to this sign-in; ask your firm for an invitation")
+        u = dict(row)
+        if u["disabled"] or (u["firm_id"] != PLATFORM_FIRM and self.firm(u["firm_id"])["status"] != "active"):
+            self.event("login_failed", firm_id=u["firm_id"], user_id=u["id"], ip=ip, detail="disabled or inactive firm")
+            raise AuthError("this account cannot sign in")
+        return {"purpose": "login", "token": self._start_session(u, ip, user_agent, method, auth_time)}
 
     def _idp_firm(self, st: Any, subject: str) -> str | None:
         """The firm a provider sign-in is for (its SSO MFA attestation is per firm)."""

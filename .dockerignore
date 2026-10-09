@@ -1,0 +1,38 @@
+# What never enters the API image or its build context: secrets, local state, tenant data, keys, documentation,
+# tests and tooling. The Dockerfile copies runtime directories explicitly; this list also keeps the context small
+# for `wrangler deploy`, which builds the image from the repository root (wrangler.jsonc: image_build_context).
+.env
+.env.*
+state/
+tenants/
+vault/
+maildrop/
+docs/
+tests/
+.git/
+.github/
+node_modules/
+.venv*/
+.neon
+.wrangler/
+*.key
+*.key.dev
+samples/
+BL.md
+README.md
+edge/
+scripts/
+.claude/
+__pycache__/
+**/__pycache__/
+*.pyc
+**/*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+docker/
+wrangler.jsonc
+neon.ts
+package.json
+package-lock.json
+skills-lock.json

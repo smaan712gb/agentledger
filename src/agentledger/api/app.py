@@ -85,7 +85,26 @@ def _api_user(u: dict[str, Any]) -> dict[str, Any]:
     return {**u, "base_role": u["role"], "role": "cpa" if u["role"] in FIRM_ROLES else u["role"]}
 
 
+SMOKE_ROLE = "smoke"
+
+
+def _smoke_user(token: str) -> dict[str, Any] | None:
+    """The deployment smoke check's principal (scripts/smoke.py): AGENTLEDGER_SMOKE_TOKEN, 32+ characters and read per
+    request, presented as the bearer. It belongs to no firm and holds no role, so every firm, platform and role check
+    refuses it; only the two stateless routes that depend on `me_or_smoke` accept it, and nothing is ever written on
+    its behalf."""
+    expected = os.environ.get("AGENTLEDGER_SMOKE_TOKEN", "")
+    if len(expected) < 32 or not token or not hmac.compare_digest(expected.encode(), token.encode()):
+        return None
+    return {"id": "smoke", "firm_id": None, "email": None, "name": "deployment smoke check", "role": SMOKE_ROLE,
+            "base_role": SMOKE_ROLE, "client_id": None, "disabled": False, "reviewer": False, "mfa_enrolled_at": None,
+            "last_login_at": None}
+
+
 def _user_for_token(token: str) -> dict[str, Any] | None:
+    smoke = _smoke_user(token)
+    if smoke:
+        return smoke
     if DEV and token in users():
         return users()[token]
     u = PLATFORM.session_user(token)
@@ -93,6 +112,17 @@ def _user_for_token(token: str) -> dict[str, Any] | None:
 
 
 def me(authorization: str = Header(default="")) -> dict[str, Any]:
+    u = _user_for_token(authorization.removeprefix("Bearer ").strip())
+    if not u:
+        raise HTTPException(401, "sign in required")
+    if u["role"] == SMOKE_ROLE:
+        raise HTTPException(403, "the smoke check may only read coverage and compute a stateless return")
+    return u
+
+
+def me_or_smoke(authorization: str = Header(default="")) -> dict[str, Any]:
+    """Only for the two stateless routes the deployment smoke check calls: GET /api/coverage and
+    POST /api/returns/individual. Every other route depends on `me`, which refuses the smoke principal."""
     u = _user_for_token(authorization.removeprefix("Bearer ").strip())
     if not u:
         raise HTTPException(401, "sign in required")
@@ -181,6 +211,13 @@ def platform_ctx(user: dict[str, Any]) -> AppContext:
     else:
         platform_admin(user)
     return APP
+
+
+def kb_for(user: dict[str, Any]) -> Any:
+    """The rules a stateless computation runs on. Every firm computes on the platform's shared knowledge base
+    (firm_context passes kb=APP.kb); the smoke principal has no firm, so it reads that base directly and no firm
+    store is opened for it."""
+    return APP.kb if user["role"] == SMOKE_ROLE else A(user).kb
 
 
 def _link_key() -> bytes:
@@ -474,6 +511,31 @@ def platform_sso_mfa(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict
     except AuthError as e:
         raise HTTPException(400, str(e))
     return {"ok": True}
+
+
+# ------------------------------------------------------------------------------ health
+
+def build_id() -> str:
+    """What is running: AGENTLEDGER_BUILD, else the BUILD_SHA file the release writes before building the image
+    (the repository's copy says "dev"), read per request so a test can set it."""
+    env = os.environ.get("AGENTLEDGER_BUILD", "").strip()
+    if env:
+        return env
+    for p in (Path("/app/BUILD_SHA"), ROOT / "BUILD_SHA", Path(__file__).resolve().parents[3] / "BUILD_SHA"):
+        try:
+            text = p.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return "dev"
+
+
+@app.get("/healthz")
+def healthz() -> dict[str, Any]:
+    """Liveness for the edge and the release smoke test (scripts/smoke.py waits for `build` to reach the deployed
+    commit). No firm or platform store is touched."""
+    return {"ok": True, "build": build_id(), "backend": db.backend()}
 
 
 # ------------------------------------------------------------------------------ pages
@@ -972,8 +1034,9 @@ def calculate(name: str, inputs: dict[str, Any] = Body(...), user=Depends(me)) -
 
 
 @app.post("/api/returns/individual")
-def compute_individual_return(body: dict[str, Any] = Body(...), user=Depends(me)) -> dict[str, Any]:
-    """Compute a Form 1040 from facts and source documents. Nothing is stored."""
+def compute_individual_return(body: dict[str, Any] = Body(...), user=Depends(me_or_smoke)) -> dict[str, Any]:
+    """Compute a Form 1040 from facts and source documents. Nothing is stored (so the deployment smoke check may
+    call it too)."""
     from pydantic import ValidationError
 
     from ..returns.individual import compute_individual
@@ -984,14 +1047,15 @@ def compute_individual_return(body: dict[str, Any] = Body(...), user=Depends(me)
     except ValidationError as e:
         raise HTTPException(422, e.errors(include_url=False))
     try:
-        return compute_individual(Ctx(A(user).kb), r).to_dict()
+        return compute_individual(Ctx(kb_for(user)), r).to_dict()
     except ValueError as e:
         raise HTTPException(400, str(e))
 
 
 @app.get("/api/coverage")
-def get_coverage(year: int | None = None, user=Depends(me)) -> dict[str, Any]:
-    """What the product actually supports, per form, year and jurisdiction (spec §7)."""
+def get_coverage(year: int | None = None, user=Depends(me_or_smoke)) -> dict[str, Any]:
+    """What the product actually supports, per form, year and jurisdiction (spec §7). Read by every signed-in user and
+    by the deployment smoke check."""
     from .. import coverage
 
     data = coverage.load()

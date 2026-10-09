@@ -1,0 +1,43 @@
+# Operations between releases: create the stores of firms that were set up since the last deploy. The API holds no
+# owner database credentials, so a new firm stays in 'provisioning' (its invitation does not work yet) until this job
+# runs `agentledger platform provision` with them (docs/DEPLOY.md). Also run on demand from the Actions tab.
+name: operations
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  provision:
+    if: vars.DEPLOY_ENABLED == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # `<environment>-operations` holds the same database and Neon secrets as `<environment>` and no required
+    # reviewers: a job that runs every 15 minutes cannot wait for an approval, and it never touches Cloudflare.
+    environment: ${{ matrix.environment }}-operations
+    concurrency: {group: "operations-${{ matrix.environment }}", cancel-in-progress: false}
+    env:
+      AGENTLEDGER_HOME: ${{ github.workspace }}
+      AGENTLEDGER_DATABASE: postgres
+      AGENTLEDGER_PG_TENANCY: ${{ vars.AGENTLEDGER_PG_TENANCY || (matrix.environment == 'production' && 'database' || 'schema') }}
+      AGENTLEDGER_IDENTITY: workos
+      AGENTLEDGER_AGENTS: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install .
+      - name: Provision the stores of firms waiting in 'provisioning'
+        env:
+          AGENTLEDGER_MIGRATION_URL: ${{ secrets.AGENTLEDGER_MIGRATION_URL }}
+          AGENTLEDGER_RUNTIME_DATABASE_URL: ${{ secrets.AGENTLEDGER_RUNTIME_DATABASE_URL }}
+          AGENTLEDGER_DB_ROLE_KEY: ${{ secrets.AGENTLEDGER_DB_ROLE_KEY }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
+        run: agentledger platform provision

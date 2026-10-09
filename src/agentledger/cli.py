@@ -137,18 +137,41 @@ def platform_bootstrap_admin(email: str = typer.Option(...), name: str = typer.O
     from .security.platform import AuthError, Platform
 
     password = typer.prompt("Password (12+ characters)", hide_input=True, confirmation_prompt=True)
+    plat = Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1")
     try:
-        Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1").bootstrap_admin(email, name, password)
+        plat.bootstrap_admin(email, name, password)
     except AuthError as e:
         con.print(f"[red]{e}[/]")
         raise typer.Exit(1)
+    finally:
+        plat.close()
     con.print(f"Platform administrator {email} created. Sign in at the web app to enrol two-step verification.")
+
+
+@platform_app.command("migrate")
+def platform_migrate():
+    """Create or upgrade the platform schema (firms, users, sessions, wrapped keys) and its runtime role on PostgreSQL.
+    A release step run with owner database credentials (AGENTLEDGER_MIGRATION_URL) and without the master key; the
+    API then connects as the runtime role (rt_<database>_platform) and holds no owner credentials."""
+    from .pg import migration_url
+    from .security.platform import migrate_platform, platform_backend
+
+    home()
+    if platform_backend() != "postgres":
+        con.print("[red]the platform store is on SQLite here (AGENTLEDGER_DATABASE / AGENTLEDGER_PLATFORM_DATABASE); nothing to migrate[/]")
+        raise typer.Exit(1)
+    if not migration_url():
+        con.print("[red]AGENTLEDGER_MIGRATION_URL (owner credentials) is required to migrate the platform store[/]")
+        raise typer.Exit(1)
+    applied = migrate_platform()
+    con.print("applied " + ", ".join(applied) if applied else "platform schema up to date")
 
 
 @platform_app.command("provision")
 def platform_provision():
     """The provisioning worker: create the stores of firms waiting in 'provisioning'. Runs with owner database
-    credentials (AGENTLEDGER_MIGRATION_URL) as a release or operations job; the API never holds them."""
+    credentials (AGENTLEDGER_MIGRATION_URL) and without the master key, as a release or operations job; the API never
+    holds owner credentials."""
     from .pg import migration_url
     from .security.platform import Platform
 
@@ -156,8 +179,11 @@ def platform_provision():
         con.print("[red]AGENTLEDGER_MIGRATION_URL (owner credentials) is required to provision firm stores[/]")
         raise typer.Exit(1)
     plat = Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1",
-                    identity=os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower())
-    results = plat.provision_pending(by="provisioning-worker")
+                    identity=os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower(), need_keys=False)
+    try:
+        results = plat.provision_pending(by="provisioning-worker")
+    finally:
+        plat.close()
     for r in results:
         con.print(f"{r['firm']}: {r['status']}" + (f" [red]{r['error']}[/]" if r.get("error") else ""))
     if any(r.get("error") for r in results):
@@ -172,7 +198,12 @@ def platform_firms():
     t = Table(title="Firms")
     for col in ("id", "name", "status", "created_at"):
         t.add_column(col)
-    for f in Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1").firms():
+    plat = Platform(home(), dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1")
+    try:
+        firms = plat.firms()
+    finally:
+        plat.close()
+    for f in firms:
         t.add_row(f["id"], f["name"], f["status"], f["created_at"])
     con.print(t)
 

@@ -36,6 +36,11 @@ from ..db import CommandConflict
 from ..ledger.store import ClosedPeriod, LedgerError
 
 MIGRATIONS = Path(__file__).parent / "migrations"
+# The platform store (firms, users, sessions, wrapped keys; agentledger.security.platform): one schema in the admin
+# database with its own migrations and runtime role. Kept in a subdirectory: `migrate` applies every *.sql of the
+# directory it is given to one schema, so these never land in a firm store, nor the firm migrations in the platform.
+PLATFORM_SCHEMA = "platform"
+PLATFORM_MIGRATIONS = MIGRATIONS / "platform"
 ROLE_TOKEN = "{{app_role}}"
 
 
@@ -164,13 +169,16 @@ def translate(exc: Exception) -> Exception:
 
 
 # ------------------------------------------------------------------------------------------------- migrations
-def migrate(conn, schema: str, role: str | None = None, *, own_database: bool = False) -> list[str]:
+def migrate(conn, schema: str, role: str | None = None, *, own_database: bool = False,
+            migrations: Path | None = None) -> list[str]:
     """Apply pending migrations to `schema` as the owner, each in its own transaction, recording name and checksum,
     and (re)create the store's runtime role first. An applied migration whose file has changed is an error:
     migrations are append-only like the ledger. The checksum covers the file as written, before the role name is
-    substituted."""
+    substituted. `migrations` is the directory whose *.sql files make up the schema: a firm store's (MIGRATIONS, the
+    default, read when called) or the platform store's (PLATFORM_MIGRATIONS)."""
     if not schema.replace("_", "").isalnum():
         raise ValueError(f"bad schema name {schema!r}")
+    migrations = migrations or MIGRATIONS
     database = conn.execute("SELECT current_database()").fetchone()[0]
     role = role or runtime_role(database, schema)
     ensure_role(conn, role, database=database if own_database else None)
@@ -180,7 +188,7 @@ def migrate(conn, schema: str, role: str | None = None, *, own_database: bool = 
         conn.execute(f'CREATE TABLE IF NOT EXISTS "{schema}".schema_migrations '
                      "(name text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())")
     done = dict(conn.execute(f'SELECT name, sha256 FROM "{schema}".schema_migrations').fetchall())
-    for path in sorted(MIGRATIONS.glob("*.sql")):
+    for path in sorted(migrations.glob("*.sql")):
         # read_text uses universal newlines, so a CRLF checkout hashes the same as an LF one
         sql = path.read_text(encoding="utf-8")
         digest = hashlib.sha256(sql.encode()).hexdigest()

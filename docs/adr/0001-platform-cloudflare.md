@@ -55,3 +55,20 @@ Cloudflare. Its documentation (checked 2026-10-08) shows:
   - Hyperdrive transaction semantics for posting functions (transaction mode, no cached writes).
 - Local development keeps working without Cloudflare: Docker Compose with PostgreSQL, MinIO and a local
   workflow runner behind the same interfaces.
+
+## Amendment 2026-10-09: what the deployment work found
+
+- **Hyperdrive is not reachable from a container.** Worker bindings are not available to the container process,
+  so psycopg connects to Neon directly on port 5432 (the container's outbound internet access stays on, which it
+  needs for that). The pooler question stays with the `SET LOCAL` scope work in F-02; until then connections use
+  the direct endpoint and the API's thread count is bounded.
+- **Neon has a public endpoint.** Cloudflare egress addresses are not fixed and non-HTTP egress cannot be
+  allow-listed, so "no public endpoint" for the database is not achievable as written. Mitigations: TLS with
+  `verify-full`, per-store runtime roles with derived passwords, owner credentials only in release jobs.
+- **Nothing on container disk, enforced.** The platform store (firms, users, sessions, wrapped keys) moved from
+  SQLite to a `platform` schema in PostgreSQL (`pg/migrations/platform/`), applied by `agentledger platform migrate`
+  as a release step without the master key. Firm vault paths and the tenant directory remain scratch; evidence is
+  in R2.
+- **Rollouts.** Container images ship only through `wrangler deploy` (gradual `versions upload`/`versions deploy`
+  does not roll out containers); production uses the container's own `rollout_step_percentage`, a 15-minute smoke
+  soak and `wrangler rollback` for Worker code. See docs/DEPLOY.md.
