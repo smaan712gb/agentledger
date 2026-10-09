@@ -16,6 +16,11 @@ browser / API client
 Worker  agentledger-edge-<env>        edge/src/index.ts
    │  picks instance api-<hash(client ip) mod API_INSTANCES>
    │  sets X-Request-Id, X-Forwarded-For, X-Forwarded-Proto: https, X-Forwarded-Host; echoes X-Request-Id, adds HSTS
+   │  404 for /internal/*; strips X-AgentLedger-Workflow; runs the outbox relay after a response marked
+   │  X-AgentLedger-Outbox and from the cron (every minute)
+   ├── Workflow  FILING (FilingSubmission)   edge/src/workflows/submission.ts: one instance per attempt at a submission;
+   │                                          each step is one command on POST /internal/commands (ADR-0003, F-08)
+   ├── relay                                 edge/src/relay.ts: GET /internal/outbox -> create instances / sendEvent -> mark delivered
    ▼
 Durable Object  ApiContainer          one per instance name; starts and owns the container, copies every
    │                                   AGENTLEDGER_*/WORKOS_*/ANTHROPIC_* var and secret into its environment
@@ -68,6 +73,7 @@ variable, or the Neon console. Every value differs between staging and productio
 | `WORKOS_REDIRECT_URI` | `api/app.py` | setting | `wrangler.jsonc` vars | `https://<api host>/api/auth/idp/callback`, registered in the same WorkOS environment. |
 | `AGENTLEDGER_IDENTITY=workos`, `AGENTLEDGER_DATABASE=postgres`, `AGENTLEDGER_PG_TENANCY`, `AGENTLEDGER_AGENTS=0`, `ENVIRONMENT`, `API_INSTANCES` | `api/app.py`, `db.py`, `pg/provision.py`, `edge/src/index.ts` | setting | `wrangler.jsonc` vars | Tenancy is `schema` on staging and `database` on production; the GitHub jobs default to the same (`vars.AGENTLEDGER_PG_TENANCY` overrides). |
 | `AGENTLEDGER_SMOKE_TOKEN` | `api/app.py` (`_smoke_user`) | secret | Worker secret **and** GitHub environment secret as `STAGING_SMOKE_TOKEN` / `PROD_SMOKE_TOKEN` | 32+ characters, e.g. `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Grants exactly `GET /api/coverage` and `POST /api/returns/individual`. |
+| `AGENTLEDGER_WORKFLOW_TOKEN` | `api/internal.py` (the workflow runtime's bearer for `/internal/*`) | secret | Worker secret | 32+ characters, generated like the smoke token. Presented by edge/src/workflows and edge/src/relay.ts through the `API` Durable Object; `/internal/*` is 404 from the internet. Grants the system commands only (never approve, release, reconcile). |
 | `ANTHROPIC_API_KEY` | `ai/router.py` | secret | Worker secret (optional) | Frontier tier; absent means local and deterministic tiers only. |
 | `AGENTLEDGER_WEBHOOK_SECRET`, `AGENTLEDGER_SMTP_*` | `api/app.py`, `crm` | secret | Worker secret (optional) | Inbound webhooks and outbound mail stay disabled without them. |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | wrangler | secret | GitHub environment secret (`staging`, `production`) | Token template "Edit Cloudflare Workers" plus Zone > Workers Routes > Write on the API's zone (custom domains). May be one token for both environments. |
@@ -109,7 +115,7 @@ names of any that are missing.
 for ENV in staging production; do
   for NAME in AGENTLEDGER_MASTER_KEY AGENTLEDGER_DB_ROLE_KEY AGENTLEDGER_RUNTIME_DATABASE_URL \
               AGENTLEDGER_BLOB_ACCESS_KEY_ID AGENTLEDGER_BLOB_SECRET_ACCESS_KEY \
-              WORKOS_API_KEY WORKOS_CLIENT_ID AGENTLEDGER_SMOKE_TOKEN; do
+              WORKOS_API_KEY WORKOS_CLIENT_ID AGENTLEDGER_SMOKE_TOKEN AGENTLEDGER_WORKFLOW_TOKEN; do
     npx wrangler secret put "$NAME" --env "$ENV"        # prompts for the value; nothing is echoed
   done
 done
@@ -259,13 +265,19 @@ be raised.
 - `secrets.required` makes a deploy fail until every secret exists; the first `wrangler secret put` on a new
   environment creates a draft Worker (interactive prompt), which is why section 4 runs from an operator's machine.
 - `gh variable set` through `GITHUB_TOKEN` needs `actions: write`; some organizations restrict it (section 5).
+- The `workflows` binding (`FILING`) and `triggers.crons` are repeated per environment like the other non-inheritable
+  bindings; the dry run lists the binding. Whether Workflows is enabled on the account's plan, the instance retention
+  (7 days requested per instance) and the per-step timeout behaviour against a cold container are first exercised by
+  the real deploy. Until `AGENTLEDGER_WORKFLOW_TOKEN` is set in the container, every call from the Workflow or the relay
+  is refused (403) and nothing is filed by the platform; a CPA can still transmit directly.
 
 ### Dry run record (2026-10-09, wrangler 4.149.0, no credentials)
 
 `npx wrangler deploy --dry-run --outdir <tmp> --env staging` and `--env production` both exit 0 with no warnings.
 Wrangler builds the image from `./Dockerfile` locally even in a dry run (so `wrangler deploy` needs Docker on the
 runner; GitHub's `ubuntu-latest` has it), bundles the Worker (55 KiB), and lists the `API` Durable Object binding,
-the eleven vars and the container application `agentledger-edge-<env>-apicontainer-<env>` for each environment. It
+the eleven vars, the `FILING` Workflow binding (2026-10-09, F-08) and the container application
+`agentledger-edge-<env>-apicontainer-<env>` for each environment. It
 makes no API call, so `secrets.required`, the custom-domain routes and the account's plan are first exercised by the
 real deploy. Also checked offline: `npx tsc --noEmit -p edge` is clean; the image is 434 MB, holds only
 `BUILD_SHA config coverage domains evals golden playbooks rules src state tenants` and runs as uid 1000;

@@ -60,9 +60,14 @@ by_doc_type:
   1099-DIV: tax_return_support
   1099-B: property_basis
   1099-R: tax_return_support
-  1098: tax_return_support
+  "1098": tax_return_support      # quoted: a bare number is an integer key, which the document type string never matches
   1098-E: tax_return_support
   1098-T: tax_return_support
+  1099-SA: tax_return_support
+  "5498": property_basis          # IRA contribution and year-end value records support Form 8606 basis until the IRA is gone
+  5498-SA: tax_return_support
+  1095-A: tax_return_support
+  Prior-year return: tax_return_support
   K-1: property_basis
   Payroll report: employment_tax
   Receipt: tax_return_support

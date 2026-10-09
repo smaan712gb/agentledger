@@ -15,7 +15,7 @@ RANK = {"unsupported": 0, "suspended": 0, "planning-only": 1, "manual-assisted":
 ROOT = Path(__file__).resolve().parents[2]
 
 # Engine form keys -> registry ids (instances such as "sch_c[1]" share their base id).
-FORM_IDS = {"ws_qdcg": None, "ws_sch_d_tax": None, "ws_social_security": None}
+FORM_IDS = {"ws_qdcg": None, "ws_sch_d_tax": None, "ws_social_security": None, "ws_capital_loss_carryover": None}
 
 
 @lru_cache(maxsize=4)

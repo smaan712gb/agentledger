@@ -1,0 +1,53 @@
+id: us_fed.individual.savers_credit_agi_limits
+title: Saver's credit adjusted gross income limits by filing status (top of the 50%, 20% and 10% bands)
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: USD
+citation: IRC §25B(b)(1)-(3)
+keys:
+- mfj
+- hoh
+- other
+indexed:
+  cadence: annual
+  expected_by: 11-15
+  publication: Annual IRS notice of cost-of-living adjustments for retirement plans and IRAs (Notice 2025-67 for 2026)
+  search_hint: Notice amounts relating to retirement plans and IRAs {year} section 25B(b)(1) adjusted gross income limitation
+bounds:
+  min: 10000.0
+  max: 250000.0
+  max_change_pct: 0.1
+tags:
+- saver's credit
+- '25B'
+- retirement
+- Form 8880
+- inflation
+notes: >-
+  Each cell is [top of the 50% band, top of the 20% band, top of the 10% band] (IRC §25B(b)(1)(A)-(D), indexed under
+  §25B(b)(3)); above the last figure there is no credit. "other" is single, married filing separately and qualifying
+  surviving spouse: Form 8880's line 9 table lists the surviving spouse with the single column, not the joint one. The
+  values end with tax year 2026 (SECURE 2.0 §103 replaces the credit with the saver's match for later years; Form 8880
+  (2025) instructions, What's New).
+values:
+- effective_from: '2025-01-01'
+  effective_to: '2025-12-31'
+  value:
+    mfj: [47500, 51000, 79000]
+    hoh: [35625, 38250, 59250]
+    other: [23750, 25500, 39500]
+  provenance:
+    source: Notice 2025-67, pages 3-4 (the 2025 amounts each 2026 limitation is "increased from"); Form 8880 (2025) line 9 table
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'
+- effective_from: '2026-01-01'
+  effective_to: '2026-12-31'
+  value:
+    mfj: [48500, 52500, 80500]
+    hoh: [36375, 39375, 60375]
+    other: [24250, 26250, 40250]
+  provenance:
+    source: Notice 2025-67, pages 3-4 (§25B(b)(1)(A), (B) and (C)-(D) limitations for 2026, joint, head of household, all other)
+    url: https://www.irs.gov/pub/irs-drop/n-25-67.pdf
+    verified_on: '2026-10-09'

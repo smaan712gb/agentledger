@@ -44,6 +44,7 @@ from ..returns.facts import InputRejected
 from ..security.platform import PLATFORM_FIRM, AuthError, Platform, client_scope
 from ..security.vault import Vault, VaultIntegrityError
 from ..workflow.engine import TransitionError
+from . import internal
 
 ROOT = Path(os.environ.get("AGENTLEDGER_HOME", Path.cwd())).resolve()
 from ..envfile import load as _load_env  # noqa: E402
@@ -1138,7 +1139,7 @@ def get_return(rid: str, user=Depends(me)) -> dict[str, Any]:
     st = rs.status(rid)
     out = {"return": r, "version": v["version"], "status": st.status, "history": st.history, "summary": json.loads(v["summary"]),
            "allowed": rs.wf.defs["return_1040"].allowed(st.status), "waiting_on": rs.wf.defs["return_1040"].waiting.get(st.status),
-           "crosscheck": json.loads(v["crosscheck"]) if v["crosscheck"] else None}
+           "crosscheck": json.loads(v["crosscheck"]) if v["crosscheck"] else None, "filing": rs.filing_summary(rid)}
     if user["role"] == "cpa":
         out.update({"inputs": v["inputs"], "provenance": v["provenance"], "result": v["result"]})
     else:  # a client sees the outcome and the status, not working papers
@@ -1270,14 +1271,22 @@ def return_amend(rid: str, user=Depends(me)) -> dict[str, Any]:
         raise _wf_error(e)
 
 
+def efile_ready() -> bool:
+    """Whether this deployment may transmit electronically (EFIN, ETIN and ATS approval on file). Until firm e-file
+    settings exist (backlog T2-02) this is the operator's AGENTLEDGER_EFILE_READY=1; absent, every release and
+    transmission is refused."""
+    return os.environ.get("AGENTLEDGER_EFILE_READY", "") == "1"
+
+
 @app.post("/api/returns/{rid}/{action}")
 def return_action(rid: str, action: str, body: dict[str, Any] = Body(default={}), user=Depends(me)) -> dict[str, Any]:
     cpa_only(user)
     rs, _ = _return_for(user, rid)
+    extra: dict[str, Any] = {}
     try:
-        if action in ("approve", "request-changes", "request-signature", "reconcile"):
+        if action in ("approve", "request-changes", "request-signature", "reconcile", "release-approve", "retransmit"):
             reviewer_only(user)
-        if action in ("approve", "request-signature", "reconcile"):
+        if action in ("approve", "request-signature", "reconcile", "release-approve", "retransmit"):
             fresh(user)
         if action == "submit":
             st = rs.submit_for_review(rid, user["id"], explanation=body.get("explanation", ""))
@@ -1287,15 +1296,81 @@ def return_action(rid: str, action: str, body: dict[str, Any] = Body(default={})
             st = rs.request_changes(rid, user["id"], authority(user), body.get("note", ""))
         elif action == "request-signature":
             st = rs.request_signature(rid, user["id"], authority(user))
+        elif action == "release-approve":
+            # The CPA releases the signed package for electronic filing in the named jurisdictions (US-FED alone by
+            # default); the workflow then transmits each submission (returns/filing.py).
+            st = rs.approve_release(rid, user["id"], authority(user), efile_ready=efile_ready(), jurisdictions=body.get("jurisdictions"))
+            extra["filing"] = rs.filing_summary(rid)
         elif action == "reconcile":
-            st = rs.reconcile_transmission(rid, user["id"], authority(user), submitted=bool(body.get("submitted")),
-                                           submission_id=str(body.get("submission_id", "")), evidence=str(body.get("evidence", "")))
+            # With `submission` (one of this return's submission ids) the submission is reconciled; without it, the
+            # return's federal transmission, as before.
+            if body.get("submission"):
+                from ..returns.filing import Filing
+
+                sub = Filing(rs).get(str(body["submission"]))
+                if sub["return_id"] != rid:
+                    raise HTTPException(404, "no such submission on this return")
+                extra["submission"] = Filing(rs).reconcile(sub["id"], user["id"], authority(user), submitted=bool(body.get("submitted")),
+                                                           provider_submission_id=str(body.get("submission_id", "")),
+                                                           evidence=str(body.get("evidence", "")))
+                st = rs.status(rid)
+            else:
+                st = rs.reconcile_transmission(rid, user["id"], authority(user), submitted=bool(body.get("submitted")),
+                                               submission_id=str(body.get("submission_id", "")), evidence=str(body.get("evidence", "")))
+        elif action == "retransmit":
+            from ..returns.filing import Filing
+
+            sub = Filing(rs).get(str(body.get("submission_id") or ""))
+            if sub["return_id"] != rid:
+                raise HTTPException(404, "no such submission on this return")
+            extra["submission"] = rs.retransmit(sub["id"], user["id"], authority(user))
+            extra["filing"] = rs.filing_summary(rid)
+            st = rs.status(rid)
         else:
             raise HTTPException(404, "unknown action")
+    except KeyError:
+        raise HTTPException(404, "no such submission on this return")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
     except TransitionError as e:
         raise _wf_error(e)
     audit.record(A(user).conn, user["id"], authority(user), f"return.{action}", {"return_id": rid, "status": st.status})
-    return {"status": st.status, "history": st.history}
+    return {"status": st.status, "history": st.history, **extra}
+
+
+# ------------------------------------------------------------------------------ the workflow runtime's door
+
+def _firm_for_workflow(firm_id: str) -> tuple[AppContext, Any]:
+    """The firm a workflow instance works in, firm-wide (the workflow serves every client's filings), and its Returns
+    with the firm's sealer: the same construction as R(user), for the principal workflow:<instance>."""
+    from ..returns.store import Returns, Sealer
+
+    dev = DEV and firm_id == DEV_FIRM
+    ctx = APP if dev else firm_context(firm_id)
+    ctx.conn.set_scope(["*"])
+    v = ctx.foundry.vault
+    return ctx, Returns(ctx.conn, ctx.kb, Sealer(v.keyring, v.firm_id), segregation=not dev)
+
+
+_PROVIDERS: dict[str, Any] = {}
+
+
+def _provider_for(firm_id: str) -> Any:
+    """The transmitter adapter of a firm (returns/filing.py: only the local mock exists until T2-02), one per firm for
+    the life of the process."""
+    from ..returns.filing import provider_from_env
+
+    if firm_id not in _PROVIDERS:
+        _PROVIDERS[firm_id] = provider_from_env()
+    return _PROVIDERS[firm_id]
+
+
+def _active_firms() -> list[str]:
+    return ([DEV_FIRM] if DEV else []) + [f["id"] for f in PLATFORM.firms() if f["status"] == "active"]
+
+
+app.include_router(internal.build_router(_firm_for_workflow, _provider_for, _active_firms))
+app.add_middleware(internal.OutboxMarker)
 
 
 # ------------------------------------------------------------------------------ foundry
@@ -1627,6 +1702,25 @@ def export(client_id: str, plugin_id: str, dl: str = "", authorization: str = He
 
 # ------------------------------------------------------------------------------ background workforce
 
+def orchestrator() -> str:
+    """Who drives long-running filings: "local" runs the in-process runner from this scheduler (the self-host
+    profile); anything else leaves it to Cloudflare Workflows calling /internal (containers run with
+    AGENTLEDGER_AGENTS=0, so this thread does not exist there)."""
+    return os.environ.get("AGENTLEDGER_ORCHESTRATOR", "").strip().lower()
+
+
+def tick_workflows() -> dict[str, dict[str, int]]:
+    """One relay-and-advance pass per firm: the firm's undelivered outbox events start or signal submission
+    instances, due instances run their next steps (workflow/runner.py, persisted in the firm's store)."""
+    from ..workflow.runner import local_runner
+
+    out = {}
+    for firm_id in _active_firms():
+        ctx, returns = _firm_for_workflow(firm_id)
+        out[firm_id] = local_runner(ctx.conn, returns, _provider_for(firm_id)).tick(ctx.conn, firm_id=firm_id)
+    return out
+
+
 def _scheduler() -> None:
     while True:
         try:
@@ -1643,6 +1737,8 @@ def _scheduler() -> None:
                     ctx = firm_context(firm["id"])
                     for spec in ctx.foundry.due():
                         ctx.foundry.run(spec.id)
+            if orchestrator() == "local":
+                tick_workflows()
         except Exception as e:  # keep the workforce alive; failures are recorded per run
             print("scheduler:", e)
         time.sleep(int(os.environ.get("AGENTLEDGER_TICK_SECONDS", "30")))

@@ -29,10 +29,15 @@ def _loss_year_record(f, doc_id: str, note: str) -> None:
 
 
 def _file_2026(f, extra: dict) -> str:
-    """The 2026 return, paper-filed in AgentLedger on 2027-04-01 (assessable until 2030-04-15)."""
+    """The 2026 return, paper-filed in AgentLedger on 2027-04-01 (assessable until 2030-04-15). The household's W-2
+    carries a 401(k) deferral and the loss brings AGI under the saver's credit limit, so Form 8880's facts are stated
+    (they do not touch the retention question)."""
     R = Returns(f.conn, f.kb, segregation=False)
+    base = household()
+    savers = {"taxpayer": {**base["taxpayer"], "full_time_student": False}, "spouse": {**base["spouse"], "full_time_student": False},
+              "retirement_savings": [{"owner": o, "testing_period_distributions": "0"} for o in ("taxpayer", "spouse")]}
     with on(date(2027, 4, 1)):
-        rid = R.create("rivera", 2026, "maya", {**household(), **extra})
+        rid = R.create("rivera", 2026, "maya", {**base, **savers, **extra})
         R.populate_from_documents(rid, "maya")
         assert paper_file(R, rid).status == "paper_filed"
     return rid

@@ -23,6 +23,7 @@ class Provenance(BaseModel):
     adopted_via: str | None = None  # regwatch proposal id
     adopted_at: str | None = None
     approved_by: str | None = None  # a person, or "auto-policy"
+    verified_on: date | None = None  # the day the value was read back from the cited source document
 
 
 class RuleValue(BaseModel):

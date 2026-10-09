@@ -106,7 +106,12 @@ def _redated(fam):  # noqa: F811
 
 def _ready(fam):  # noqa: F811
     R = Returns(fam.conn, fam.kb)
-    rid = R.create("rivera", 2026, "maya", household())
+    # Once the spouse's W-2 leaves, the household's AGI is under the saver's credit limit while Alex's W-2 carries a
+    # 401(k) deferral, so Form 8880's facts are stated here (they have nothing to do with the document question).
+    base = household()
+    savers = {"taxpayer": {**base["taxpayer"], "full_time_student": False}, "spouse": {**base["spouse"], "full_time_student": False},
+              "retirement_savings": [{"owner": o, "testing_period_distributions": "0"} for o in ("taxpayer", "spouse")]}
+    rid = R.create("rivera", 2026, "maya", {**base, **savers})
     R.populate_from_documents(rid, "maya")
     R.account_for_document(rid, "d_nec", "not_applicable", NEC_NOTE, "maya")
     R.confirm(rid, None, "maya")

@@ -33,6 +33,14 @@
 	"durable_objects": {
 		"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
 	},
+	// The filing Workflow (edge/src/workflows/submission.ts; ADR-0003): one instance per attempt at a submission, started
+	// by the outbox relay. A non-inheritable binding: repeated per environment. The step limit covers the longest run
+	// (29 days of hourly acknowledgement polls after the deadline notice) with room to spare.
+	"workflows": [
+		{ "name": "agentledger-filing", "binding": "FILING", "class_name": "FilingSubmission", "limits": { "steps": 2500 } }
+	],
+	// The relay backstop (edge/src/relay.ts): undelivered outbox events become Workflow instances within a minute.
+	"triggers": { "crons": ["* * * * *"] },
 	// Non-secret container settings; the Worker copies every AGENTLEDGER_*/WORKOS_*/ANTHROPIC_* var and secret into
 	// the container's environment at start.
 	"vars": {
@@ -59,7 +67,8 @@
 			"AGENTLEDGER_BLOB_SECRET_ACCESS_KEY",
 			"WORKOS_API_KEY",
 			"WORKOS_CLIENT_ID",
-			"AGENTLEDGER_SMOKE_TOKEN"
+			"AGENTLEDGER_SMOKE_TOKEN",
+			"AGENTLEDGER_WORKFLOW_TOKEN"
 		]
 	},
 	"env": {
@@ -83,6 +92,14 @@
 			"durable_objects": {
 				"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
 			},
+			// The filing Workflow (edge/src/workflows/submission.ts; ADR-0003): one instance per attempt at a submission, started
+			// by the outbox relay. A non-inheritable binding: repeated per environment. The step limit covers the longest run
+			// (29 days of hourly acknowledgement polls after the deadline notice) with room to spare.
+			"workflows": [
+				{ "name": "agentledger-filing-staging", "binding": "FILING", "class_name": "FilingSubmission", "limits": { "steps": 2500 } }
+			],
+			// The relay backstop (edge/src/relay.ts): undelivered outbox events become Workflow instances within a minute.
+			"triggers": { "crons": ["* * * * *"] },
 			"vars": {
 				"ENVIRONMENT": "staging",
 				"API_INSTANCES": "1",
@@ -107,7 +124,8 @@
 					"AGENTLEDGER_BLOB_SECRET_ACCESS_KEY",
 					"WORKOS_API_KEY",
 					"WORKOS_CLIENT_ID",
-					"AGENTLEDGER_SMOKE_TOKEN"
+					"AGENTLEDGER_SMOKE_TOKEN",
+					"AGENTLEDGER_WORKFLOW_TOKEN"
 				]
 			}
 		},
@@ -135,6 +153,14 @@
 			"durable_objects": {
 				"bindings": [{ "name": "API", "class_name": "ApiContainer" }]
 			},
+			// The filing Workflow (edge/src/workflows/submission.ts; ADR-0003): one instance per attempt at a submission, started
+			// by the outbox relay. A non-inheritable binding: repeated per environment. The step limit covers the longest run
+			// (29 days of hourly acknowledgement polls after the deadline notice) with room to spare.
+			"workflows": [
+				{ "name": "agentledger-filing-production", "binding": "FILING", "class_name": "FilingSubmission", "limits": { "steps": 2500 } }
+			],
+			// The relay backstop (edge/src/relay.ts): undelivered outbox events become Workflow instances within a minute.
+			"triggers": { "crons": ["* * * * *"] },
 			"vars": {
 				"ENVIRONMENT": "production",
 				// Named container instances the Worker spreads clients over (by client IP); max_instances above is the
@@ -161,7 +187,8 @@
 					"AGENTLEDGER_BLOB_SECRET_ACCESS_KEY",
 					"WORKOS_API_KEY",
 					"WORKOS_CLIENT_ID",
-					"AGENTLEDGER_SMOKE_TOKEN"
+					"AGENTLEDGER_SMOKE_TOKEN",
+					"AGENTLEDGER_WORKFLOW_TOKEN"
 				]
 			}
 		}

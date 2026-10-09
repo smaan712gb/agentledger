@@ -1,0 +1,36 @@
+{
+  "flow": "submission",
+  "version": 1,
+  "about": "The submission flow (ADR-0003, backlog F-08): step names and timings shared by the Python flow (flows/submission.py) and the Cloudflare Workflow (edge/src/workflows/submission.ts). {n} counts from 1. Durations in seconds.",
+  "steps": [
+    "transmit",
+    "mark-unknown",
+    "lookup-wait-{n}",
+    "lookup-{n}",
+    "notify-unknown",
+    "wait-reconciled-{n}",
+    "after-reconcile-{n}",
+    "poll-wait-{n}",
+    "poll-ack-{n}",
+    "notify-unacknowledged",
+    "notify-rejected"
+  ],
+  "retries": {
+    "command": { "limit": 10, "delay_s": 30, "backoff": "exponential", "timeout_s": 300 }
+  },
+  "lookup": {
+    "about": "After an answer that never came: ask the transmitter by the planned SubmissionId with backoff until the unknown deadline (about 24 hours), then ask a person.",
+    "intervals_s": [60, 300, 900, 1800, 3600, 7200, 14400, 28800, 28800]
+  },
+  "poll": {
+    "about": "Acknowledgement polling after a transmission: every 15 minutes for an hour, every 30 minutes for two, then hourly until the 72-hour deadline; then a person is told and polling continues hourly for 29 more days.",
+    "schedule": [
+      { "every_s": 900, "times": 4 },
+      { "every_s": 1800, "times": 2 },
+      { "every_s": 3600, "times": 70 }
+    ],
+    "after_notice": { "every_s": 3600, "times": 696 }
+  },
+  "reconcile_wait_s": 2592000,
+  "instance": { "id": "filing-{submission_id}-{attempt}", "retention_days": 7 }
+}

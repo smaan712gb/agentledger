@@ -28,6 +28,9 @@ class Person(BaseModel):
     dob: date | None = None
     blind: bool = False
     can_be_claimed_as_dependent: bool = False
+    # Enrolled full time for some part of 5 calendar months of the year (Form 8880 instructions, "student"). None: not
+    # stated; the saver's credit is never claimed for a person whose student status is unknown.
+    full_time_student: bool | None = None
     occupation: str = ""
 
 
@@ -142,6 +145,131 @@ class SocialSecurity(BaseModel):  # SSA-1099 / RRB-1099
     owner: Owner = "taxpayer"
     net_benefits: Money = Z              # box 5
     federal_withholding: Money = Z       # box 6
+
+
+class IRAAccount(BaseModel):  # Form 5498, one per account
+    """Amounts default to None, not zero: a box the trustee left blank is unknown until a person reads the form."""
+    owner: Owner = "taxpayer"
+    trustee: str = ""
+    ira_contributions: Money | None = None        # box 1 (traditional IRA contributions, other than boxes 2-4, 8-10)
+    rollover_contributions: Money | None = None   # box 2
+    roth_conversion: Money | None = None          # box 3
+    recharacterized_contributions: Money | None = None  # box 4
+    fmv: Money | None = None                      # box 5, fair market value at year end (Form 8606 line 6)
+    account_type: Literal["ira", "sep", "simple", "roth"] | None = None  # box 7 checkboxes
+    sep_contributions: Money | None = None        # box 8
+    simple_contributions: Money | None = None     # box 9
+    roth_contributions: Money | None = None       # box 10
+    rmd_required_next_year: bool | None = None    # box 11
+
+
+class HSADistribution(BaseModel):  # Form 1099-SA
+    owner: Owner = "taxpayer"
+    trustee: str = ""
+    gross_distribution: Money | None = None       # box 1
+    earnings_on_excess: Money | None = None       # box 2
+    distribution_code: str | None = None          # box 3: 1 normal, 2 excess contributions, 3 disability, 4 death (code 6 cases
+    #                                               excepted), 5 prohibited transaction, 6 death, nonspouse beneficiary
+    fmv_on_date_of_death: Money | None = None     # box 4
+    account_type: Literal["hsa", "archer_msa", "ma_msa"] | None = None  # box 5 checkboxes
+
+
+class HSAContribution(BaseModel):  # Form 5498-SA
+    owner: Owner = "taxpayer"
+    trustee: str = ""
+    archer_msa_contributions: Money | None = None  # box 1
+    total_contributions: Money | None = None       # box 2, contributions made in the year
+    following_year_contributions: Money | None = None  # box 3, made in the following year for this year
+    rollover_contributions: Money | None = None    # box 4
+    fmv: Money | None = None                       # box 5
+    account_type: Literal["hsa", "archer_msa", "ma_msa"] | None = None  # box 6 checkboxes
+
+
+class MarketplaceCoverage(BaseModel):  # Form 1095-A
+    """Part III columns A (enrollment premiums), B (SLCSP premium) and C (advance payment of the premium tax credit), one
+    field per month so that every amount has its own provenance, plus the line 33 annual totals."""
+    owner: Owner = "taxpayer"                     # recipient (Part I line 4)
+    marketplace: str = ""                         # Part I line 1, marketplace identifier
+    policy_number: str = ""                       # line 2
+    issuer: str = ""                              # line 3
+    covered_individuals: list[str] = []           # Part II, names as printed
+    premium_01: Money | None = None
+    premium_02: Money | None = None
+    premium_03: Money | None = None
+    premium_04: Money | None = None
+    premium_05: Money | None = None
+    premium_06: Money | None = None
+    premium_07: Money | None = None
+    premium_08: Money | None = None
+    premium_09: Money | None = None
+    premium_10: Money | None = None
+    premium_11: Money | None = None
+    premium_12: Money | None = None
+    slcsp_01: Money | None = None
+    slcsp_02: Money | None = None
+    slcsp_03: Money | None = None
+    slcsp_04: Money | None = None
+    slcsp_05: Money | None = None
+    slcsp_06: Money | None = None
+    slcsp_07: Money | None = None
+    slcsp_08: Money | None = None
+    slcsp_09: Money | None = None
+    slcsp_10: Money | None = None
+    slcsp_11: Money | None = None
+    slcsp_12: Money | None = None
+    aptc_01: Money | None = None
+    aptc_02: Money | None = None
+    aptc_03: Money | None = None
+    aptc_04: Money | None = None
+    aptc_05: Money | None = None
+    aptc_06: Money | None = None
+    aptc_07: Money | None = None
+    aptc_08: Money | None = None
+    aptc_09: Money | None = None
+    aptc_10: Money | None = None
+    aptc_11: Money | None = None
+    aptc_12: Money | None = None
+    annual_premium: Money | None = None           # line 33, column A
+    annual_slcsp: Money | None = None             # line 33, column B
+    annual_aptc: Money | None = None              # line 33, column C
+
+
+class ForeignTaxCarryover(BaseModel):  # Form 1116 Schedule B, unused foreign tax by separate category (IRC §904(c))
+    category: Literal["passive", "general", "foreign_branch", "section_951a", "treaty", "lump_sum", "section_901j"]
+    from_year: int | None = None
+    carryover: Money
+
+
+class Section1231Loss(BaseModel):  # Form 4797 line 8: nonrecaptured net section 1231 losses of the 5 preceding years
+    tax_year: int
+    nonrecaptured_loss: Money
+
+
+class PriorYear(BaseModel):
+    """Amounts carried from the prior-year return (a 2025 Form 1040 for a 2026 return), with the return as their
+    document. None means not stated, never zero: a line the preparer or the document did not supply is unknown, and a
+    computation that needs it blocks instead of assuming zero."""
+    tax: Money | None = None                      # Form 1040 line 24, total tax (Form 2210 safe harbour)
+    agi: Money | None = None                      # Form 1040 line 11
+    filing_status: FilingStatus | None = None
+    capital_loss_carryover_short: Money | None = None  # Capital Loss Carryover Worksheet line 8, to this year's Schedule D line 6
+    capital_loss_carryover_long: Money | None = None   # worksheet line 13, to Schedule D line 14
+    ftc_carryovers: list[ForeignTaxCarryover] = []
+    nonrecaptured_1231_losses: list[Section1231Loss] = []
+    traditional_ira_basis: Money | None = None    # Form 8606 line 14 of the prior year (basis in traditional IRAs)
+    roth_ira_basis: Money | None = None           # basis in Roth IRA contributions (Form 8606 Part III)
+
+
+class RetirementSavings(BaseModel):
+    """Form 8880 facts for one person that no information return carries. Contributions on documents (W-2 box 12,
+    Form 5498 boxes 1 and 10) are taken from those documents; a 2026 distribution from a 1099-R on this return too."""
+    owner: Owner = "taxpayer"
+    voluntary_after_tax_contributions: Money = Z  # line 2: voluntary employee contributions to a qualified plan (IRC §4974(c))
+    able_contributions: Money = Z                 # line 1: contributions by the designated beneficiary to their ABLE account
+    # Line 4, the part not on this return's 1099-Rs: distributions received in the two prior years and after the year's
+    # end but before the return's due date (the testing period, IRC §25B(d)(2)). None: not stated; the credit is never
+    # claimed while it is unknown. Enter 0 when there were none.
+    testing_period_distributions: Money | None = None
 
 
 class Unemployment(BaseModel):  # 1099-G box 1
@@ -288,9 +416,16 @@ class IndividualReturn(BaseModel):
     interest: list[Interest] = []
     dividends: list[Dividends] = []
     capital_transactions: list[CapitalTransaction] = []
+    # Carryovers from the prior-year return belong in `prior_year`; these two are kept for returns stored before it
+    # existed. Both given and different is a blocking diagnostic (capital_loss_carryover_conflict).
     capital_loss_carryover_short: Money = Z
     capital_loss_carryover_long: Money = Z
+    prior_year: PriorYear | None = None
     retirement: list[Retirement] = []
+    ira_accounts: list[IRAAccount] = []            # Form 5498
+    hsa_distributions: list[HSADistribution] = []  # Form 1099-SA
+    hsa_contributions: list[HSAContribution] = []  # Form 5498-SA
+    marketplace_coverage: list[MarketplaceCoverage] = []  # Form 1095-A
     social_security: list[SocialSecurity] = []
     unemployment: list[Unemployment] = []
     state_refund_taxable: Money = Z      # taxable portion under the tax benefit rule
@@ -309,6 +444,9 @@ class IndividualReturn(BaseModel):
     dependent_care_expenses: Money = Z
     dependent_care_qualifying_persons: int = 0
     students: list[Student] = []
+    retirement_savings: list[RetirementSavings] = []  # Form 8880 facts not on any document
+    # Deprecated: a hand total was never computed and is no longer accepted into the credit. Kept so that returns
+    # stored with it still load; any entry is a blocking diagnostic (form_8880_deprecated_input).
     retirement_savings_contributions: dict[Owner, Money] = {}
     amt_adjustments: dict[str, Money] = {}  # Form 6251 preference items, e.g. "iso": bargain element
     excess_aptc_repayment: Money = Z     # from Form 8962

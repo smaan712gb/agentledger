@@ -30,7 +30,10 @@ capabilities:
   - {id: sch_c,      name: "Schedule C",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
      limits: ["at-risk (6198) and excess business loss (461) not computed", "regular-method home office (8829) not supported"]}
   - {id: sch_d,      name: "Schedule D",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
-     limits: ["capital loss carryover to 2027 not computed"]}
+     evidence: ["tests/test_returns_capital_loss_carryover.py (hand-worked from the Schedule D instructions' Capital Loss Carryover Worksheet, lines 1-13)",
+                "golden/scenarios.yaml f1040-2026-capital-loss-carryover",
+                "tests/test_returns_oracle.py capital_loss_carryover (PolicyEngine: AGI, taxable income, capital loss deduction)"],
+     pending: "tax-content owner sign-off (coverage owner is null); the carryover to 2027 is computed (ws_capital_loss_carryover) and reported as Result.carryforwards"}
   - {id: f8949,      name: "Form 8949",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: sch_e,      name: "Schedule E",                        jurisdiction: US-FED, years: [2026], status: manual-assisted,
      limits: ["passive loss limits (8582) approximated", "depreciation entered, not computed"]}
@@ -46,10 +49,17 @@ capabilities:
      limits: ["investment expense allocations (line 9) not computed"]}
   - {id: f2441,      name: "Form 2441",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
   - {id: f8863,      name: "Form 8863",                         jurisdiction: US-FED, years: [2026], status: manual-assisted}
+  - {id: f8880,      name: "Form 8880 (saver's credit)",        jurisdiction: US-FED, years: [2026], status: manual-assisted,
+     limits: ["Credit Limit Worksheet line 2 takes Schedule 3 lines 1-3 only (lines 6d and 6l are not computed)",
+              "line 4 exception for a spouse's distribution in a year the couple did not file jointly is not modelled (both spouses' amounts go in both columns)",
+              "ABLE and voluntary after-tax contributions, and distributions of 2024, 2025 and early 2027, are stated facts (retirement_savings), not documents",
+              "IRC §25B(e) add-back of §911/931/933 exclusions not modelled (no such income inputs)"],
+     evidence: ["tests/test_returns_8880.py (hand-worked from Form 8880 (2025) lines 1-12, its line 4 example, and Notice 2025-67 2026 limits)",
+                "golden/scenarios.yaml f1040-2026-savers-credit", "tests/test_returns_oracle.py savers_credit (PolicyEngine savers_credit)"],
+     pending: "tax-content owner sign-off (coverage owner is null)"}
   # Known gaps on the 1040: the engine raises a blocking diagnostic when a return needs one of these.
   - {id: f1116,      name: "Form 1116 (foreign tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8615,      name: "Form 8615 (kiddie tax)",            jurisdiction: US-FED, years: [2026], status: unsupported}
-  - {id: f8880,      name: "Form 8880 (saver's credit)",        jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8962,      name: "Form 8962 (premium tax credit)",    jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8606,      name: "Form 8606 (nondeductible IRAs)",    jurisdiction: US-FED, years: [2026], status: unsupported}
   - {id: f8889,      name: "Form 8889 (HSA)",                   jurisdiction: US-FED, years: [2026], status: unsupported}

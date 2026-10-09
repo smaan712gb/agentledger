@@ -1,0 +1,38 @@
+id: us_fed.individual.savers_credit
+title: Saver's credit (retirement savings contributions credit) rates and contribution cap
+jurisdiction: US-FED
+category: individual
+value_type: table
+unit: mixed (rates as fractions, cap in USD)
+citation: IRC §25B(a), (b)(1)
+keys:
+- rate_50
+- rate_20
+- rate_10
+- contribution_cap
+tags:
+- saver's credit
+- '25B'
+- retirement
+- Form 8880
+notes: >-
+  The credit is the applicable percentage (50%, 20% or 10%, by adjusted gross income and filing status, see
+  us_fed.individual.savers_credit_agi_limits) of up to $2,000 of qualified retirement savings contributions per
+  person (IRC §25B(a); Form 8880 line 6). The values end with tax year 2026: for tax years beginning after
+  December 31, 2026, section 103 of the SECURE 2.0 Act of 2022 (Division T of P.L. 117-328) replaces the credit
+  with the saver's match paid into the retirement account. Form 8880 (2025) instructions, What's New: "beginning
+  with 2027 tax returns, the saver's credit will be replaced by a saver's match ... Form 8880 will only be used to
+  claim the saver's credit for ABLE account contributions." A 2027 return finds no value here and the engine blocks
+  with savers_credit_rule_missing instead of guessing.
+values:
+- effective_from: '2002-01-01'
+  effective_to: '2026-12-31'
+  value:
+    rate_50: 0.5
+    rate_20: 0.2
+    rate_10: 0.1
+    contribution_cap: 2000
+  provenance:
+    source: IRC §25B(a) ($2,000 per person) and §25B(b)(1)(A)-(D) (50%, 20%, 10%); Form 8880 (2025) lines 6 and 9
+    url: https://www.irs.gov/pub/irs-pdf/f8880.pdf
+    verified_on: '2026-10-09'

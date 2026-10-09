@@ -224,6 +224,40 @@ CREATE TABLE IF NOT EXISTS commands (
     PRIMARY KEY (scope, command_id)
 );
 
+-- Domain events for orchestration (backlog F-08), written in the transaction of the change they describe; the same
+-- columns as the PostgreSQL ledger outbox (pg/migrations/0001). Delivery state lives apart from the immutable event:
+-- at-least-once delivery, consumers deduplicate by id (workflow/outbox.py).
+CREATE TABLE IF NOT EXISTS outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL REFERENCES clients(id),
+    event_type TEXT NOT NULL,
+    aggregate TEXT NOT NULL,
+    aggregate_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS outbox_delivery (
+    outbox_id INTEGER PRIMARY KEY REFERENCES outbox(id),
+    delivered_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Orchestration state of the local workflow runner (workflow/runner.py): which step an instance is on, its timers and
+-- waits. Never business state: the domain never reads it, and a return's status is read from its own event stream.
+CREATE TABLE IF NOT EXISTS workflow_runs (
+    instance_id TEXT PRIMARY KEY,
+    flow TEXT NOT NULL,
+    params TEXT NOT NULL,
+    steps TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL CHECK (status IN ('running', 'sleeping', 'waiting', 'complete', 'errored')),
+    wake_at TEXT,
+    waiting_for TEXT,
+    events TEXT NOT NULL DEFAULT '[]',
+    result TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS info_returns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id TEXT NOT NULL REFERENCES clients(id),
@@ -397,7 +431,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 
 APPEND_ONLY = ("commands", "entries", "postings", "audit", "finding_resolutions", "info_returns", "ai_usage", "entry_documents",
                "precedents", "document_versions", "deletion_receipts", "blob_deletions", "blob_deletion_results",
-               "tax_year_events", "document_moves", "basis_releases")
+               "tax_year_events", "document_moves", "basis_releases", "outbox")
 
 # Columns added after a table first shipped: (table, column, type) for stores created before them.
 UPGRADES = (("documents", "retention_class", "TEXT"), ("documents", "retain_until", "TEXT"), ("documents", "deleted_at", "TEXT"),

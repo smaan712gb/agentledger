@@ -23,6 +23,13 @@ Z = Decimal(0)
 QC_RELATIONSHIPS = {"son", "daughter", "stepchild", "foster_child", "brother", "sister", "half_brother", "half_sister",
                     "stepbrother", "stepsister", "grandchild", "niece", "nephew"}
 QR_RELATIONSHIPS = QC_RELATIONSHIPS | {"parent", "grandparent", "aunt", "uncle", "in_law"}
+# W-2 box 12 codes that are elective deferrals or designated Roth contributions for Form 8880 line 2 (Form 8880 (2025)
+# instructions, Line 2; General Instructions for Forms W-2 and W-3, box 12 codes): D 401(k), E 403(b), F 408(k)(6) SEP,
+# G 457(b), H 501(c)(18)(D), S 408(p) SIMPLE, AA Roth 401(k), BB Roth 403(b), EE Roth governmental 457(b).
+SAVERS_CREDIT_W2_CODES = frozenset({"D", "E", "F", "G", "H", "S", "AA", "BB", "EE"})
+# 1099-R box 7 codes of distributions that are rollovers in full and so never reduce Form 8880 line 3 (instructions,
+# Line 4: "distributions not taxable as the result of a rollover or a trustee-to-trustee transfer").
+ROLLOVER_DISTRIBUTION_CODES = frozenset({"G", "H"})
 
 
 def steps(amount: Decimal, step: Decimal, *, round_up: bool) -> Decimal:
@@ -53,6 +60,9 @@ class Result:
     filing_status: str
     sheets: Sheets
     sources: list[dict[str, Any]] = field(default_factory=list)
+    # What this return carries to the next tax year, keyed by the next return's `prior_year` input names (whole dollars,
+    # positive amounts). Computed, never entered; persisted as return_carryforwards in a later slice.
+    carryforwards: dict[str, Decimal] = field(default_factory=dict)
 
     @property
     def forms(self) -> dict[str, dict[str, Decimal]]:
@@ -88,6 +98,7 @@ class Result:
             "summary": {"agi": str(self.line("f1040", "11a")), "taxable_income": str(self.line("f1040", "15")),
                         "total_tax": str(self.line("f1040", "24c")), "payments": str(self.line("f1040", "33")),
                         "refund": str(self.refund), "amount_owed": str(self.amount_owed)},
+            "carryforwards": {k: str(v) for k, v in self.carryforwards.items()},
             "sources": self.sources,
         }
 
@@ -110,6 +121,8 @@ class _Individual:
         self.deps: list[DependentStatus] = []
         self.se: dict[Owner, dict[str, Decimal]] = {}
         self.biz_net: list[tuple[Business, Decimal]] = []
+        self._ti_unfloored = Z                  # Form 1040 line 15 as it would be if it could be negative (§1212(b)(2))
+        self._carryforwards: dict[str, Decimal] = {}
 
     # ----------------------------------------------------------------- helpers
     def p(self, rule_id: str) -> Any:
@@ -153,6 +166,7 @@ class _Individual:
         self._social_security()
         self._agi()
         self._deductions()
+        self._capital_loss_carryover()
         self._tax()
         self._amt()
         self._credits()
@@ -160,7 +174,7 @@ class _Individual:
         self._payments()
         self._unsupported_checks()
         self.s.drop_empty()
-        return Result(self.y, self.fs, self.s, self.ctx.sources())
+        return Result(self.y, self.fs, self.s, self.ctx.sources(), self._carryforwards)
 
     # ----------------------------------------------------------------- validation and dependents
     def _validate(self) -> None:
@@ -399,8 +413,28 @@ class _Individual:
             anniversary = date(a.year + 1, 3, 1)
         return "long" if t.sold > anniversary else "short"
 
+    def _prior_carryovers(self) -> tuple[Decimal, Decimal]:
+        """Capital loss carryovers into this year (positive amounts): the prior-year group when it states them, else
+        the legacy top-level inputs. Stated in both places with different amounts is a blocking diagnostic."""
+        r, py = self.r, self.r.prior_year
+        out: list[Decimal] = []
+        for kind, legacy, line in (("short", r.capital_loss_carryover_short, "6"), ("long", r.capital_loss_carryover_long, "14")):
+            stated: Decimal | None = getattr(py, f"capital_loss_carryover_{kind}") if py is not None else None
+            if stated is not None and legacy and stated != legacy:
+                self.s.diag("error", "capital_loss_carryover_conflict",
+                            f"The {kind}-term capital loss carryover is stated twice and differs: prior_year says {whole(stated)}, "
+                            f"capital_loss_carryover_{kind} says {whole(legacy)}. Remove the entry that is wrong.", "sch_d", line)
+            amount = stated if stated is not None else legacy
+            if amount < 0:
+                self.s.diag("error", "capital_loss_carryover_sign",
+                            f"A {kind}-term capital loss carryover is entered as a positive amount (got {whole(amount)}).", "sch_d", line)
+                amount = Z
+            out.append(amount)
+        return out[0], out[1]
+
     def _schedule_d(self) -> None:
         r = self.r
+        cf_short, cf_long = self._prior_carryovers()
         boxes: dict[str, list[CapitalTransaction]] = {}
         collectibles = Z
         for t in r.capital_transactions:
@@ -435,12 +469,12 @@ class _Individual:
         k1_lt = sum((k.net_long_term_gain for k in r.k1s), Z)
         cgd = sum((d.capital_gain_distributions for d in r.dividends), Z)
         self.set("sch_d", "5", k1_st)
-        self.set("sch_d", "6", -r.capital_loss_carryover_short, "Short-term capital loss carryover")
+        self.set("sch_d", "6", -cf_short, "Short-term capital loss carryover (prior-year Capital Loss Carryover Worksheet, line 8)")
         st = sum((self.g("sch_d", f"{line}h") for line in ("1a", "1b", "2", "3")), Z) + self.g("sch_d", "5") + self.g("sch_d", "6")
         self.set("sch_d", "7", st, "Net short-term capital gain or (loss)")
         self.set("sch_d", "12", k1_lt)
         self.set("sch_d", "13", cgd, "Capital gain distributions")
-        self.set("sch_d", "14", -r.capital_loss_carryover_long, "Long-term capital loss carryover")
+        self.set("sch_d", "14", -cf_long, "Long-term capital loss carryover (prior-year Capital Loss Carryover Worksheet, line 13)")
         lt = sum((self.g("sch_d", f"{line}h") for line in ("8a", "8b", "9", "10")), Z) + sum(
             (self.g("sch_d", x) for x in ("12", "13", "14")), Z)
         self.set("sch_d", "15", lt, "Net long-term capital gain or (loss)")
@@ -458,8 +492,8 @@ class _Individual:
             seven_a = self.set("sch_d", "21", max(l16, -cap), "Capital loss deduction limited (IRC §1211(b))")
         else:
             seven_a = l16
-        only_distributions = not r.capital_transactions and not k1_st and not k1_lt and not r.capital_loss_carryover_short \
-            and not r.capital_loss_carryover_long and not self._sch_d_18 and not self._sch_d_19
+        only_distributions = not r.capital_transactions and not k1_st and not k1_lt and not cf_short \
+            and not cf_long and not self._sch_d_18 and not self._sch_d_19
         self.s.fact("f1040", "schedule_d_not_required", bool(only_distributions and cgd > 0))
         self.set("f1040", "7a", seven_a, "Capital gain or (loss)")
         if only_distributions:
@@ -982,7 +1016,40 @@ class _Individual:
         self.set("f1040", "13a", sch_1a, "Schedule 1-A, line 44")
         self.set("f1040", "13b", qbi, "Qualified business income deduction")
         self.set("f1040", "14", sum((self.g("f1040", x) for x in ("12e", "12f", "13a", "13b")), Z))
-        self.set("f1040", "15", pos(self.agi - self.g("f1040", "14")), "Taxable income")
+        self._ti_unfloored = whole(self.agi - self.g("f1040", "14"))
+        self.set("f1040", "15", pos(self._ti_unfloored), "Taxable income")
+
+    def _capital_loss_carryover(self) -> None:
+        """Capital Loss Carryover Worksheet (Schedule D instructions, lines 1-13): the part of this year's net capital
+        loss that the §1211(b) deduction did not use and that carries to next year (IRC §1212(b)(1)). Short-term losses
+        are used first, and taxable income is taken as it would be if line 15 could be negative (§1212(b)(2)), so a
+        loss that only deepened a negative taxable income carries over in full."""
+        cf = {"capital_loss_carryover_short": Z, "capital_loss_carryover_long": Z}
+        l21 = self.g("sch_d", "21")
+        if "sch_d" not in self.s.forms or l21 >= 0:          # no net capital loss: nothing carries
+            self._carryforwards = cf
+            return
+        f = "ws_capital_loss_carryover"
+        sd7, sd15 = self.g("sch_d", "7"), self.g("sch_d", "15")
+        l1 = self.set(f, "1", self._ti_unfloored, "Form 1040 line 15 as it would be if a negative amount could be entered")
+        l2 = self.set(f, "2", -l21, "Schedule D line 21 as a positive amount")
+        l3 = self.set(f, "3", pos(l1 + l2))
+        l4 = self.set(f, "4", min(l2, l3), "The part of the loss deduction that reduced taxable income")
+        l5 = self.set(f, "5", -sd7 if sd7 < 0 else Z, "Schedule D line 7 loss as a positive amount")
+        if sd7 < 0:
+            l6 = self.set(f, "6", pos(sd15), "Schedule D line 15 gain")
+            l7 = self.set(f, "7", l4 + l6)
+            cf["capital_loss_carryover_short"] = self.set(f, "8", pos(l5 - l7),
+                                                          f"Short-term capital loss carryover to {self.y + 1} (Schedule D line 6)")
+        if sd15 < 0:
+            l9 = self.set(f, "9", -sd15, "Schedule D line 15 loss as a positive amount")
+            l10 = self.set(f, "10", pos(sd7), "Schedule D line 7 gain")
+            l11 = self.set(f, "11", pos(l4 - l5))
+            l12 = self.set(f, "12", l10 + l11)
+            cf["capital_loss_carryover_long"] = self.set(f, "13", pos(l9 - l12),
+                                                         f"Long-term capital loss carryover to {self.y + 1} (Schedule D line 14)")
+        self.s.fact(f, "carries_to", self.y + 1)
+        self._carryforwards = cf
 
     # ----------------------------------------------------------------- tax
     def _tax(self) -> None:
@@ -1122,7 +1189,6 @@ class _Individual:
         return self._ftc
 
     def _credits(self) -> None:
-        r = self.r
         l18 = self.g("f1040", "18")
         ftc = min(self._ftc_amount(), l18)
         self.set("sch_3", "1", ftc, "Foreign tax credit")
@@ -1133,9 +1199,7 @@ class _Individual:
         edu_nonref, edu_ref = self._form_8863(remaining)
         self.set("sch_3", "3", edu_nonref, "Form 8863, line 19")
         remaining -= edu_nonref
-        if r.retirement_savings_contributions:
-            self.s.diag("warning", "form_8880_unsupported", "Retirement savings contributions credit (Form 8880) is not yet computed.", "sch_3", "4")
-        self.set("sch_3", "4", Z)
+        self.set("sch_3", "4", self._form_8880(pos(remaining)), "Form 8880, line 12")
         self.set("sch_3", "7", Z)
         self.set("sch_3", "8", sum((self.g("sch_3", x) for x in ("1", "2", "3", "4", "5a", "7")), Z))
         ctc, self._ctc_unused = self._schedule_8812_part_i(l18 - self.g("sch_3", "8"))
@@ -1144,6 +1208,122 @@ class _Individual:
         self.set("f1040", "21", self.g("f1040", "19") + self.g("f1040", "20"))
         self.set("f1040", "22", pos(l18 - self.g("f1040", "21")))
         self._aotc_refundable = edu_ref
+
+    def _form_8880(self, limit: Decimal) -> Decimal:
+        """Form 8880, credit for qualified retirement savings contributions (IRC §25B). `limit` is the Credit Limit
+        Worksheet amount: Form 1040 line 18 less Schedule 3 lines 1 through 3 (lines 6d and 6l are not computed).
+        Contributions come from documents (W-2 box 12, Form 5498 boxes 1 and 10) and stated facts; the credit is never
+        claimed for a person whose eligibility or testing-period distributions are unknown."""
+        r = self.r
+        f = "f8880"
+        if r.retirement_savings_contributions:
+            self.s.diag("error", "form_8880_deprecated_input",
+                        "retirement_savings_contributions is no longer an input: the saver's credit is figured from W-2 box 12, "
+                        "Form 5498 and the retirement_savings facts. Remove it.", "sch_3", "4")
+        stated = {x.owner: x for x in r.retirement_savings}
+        lines: dict[Owner, dict[str, Decimal]] = {}
+        for owner in self.owners():
+            hand = stated.get(owner)
+            ira = sum((v for a in r.ira_accounts if a.owner == owner for v in (a.ira_contributions, a.roth_contributions) if v), Z)
+            deferrals = sum((amt for w in r.w2s if w.owner == owner for code, amt in w.box12.items()
+                             if code.upper() in SAVERS_CREDIT_W2_CODES), Z)
+            lines[owner] = {"1": ira + (hand.able_contributions if hand else Z),
+                            "2": deferrals + (hand.voluntary_after_tax_contributions if hand else Z)}
+        if not any(v["1"] + v["2"] > 0 for v in lines.values()):
+            return Z
+        rule = self.ctx.try_param("us_fed.individual.savers_credit", self.on)
+        agi_limits = self.ctx.try_param("us_fed.individual.savers_credit_agi_limits", self.on)
+        if rule is None or agi_limits is None:
+            self.s.diag("error", "savers_credit_rule_missing",
+                        f"No published saver's credit figures cover {self.on.isoformat()} (us_fed.individual.savers_credit, "
+                        "us_fed.individual.savers_credit_agi_limits): the credit is not figured.", "sch_3", "4")
+            return Z
+        # Line 9: the applicable percentage by filing status and AGI. A qualifying surviving spouse uses the "all other"
+        # column (Form 8880 line 9 table), not the joint one.
+        bands = agi_limits["mfj" if self.fs == "mfj" else "hoh" if self.fs == "hoh" else "other"]
+        rates = (D(rule["rate_50"]), D(rule["rate_20"]), D(rule["rate_10"]))
+        rate = next((rt for top, rt in zip(bands, rates) if self.agi <= D(top)), Z)
+        could_matter = rate > 0 and limit > 0
+        # Line 4: distributions in the testing period (IRC §25B(d)(2)). This year's come from the 1099-Rs on the return
+        # (less rollovers); the two prior years and the months before the due date are a stated fact per person.
+        distributions: dict[Owner, Decimal] = {}
+        unknown: list[str] = []
+        for owner in self.owners():
+            this_year = sum((pos(d.gross_distribution - d.rollover_amount) for d in r.retirement
+                             if d.owner == owner and not set(d.distribution_code.upper()) & ROLLOVER_DISTRIBUTION_CODES), Z)
+            hand = stated.get(owner)
+            earlier = hand.testing_period_distributions if hand else None
+            if earlier is None:
+                unknown.append(owner)
+            distributions[owner] = this_year + (earlier or Z)
+
+        def not_filed() -> Decimal:
+            """The form is not part of the return: no credit, and no partial Form 8880 left in the package."""
+            self.s.forms.pop(f, None)
+            self.s.notes.pop(f, None)
+            self.s.facts.pop(f, None)
+            return Z
+
+        # Every unknown fact the credit depends on is reported at once; the credit is claimed only when all are stated.
+        problems: list[tuple[str, str, str | None]] = []
+        if unknown and could_matter:
+            problems.append(("form_8880_testing_period_unknown",
+                             f"Form 8880 line 4: the distributions received in {self.y - 2}, {self.y - 1} and before the {self.y} return's "
+                             f"due date are not stated for {', '.join(unknown)} (retirement_savings[].testing_period_distributions; enter "
+                             "0 if none). The credit is not claimed while they are unknown.", "4"))
+        total = sum(distributions.values(), Z)                 # joint: both spouses' amounts in both columns
+        col = {"taxpayer": "a", "spouse": "b"}
+        l7 = Z
+        eligible: dict[str, Any] = {}
+        for owner in self.owners():
+            c = col[owner]
+            v = lines[owner]
+            l3 = self.set(f, f"3{c}", self.set(f, f"1{c}", v["1"]) + self.set(f, f"2{c}", v["2"]))
+            if l3 <= 0:
+                continue
+            l4 = self.set(f, f"4{c}", total if self.joint else distributions[owner])
+            l5 = self.set(f, f"5{c}", pos(l3 - l4))
+            l6 = min(l5, D(rule["contribution_cap"]))
+            p = self.person(owner)
+            reason = None
+            if p is None or p.can_be_claimed_as_dependent:
+                reason = "can be claimed as a dependent on someone else's return"
+            elif p.dob is None:
+                if l6 > 0 and could_matter:
+                    problems.append(("form_8880_age_unknown",
+                                     f"Form 8880: the {owner}'s date of birth is needed to show they were 18 at the end of {self.y}.", None))
+                reason = "date of birth not stated"
+            elif p.dob > date(self.y - 17, 1, 1):          # born after January 1 of the year they would turn 17
+                reason = f"under 18 at the end of {self.y} (born after {date(self.y - 17, 1, 1).isoformat()})"
+            elif p.full_time_student is None:
+                if l6 > 0 and could_matter:
+                    problems.append(("form_8880_student_status_unknown",
+                                     f"Form 8880: state whether the {owner} was a full-time student during any part of 5 months of "
+                                     f"{self.y} (full_time_student). The credit is not claimed while it is unknown.", None))
+                reason = "student status not stated"
+            elif p.full_time_student:
+                reason = "a full-time student"
+            eligible[owner] = reason or "eligible"
+            if reason:
+                l6 = Z
+            l7 += self.set(f, f"6{c}", l6)
+        if problems:
+            for code, message, line in problems:
+                self.s.diag("error", code, message, f, line)
+            return not_filed()
+        self.s.fact(f, "eligible", eligible)
+        self.set(f, "7", l7)
+        self.set(f, "8", self.agi)
+        self.s.fact(f, "9", str(rate))
+        l10 = self.set(f, "10", l7 * rate)
+        l11 = self.set(f, "11", limit, "Credit Limit Worksheet: Form 1040 line 18 less Schedule 3 lines 1-3")
+        credit = self.set(f, "12", min(l10, l11), "Credit for qualified retirement savings contributions")
+        if credit <= 0:
+            why = ("adjusted gross income is above the limit" if rate == 0 else "no tax remains after the preceding credits"
+                   if limit <= 0 else "no eligible contributions remain after the testing-period distributions and eligibility tests")
+            self.s.diag("info", "form_8880_no_credit", f"No saver's credit: {why}.", "sch_3", "4")
+            return not_filed()
+        return credit
 
     def _form_2441(self) -> Decimal:
         r = self.r
@@ -1472,5 +1652,3 @@ class _Individual:
                                                        "(Form 8615): not yet supported.")
         if any(not p.active_participation and not p.real_estate_professional for p in r.rentals):
             self.s.diag("warning", "passive_rental", "Rentals without active participation need Form 8582.")
-        if r.capital_loss_carryover_short or r.capital_loss_carryover_long or self.g("sch_d", "21"):
-            self.s.diag("info", "capital_loss_carryover", "Figure the capital loss carryover to 2027 with the Schedule D worksheet.")

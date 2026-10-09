@@ -36,7 +36,14 @@ COMPARISONS: list[tuple[str, str, Any]] = [
     ("vehicle loan interest deduction", "auto_loan_interest_deduction", lambda r: r.line("sch_1a", "36")),
     ("senior deduction", "additional_senior_deduction", lambda r: r.line("sch_1a", "43")),
     ("net investment income tax", "net_investment_income_tax", lambda r: r.line("sch_2", "6")),
+    ("capital loss deduction", "limited_capital_loss", lambda r: -r.line("sch_d", "21")),
+    ("saver's credit", "savers_credit", lambda r: r.line("sch_3", "4")),
 ]
+# W-2 box 12 deferral codes PolicyEngine takes as inputs, and whether the deferral was pre-tax. Box 1 wages exclude a
+# pre-tax deferral while PolicyEngine subtracts its retirement inputs from employment_income itself, so the deferral is
+# added back to employment_income; a designated Roth contribution is in box 1 already.
+PE_DEFERRALS = {"D": ("traditional_401k_contributions", True), "E": ("traditional_403b_contributions", True),
+                "AA": ("roth_401k_contributions", False), "BB": ("roth_403b_contributions", False)}
 
 
 @dataclass
@@ -68,13 +75,30 @@ def _unmodelled(r: IndividualReturn) -> list[str]:
         out.append("Schedule E activity")
     if r.amt_adjustments:
         out.append("AMT adjustments")
-    if r.capital_loss_carryover_short or r.capital_loss_carryover_long:
-        out.append("capital loss carryovers")
     if r.students:
         out.append("education credits")
     if r.dependent_care_expenses:
         out.append("dependent care")
+    codes = {c.upper() for w in r.w2s for c in w.box12}
+    if codes & {"F", "G", "H", "S", "EE"}:
+        out.append("saver's credit deferrals with W-2 codes F, G, H, S or EE (SEP, 457(b), 501(c)(18), SIMPLE)")
+    if any(x.voluntary_after_tax_contributions or x.able_contributions or x.testing_period_distributions for x in r.retirement_savings):
+        out.append("saver's credit stated facts (voluntary after-tax or ABLE contributions, testing-period distributions)")
+    saving = bool(r.retirement_savings) or any(a.ira_contributions or a.roth_contributions for a in r.ira_accounts) or bool(
+        codes & {"D", "E", "F", "G", "H", "S", "AA", "BB", "EE"})
+    if saving and r.retirement:
+        out.append("saver's credit line 4 (PolicyEngine nets only this year's IRA and plan distributions)")
+    if any(a.ira_contributions for a in r.ira_accounts):
+        out.append("traditional IRA contributions (PolicyEngine figures the IRA deduction; the return takes it as entered)")
     return out
+
+
+def _carryovers(r: IndividualReturn) -> tuple[Decimal, Decimal]:
+    """Capital loss carryovers into the year, as the engine resolves them (prior_year first, then the legacy inputs)."""
+    py = r.prior_year
+    short = py.capital_loss_carryover_short if py and py.capital_loss_carryover_short is not None else r.capital_loss_carryover_short
+    long = py.capital_loss_carryover_long if py and py.capital_loss_carryover_long is not None else r.capital_loss_carryover_long
+    return short, long
 
 
 def _prune(d: dict[str, Any], known: set[str] | None, skipped: set[str]) -> dict[str, Any]:
@@ -98,10 +122,27 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
         wages = sum((w.wages for w in r.w2s if w.owner == owner), Decimal(0))
         se = sum((b.gross_receipts - b.returns_allowances - b.cost_of_goods_sold + b.other_income
                   - sum(b.expenses.values(), Decimal(0)) for b in r.businesses if b.owner == owner), Decimal(0))
+        deferrals: dict[str, Decimal] = {}
+        pretax = Decimal(0)
+        for w in r.w2s:
+            if w.owner != owner:
+                continue
+            for code, amt in w.box12.items():
+                if code.upper() in PE_DEFERRALS:
+                    var, pre = PE_DEFERRALS[code.upper()]
+                    deferrals[var] = deferrals.get(var, Decimal(0)) + amt
+                    pretax += amt if pre else Decimal(0)
         d: dict[str, Any] = {
             "age": {yr: y - p.dob.year if p and p.dob else 40},
-            "employment_income": {yr: float(wages)},
+            "employment_income": {yr: float(wages + pretax)},
             "self_employment_income": {yr: float(se)},
+            **{var: {yr: float(amt)} for var, amt in deferrals.items()},
+            "traditional_ira_contributions": {yr: float(sum((a.ira_contributions or Decimal(0) for a in r.ira_accounts
+                                                             if a.owner == owner), Decimal(0)))},
+            "roth_ira_contributions": {yr: float(sum((a.roth_contributions or Decimal(0) for a in r.ira_accounts
+                                                      if a.owner == owner), Decimal(0)))},
+            "is_full_time_student": {yr: bool(p and p.full_time_student)},
+            "claimed_as_dependent_on_another_return": {yr: bool(p and p.can_be_claimed_as_dependent)},
             "tip_income": {yr: float(sum((w.tips() for w in r.w2s if w.owner == owner), Decimal(0)))},
             "fsla_overtime_premium": {yr: float(sum((w.overtime() for w in r.w2s if w.owner == owner), Decimal(0)))},
             "is_blind": {yr: bool(p and p.blind)},
@@ -122,7 +163,13 @@ def situation(r: IndividualReturn, known: set[str] | None = None, skipped: set[s
                 else:
                     st += g
             lt += sum((x.capital_gain_distributions for x in r.dividends), Decimal(0))
+            # Carryovers from the prior year net against this year's gains the way Schedule D lines 6 and 14 do;
+            # PolicyEngine's long_term_capital_loss_carryover is a memo item for the 28% rate gain only.
+            cf_short, cf_long = _carryovers(r)
+            st -= cf_short
+            lt -= cf_long
             d.update({
+                "long_term_capital_loss_carryover": {yr: float(cf_long)},
                 "taxable_interest_income": {yr: float(sum((i.interest + i.us_savings_bond_interest for i in r.interest), Decimal(0)))},
                 "tax_exempt_interest_income": {yr: float(sum((i.tax_exempt_interest for i in r.interest), Decimal(0)))},
                 "qualified_dividend_income": {yr: float(sum((x.qualified for x in r.dividends), Decimal(0)))},

@@ -365,6 +365,63 @@ def agents_design(what: str = typer.Argument(..., help="agent | domain_pack | pl
     con.print(f"proposal [bold]{p.id}[/]: {p.title} · risk {p.risk} · verified {p.verified}")
 
 
+# -- workflows ------------------------------------------------------------------------------------
+
+workflows_app = typer.Typer(help="Long-running filings on the local orchestrator (AGENTLEDGER_ORCHESTRATOR=local)", no_args_is_help=True)
+app.add_typer(workflows_app, name="workflows")
+
+
+def _workflow_runner(firm: str | None):
+    """The runner over one firm's store: the single-firm store at AGENTLEDGER_HOME, or tenants/<firm> (needs the
+    master key, as the API does)."""
+    from .returns.filing import provider_from_env
+    from .returns.store import Returns, Sealer
+    from .workflow.runner import local_runner
+
+    if firm:
+        from .app_context import AppContext
+        from .security.platform import Platform
+
+        root = home()
+        plat = Platform(root, dev=os.environ.get("AGENTLEDGER_DEV_AUTH") == "1",
+                        identity=os.environ.get("AGENTLEDGER_IDENTITY", "local").strip().lower())
+        c = AppContext.open(root, tenant=plat.tenant_dir(firm), scope="tenant")
+        c.conn.set_scope(["*"])
+        returns = Returns(c.conn, c.kb, Sealer(plat.keys, firm))
+    else:
+        c = ctx()
+        returns = Returns(c.conn, c.kb)
+    return c, local_runner(c.conn, returns, provider_from_env())
+
+
+@workflows_app.command("tick")
+def workflows_tick(firm: str = typer.Option(None, help="firm id (tenants/<firm>); the single-firm store by default")):
+    """One relay-and-advance pass: deliver the firm's outbox events, run every step that is due."""
+    c, runner = _workflow_runner(firm)
+    out = runner.tick(c.conn, firm_id=firm)
+    con.print(f"relayed {out['relayed']} event(s), advanced {out['advanced']} instance(s)")
+
+
+@workflows_app.command("list")
+def workflows_list(firm: str = typer.Option(None, help="firm id (tenants/<firm>); the single-firm store by default")):
+    """Every workflow instance and where it stands (orchestration state; a return's status is on the return)."""
+    c, runner = _workflow_runner(firm)
+    t = Table("instance", "flow", "status", "wake at", "waiting for", "error")
+    for r in runner.runs.all():
+        t.add_row(r.instance_id, r.flow, r.status, r.wake_at or "", r.waiting_for or "", (r.error or "")[:80])
+    con.print(t)
+
+
+@workflows_app.command("signal")
+def workflows_signal(instance_id: str, type: str, payload: str = typer.Option("{}", help="the event payload, JSON"),
+                     firm: str = typer.Option(None, help="firm id (tenants/<firm>); the single-firm store by default")):
+    """Send an event to a waiting instance (for example submission-reconciled after a CPA reconciled by hand)."""
+    c, runner = _workflow_runner(firm)
+    ok = runner.send_event(instance_id, type, json.loads(payload))
+    con.print("signalled" if ok else "[red]no running instance with that id[/]")
+    raise typer.Exit(0 if ok else 1)
+
+
 # -- rules ----------------------------------------------------------------------------------------
 
 @rules_app.command("list")

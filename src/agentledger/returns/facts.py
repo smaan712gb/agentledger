@@ -32,15 +32,24 @@ from typing import Any
 from .. import audit
 from ..db import one, rows, unit_of_work
 
-# The amount without which a document item means nothing (a W-2 without wages is not a $0 W-2).
+# The amount without which a document item means nothing (a W-2 without wages is not a $0 W-2; a 1099-SA without its
+# gross distribution, a 5498-SA without the year's contributions, a 5498 without the year-end value every trustee must
+# report (Form 8606 line 6 needs it), a 1095-A without its annual premium).
 REQUIRED = {"w2s": "wages", "interest": "interest", "dividends": "ordinary", "retirement": "gross_distribution",
-            "social_security": "net_benefits", "unemployment": "amount"}
+            "social_security": "net_benefits", "unemployment": "amount", "hsa_distributions": "gross_distribution",
+            "hsa_contributions": "total_contributions", "ira_accounts": "fmv", "marketplace_coverage": "annual_premium"}
 # Amounts another amount implies: tax withheld on wages means there are such wages. Without them the withholding is
-# credited against nothing (Form 8959 line 24 refunds all of box 6; the excess Social Security credit).
-IMPLIED = {"w2s": (("medicare_wages", "medicare_tax"), ("ss_wages", "ss_tax"))}
-# Codes that are required and never defaulted: a 1099-R's box 7 decides the 10% (or 25%) additional tax.
-CODED = {"retirement": "distribution_code"}
+# credited against nothing (Form 8959 line 24 refunds all of box 6; the excess Social Security credit). Advance premium
+# tax credit paid (1095-A column C) implies a second-lowest-cost silver plan premium (column B): Form 8962 cannot
+# reconcile the advance without it.
+IMPLIED = {"w2s": (("medicare_wages", "medicare_tax"), ("ss_wages", "ss_tax")),
+           "marketplace_coverage": (("annual_slcsp", "annual_aptc"),)}
+# Codes that are required and never defaulted: a 1099-R's box 7 decides the 10% (or 25%) additional tax; a 1099-SA's
+# box 3 decides whether an HSA distribution is normal, an excess, a disability or a death distribution (Form 8889 Part II).
+CODED = {"retirement": "distribution_code", "hsa_distributions": "distribution_code"}
 DISTRIBUTION_CODES = frozenset("123456789ABCDEFGHJKLMNPQRSTUWY")
+HSA_DISTRIBUTION_CODES = frozenset("123456")           # Form 1099-SA box 3
+CODE_SETS = {"retirement": (DISTRIBUTION_CODES, 2), "hsa_distributions": (HSA_DISTRIBUTION_CODES, 1)}
 SOURCES = ("document", "preparer", "resolution")
 IDENTITY = "source_document"
 RESOLUTIONS = ("kept", "replaced", "superseded")
@@ -50,10 +59,12 @@ class InputRejected(ValueError):
     """A change to a return's inputs that is refused: a hand-made document identity, an unknown input."""
 
 
-def valid_code(v: Any) -> bool:
-    """A 1099-R box 7 entry: one or two distribution codes (for example 7, 1, G, 7D)."""
+def valid_code(v: Any, lst: str = "retirement") -> bool:
+    """A required code: a 1099-R box 7 entry of one or two distribution codes (for example 7, 1, G, 7D), or a 1099-SA
+    box 3 entry of one code 1-6."""
     code = str(v or "").strip()
-    return 1 <= len(code) <= 2 and all(ch in DISTRIBUTION_CODES for ch in code)
+    chars, width = CODE_SETS[lst]
+    return 1 <= len(code) <= width and all(ch in chars for ch in code)
 
 
 def _positive(v: Any) -> bool:
@@ -64,7 +75,7 @@ def _positive(v: Any) -> bool:
 
 
 def _name(item: dict[str, Any]) -> Any:
-    return item.get("employer_name") or item.get("payer") or item.get("owner")
+    return item.get("employer_name") or item.get("payer") or item.get("trustee") or item.get("issuer") or item.get("owner")
 
 
 def same(a: Any, b: Any) -> bool:
@@ -111,7 +122,7 @@ def satisfied(lst: str, field: str, value: Any) -> bool:
     if empty(value):
         return False
     if CODED.get(lst) == field:
-        return valid_code(value)
+        return valid_code(value, lst)
     if any(f == field for f, _ in IMPLIED.get(lst, ())):
         return _positive(value)
     return True
@@ -148,7 +159,9 @@ def missing_required(inputs: dict[str, Any], prov: dict[str, Any] | None = None,
             if code and not satisfied(key, code, item.get(code)):
                 add(key, j, item, code, "a valid code is required")
     for u in unreadable or []:
-        if isinstance(inputs.get(u["list"]), dict) or u.get("summed"):
+        # A single-valued group amount (a 1098 total, a prior-year return line) is judged on the group, whether or not
+        # the group is on the return yet: an unread amount is missing until a person enters it.
+        if isinstance(inputs.get(u["list"]), dict) or u.get("summed") or u.get("group"):
             path = f"{u['list']}.{u['field']}"
             p = (prov or {}).get(path)
             if empty((inputs.get(u["list"]) or {}).get(u["field"])) or (p is not None and p.get("source", "document") == "document"):

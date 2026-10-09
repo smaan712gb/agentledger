@@ -92,6 +92,13 @@ class State:
     facts: dict[str, Any]
     history: list[dict[str, Any]]
 
+    def to_dict(self, facts: tuple[str, ...] = ()) -> dict[str, Any]:
+        """A JSON-serializable view for command results: the status, the sequence and only the named facts. Facts are
+        opted in by name, so a result that leaves the store (to an orchestrator, over HTTP) carries ids and hashes and
+        never a value a person entered."""
+        return {"workflow_id": self.workflow_id, "kind": self.kind, "status": self.status, "seq": self.seq,
+                "facts": {k: self.facts[k] for k in facts if k in self.facts}}
+
 
 def _hash(prev: str, row: dict[str, Any]) -> str:
     return hashlib.sha256((prev + json.dumps(row, sort_keys=True, default=str)).encode()).hexdigest()
@@ -168,10 +175,12 @@ class Engine:
         return self.state(workflow_id)
 
     def activity(self, workflow_id: str, name: str, key: str, fn: Callable[[], dict[str, Any]], actor: str = "system",
-                 reconcile: Callable[[], dict[str, Any] | None] | None = None) -> dict[str, Any]:
+                 reconcile: Callable[[], dict[str, Any] | None] | None = None,
+                 started: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run an external side effect at most once per idempotency key, safe across crashes.
 
-        Phase 1 durably records that the action is starting; phase 2 records its result. On a retry:
+        Phase 1 durably records that the action is starting (with the `started` facts, for example the submission id
+        the provider will be asked about if the answer is lost); phase 2 records its result. On a retry:
         - result recorded: return it (nothing runs);
         - started but no result (the crash window): ask `reconcile()` (the provider, by idempotency key). A result
           means it happened, so record and return it; None means the provider never received it, so it is safe to run.
@@ -194,7 +203,8 @@ class Engine:
                                                                       "reconciled": True}, actor, idempotency_key=done_key)
                 return found
         else:
-            self._append(workflow_id, kind, f"activity_started:{name}", {"facts": {}}, actor, idempotency_key=start_key)
+            self._append(workflow_id, kind, f"activity_started:{name}", {"facts": dict(started or {})}, actor,
+                         idempotency_key=start_key)
         result = fn()
         self._append(workflow_id, kind, f"activity:{name}", {"result": result, "facts": result.get("facts", {})}, actor,
                      idempotency_key=done_key)

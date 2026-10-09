@@ -141,16 +141,39 @@ CREATE TRIGGER IF NOT EXISTS tax_return_versions_no_update BEFORE UPDATE ON tax_
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
 CREATE TRIGGER IF NOT EXISTS tax_return_versions_no_delete BEFORE DELETE ON tax_return_versions
 BEGIN SELECT RAISE(ABORT, 'append-only'); END;
+-- One row per electronic submission of a return to one jurisdiction (backlog F-08, returns/filing.py). The row
+-- mirrors the submission's own event stream (workflow_events keyed by the submission id), which is the record.
+CREATE TABLE IF NOT EXISTS filing_submissions (
+    id TEXT PRIMARY KEY,
+    return_id TEXT NOT NULL REFERENCES tax_returns(id),
+    jurisdiction TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('original', 'retransmission')),
+    supersedes TEXT REFERENCES filing_submissions(id),
+    linked_to TEXT REFERENCES filing_submissions(id),
+    package_hash TEXT NOT NULL,
+    attempt INTEGER NOT NULL DEFAULT 1,
+    planned_submission_id TEXT,
+    provider_submission_id TEXT,
+    status TEXT NOT NULL,
+    ack_payload TEXT,
+    rejection_codes TEXT NOT NULL DEFAULT '[]',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS filing_submissions_return ON filing_submissions (return_id, jurisdiction);
+CREATE UNIQUE INDEX IF NOT EXISTS filing_submissions_planned ON filing_submissions (planned_submission_id)
+    WHERE planned_submission_id IS NOT NULL;
 """
 
 CPA = ("cpa",)
-ENGINE_VERSION = "1040-2026.1"
+ENGINE_VERSION = "1040-2026.2"
 USES_INDEXED = "return_document_uses_indexed"
 
 
 # The filed documents that feed an individual return: each one must be on the return or accounted for by a person.
 TAX_FORMS = ("W-2", "1099-NEC", "1099-MISC", "1099-K", "1099-INT", "1099-DIV", "1099-B", "1099-R", "1098", "1095", "K-1",
-             "SSA-1099", "1099-G", "1098-E", "1098-T")
+             "SSA-1099", "1099-G", "1098-E", "1098-T", "1099-SA", "5498", "5498-SA", "1095-A", "Prior-year return")
 
 
 def _blockers(c: dict[str, Any]) -> list[str]:
@@ -221,7 +244,26 @@ def _g_signed(st: State, c: dict[str, Any]) -> list[str]:
 
 
 def _g_transmit(st: State, c: dict[str, Any]) -> list[str]:
-    return [] if c.get("efile_ready") else ["e-file is not enabled for this firm (EFIN, ETIN and ATS approval required)"]
+    out = [] if c.get("efile_ready") else ["e-file is not enabled for this firm (EFIN, ETIN and ATS approval required)"]
+    if c.get("role") == "system" and st.status != "release_approved":
+        out.append("the workflow transmits only a return whose release a CPA approved")
+    return out
+
+
+def _g_release(st: State, c: dict[str, Any]) -> list[str]:
+    """Approving the release re-runs every filing check: the signature is bound to the approved package, the current
+    return is that package, e-file is enabled, nothing blocks, and every jurisdiction named is cleared for filing."""
+    out = []
+    if not st.facts.get("signed_hash") or st.facts.get("signed_hash") != st.facts.get("approved_hash"):
+        out.append("no valid signature is bound to the approved package")
+    if c.get("package_hash") != st.facts.get("approved_hash"):
+        out.append("the current return is not the approved and signed package")
+    if not c.get("jurisdictions"):
+        out.append("name at least one jurisdiction to file in (US-FED, US-XX)")
+    out += _g_transmit(st, {"efile_ready": c.get("efile_ready")})
+    for b in c.get("filing_blockers") or []:
+        out.append(f"coverage does not allow filing: {b['form']} is {b['status']}" + (f" ({b['jurisdiction']})" if b.get("jurisdiction") else ""))
+    return out + _blockers(c)
 
 
 def _g_void(st: State, c: dict[str, Any]) -> list[str]:
@@ -247,10 +289,18 @@ def _g_paper_filed(st: State, c: dict[str, Any]) -> list[str]:
     return out + _blockers(c)
 
 
-REVIEWABLE = ("in_review", "approved", "awaiting_signature", "signed")
+REVIEWABLE = ("in_review", "approved", "awaiting_signature", "signed", "release_approved")
+# Statuses whose package is bound to a hash a person approved (an edit or a recomputation that changes it reopens).
+HASH_BOUND = ("approved", "awaiting_signature", "signed", "release_approved")
 # A filed (or possibly filed) return is evidence of what was sent. It is never recomputed or edited in place:
 # a what-if goes through recalculation_preview, and a change goes through an amendment case.
 FROZEN = ("transmitted", "accepted", "paper_filed", "unknown", "rejected", "void")
+# Who transmits (backlog F-08). A CPA may transmit a signed return directly: that act approves the release, and is
+# recorded as such (facts release_approved_by/at). The workflow ("system") transmits only after a CPA approved the
+# release (status release_approved), and only the package whose hash that approval named. Neither path bypasses the
+# other: both run the same guards in Returns.transmit, and the two-phase activity on the return's stream keeps the
+# transmission to one send whoever starts it.
+TRANSMITTERS = ("cpa", "system")
 RETURN_1040 = Definition(
     kind="return_1040",
     initial="preparing",
@@ -260,23 +310,26 @@ RETURN_1040 = Definition(
         Transition("approve", ("in_review",), "approved", _g_approve, roles=CPA),
         Transition("request_signature", ("approved",), "awaiting_signature", _g_request_signature, roles=CPA),
         Transition("signed", ("awaiting_signature",), "signed", _g_signed),
-        Transition("transmit", ("signed",), "transmitted", _g_transmit, roles=CPA),
+        # The release: a CPA decides that the signed package goes to the named jurisdictions; the workflow then
+        # transmits each submission. Separate from approving the return (the numbers) and from the signature.
+        Transition("approve_release", ("signed",), "release_approved", _g_release, roles=CPA),
+        Transition("transmit", ("signed", "release_approved"), "transmitted", _g_transmit, roles=TRANSMITTERS),
         Transition("ack_accepted", ("transmitted",), "accepted"),
         Transition("ack_rejected", ("transmitted",), "rejected"),
         Transition("correct", ("rejected",), "preparing", roles=CPA),
-        Transition("mark_paper_filed", ("signed",), "paper_filed", _g_paper_filed, roles=CPA),
+        Transition("mark_paper_filed", ("signed", "release_approved"), "paper_filed", _g_paper_filed, roles=CPA),
         Transition("reopen", REVIEWABLE, "preparing"),
         # A return that will not be filed through AgentLedger: abandoned, or filed with other software (that filing is
         # recorded as a tax-year event). Its documents stop waiting for it; the year still needs a filing on record.
-        Transition("void", ("preparing", "in_review", "approved", "awaiting_signature", "signed", "rejected"), "void",
-                   _g_void, roles=CPA),
+        Transition("void", ("preparing", "in_review", "approved", "awaiting_signature", "signed", "release_approved", "rejected"),
+                   "void", _g_void, roles=CPA),
         # A transmission whose outcome is unknown (timeout, crash after sending) is reconciled, never blindly resent.
-        Transition("outcome_unknown", ("signed",), "unknown"),
+        Transition("outcome_unknown", ("signed", "release_approved"), "unknown"),
         Transition("reconciled_submitted", ("unknown",), "transmitted"),
         Transition("reconciled_not_submitted", ("unknown",), "signed"),
     ],
     waiting={"awaiting_signature": "taxpayer signature on Form 8879", "transmitted": "IRS acknowledgement",
-             "unknown": "reconciliation with the transmitter",
+             "unknown": "reconciliation with the transmitter", "release_approved": "transmission by the workflow",
              "in_review": "reviewer", "approved": "signature request"},
 )
 
@@ -328,7 +381,10 @@ def relied_on(inputs: dict[str, Any], provenance: dict[str, Any]) -> set[str]:
 # it comes from stay open until this year's return is closed. tests keep this list in step with the model.
 CARRYOVER_INPUTS = frozenset({"capital_loss_carryover_short", "capital_loss_carryover_long", "charity_carryover",
                               "qbi_loss_carryforward", "reit_ptp_loss_carryforward", "prior_year_unallowed_loss",
-                              "prior_year_overpayment_applied"})
+                              "prior_year_overpayment_applied",
+                              # the prior-year group (model.PriorYear) and the Form 8880 testing-period distributions
+                              "prior_year", "ftc_carryovers", "carryover", "nonrecaptured_loss", "traditional_ira_basis",
+                              "roth_ira_basis", "testing_period_distributions"})
 NOL_LINES = frozenset({"8a", "a"})        # Schedule 1 line 8a, the net operating loss deduction (other_income)
 
 
@@ -431,7 +487,10 @@ class Returns:
         cols = set() if is_pg(conn) else {r[1] for r in conn.execute("PRAGMA table_info(tax_returns)")}
         if not is_pg(conn) and "amends" not in cols:  # databases created before amendments existed
             conn.execute("ALTER TABLE tax_returns ADD COLUMN amends TEXT REFERENCES tax_returns(id)")
-        self.wf = Engine(conn, {"return_1040": RETURN_1040})
+        from .filing import SUBMISSION
+
+        # One engine for the return's stream and for its submissions' streams (returns/filing.py).
+        self.wf = Engine(conn, {"return_1040": RETURN_1040, SUBMISSION.kind: SUBMISSION})
         self._backfill_uses()
 
     def _backfill_uses(self) -> None:
@@ -567,7 +626,7 @@ class Returns:
             facts.check_identities(cur["inputs"], cur["provenance"], inputs)
         st = self.wf.state(rid)
         if st.status in REVIEWABLE:
-            self.wf.send(rid, "reopen", actor, note=f"inputs changed while {st.status}")
+            self._reopen(rid, actor, f"inputs changed while {st.status}")
         elif st.status not in ("preparing",):
             raise TransitionError(f"a return that is {st.status} cannot be edited")
         if provenance is None:      # a person's edit: changed document values become the preparer's, on record
@@ -775,7 +834,7 @@ class Returns:
         audit.record(self.conn, actor, "cpa", "return.document_accounted_for",
                      {"return_id": rid, "document_id": document_id, "disposition": disposition}, client_id=r["client_id"])
         if st.status in REVIEWABLE:
-            self.wf.send(rid, "reopen", actor, note=f"document {document_id} accounted for while {st.status}")
+            self._reopen(rid, actor, f"document {document_id} accounted for while {st.status}")
         return self.dispositions(rid)
 
     def confirm(self, rid: str, paths: list[str] | None, actor: str) -> int:
@@ -846,11 +905,20 @@ class Returns:
                 cc = {"status": "unavailable"}
         self._save(rid, cur["inputs"], cur["provenance"], actor, "computed", result=result, crosscheck=cc)
         st = self.wf.state(rid)
-        bound = st.facts.get("approved_hash") if st.status in ("approved", "awaiting_signature", "signed") else st.facts.get("review_hash")
+        bound = st.facts.get("approved_hash") if st.status in HASH_BOUND else st.facts.get("review_hash")
         if st.status in REVIEWABLE and bound and package_hash(cur["inputs"], result, cur["provenance"], self.dispositions(rid)) != bound:
-            self.wf.send(rid, "reopen", actor, note="recomputed return differs from the reviewed/approved package "
-                                                    "(rules, engine or results changed); review and signature are void")
+            self._reopen(rid, actor, "recomputed return differs from the reviewed/approved package "
+                                     "(rules, engine or results changed); review and signature are void")
         return result
+
+    def _reopen(self, rid: str, actor: str, note: str) -> None:
+        """Back to preparation: review, approval, signature and release are void, and submissions planned under the
+        release will not be transmitted."""
+        from .filing import Filing
+
+        with unit_of_work(self.conn):
+            self.wf.send(rid, "reopen", actor, note=note)
+            Filing(self).cancel_queued(rid, actor, f"the return was reopened: {note}")
 
     def _coverage(self, forms: list[str], year: int) -> dict[str, Any]:
         root = Path(self.kb.root).parent if getattr(self.kb, "root", None) else None
@@ -919,45 +987,82 @@ class Returns:
                             facts={"signature_method": method, "kba_transaction_id": kba_transaction_id,
                                    "signers": signers or [], "signed_hash": return_hash})
 
+    def _blockers_now(self, rid: str) -> list[str]:
+        """Every review blocker as things stand now (re-run at each filing gate)."""
+        return _blockers(self._review_context(rid, True))
+
+    def filing_blockers(self, rid: str, jurisdictions: list[str]) -> list[dict[str, Any]]:
+        """What the coverage registry says against filing in each jurisdiction: federally, the return's forms and the
+        MeF channel (as computed and pinned with the return); for a state, that state's capability."""
+        from .. import coverage
+        from .filing import FEDERAL, coverage_id
+
+        result = self.latest(rid)["result"] or {}
+        year = self.get(rid)["tax_year"]
+        out: list[dict[str, Any]] = []
+        for j in jurisdictions:
+            if j == FEDERAL:
+                blockers = (result.get("coverage") or {}).get("filing_blockers")
+                if blockers is None:
+                    blockers = self._coverage(list(result.get("forms", {})), year)["filing_blockers"]
+                out += [{**b, "jurisdiction": FEDERAL} for b in blockers]
+            else:
+                c = coverage.lookup(coverage_id(j), year, jurisdiction=j)
+                if coverage.RANK[c["status"]] < coverage.RANK["filing-approved"]:
+                    out.append({"form": c["id"], "status": c["status"], "need": "filing-approved", "limits": c.get("limits", []),
+                                "jurisdiction": j})
+        return out
+
+    def approve_release(self, rid: str, actor: str, role: str, *, efile_ready: bool, jurisdictions: list[str] | None = None) -> State:
+        """A CPA releases the signed package for electronic filing in the named jurisdictions (US-FED alone by
+        default). Every filing check runs now, per jurisdiction; the workflow then transmits each submission
+        (returns/filing.py). Approving the return, the taxpayer's signature and this release are three decisions."""
+        from .filing import FEDERAL, Filing, jurisdictions_of
+
+        where = jurisdictions_of(jurisdictions)
+        with unit_of_work(self.conn):
+            ctx = {**self._review_context(rid, True), "efile_ready": efile_ready, "jurisdictions": where,
+                   "filing_blockers": self.filing_blockers(rid, where)}
+            h = ctx["package_hash"]
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            # Today every jurisdiction files the whole package; per-state packages and their hashes arrive with T1-05.
+            st = self.wf.send(rid, "approve_release", actor, role=role, context=ctx,
+                              facts={"release_approved_by": actor, "release_approved_at": now, "release_hash": h,
+                                     "release_efile_ready": bool(efile_ready),
+                                     "submissions": {"jurisdictions": where, "hashes": {j: h for j in where}}})
+            subs = Filing(self).plan(rid, actor, where, h)
+            audit.record(self.conn, actor, role, "return.release_approved",
+                         {"return_id": rid, "jurisdictions": where, "release_hash": h, "submissions": subs,
+                          "federal": next((s for s, j in zip(subs, where) if j == FEDERAL), None)}, client_id=self.get(rid)["client_id"])
+        return st
+
     def transmit(self, rid: str, actor: str, role: str, *, efile_ready: bool, submit, lookup=None) -> State:
         """Transmit the approved package at most once.
 
         `submit(idempotency_key)` sends it; `lookup(idempotency_key)` asks the transmitter whether that key was
         already received (returns the result dict, or None if not). If a previous attempt started but its outcome
         was never recorded, we reconcile through `lookup` instead of sending again; without `lookup` the return
-        moves to `unknown` for a person to reconcile."""
-        from ..workflow.engine import UncertainOutcome
+        moves to `unknown` for a person to reconcile.
 
-        st = self.wf.state(rid)
-        # Every check runs before anything leaves the system.
-        reasons = []
-        if st.status != "signed":
-            reasons.append(f"only a signed return can be transmitted (this one is {st.status})")
-        if role != "cpa":
-            reasons.append("transmission needs a credentialed reviewer (CPA)")
-        if not st.facts.get("signed_hash") or st.facts.get("signed_hash") != st.facts.get("approved_hash"):
-            reasons.append("no valid signature is bound to the approved package")
-        reasons += _g_transmit(st, {"efile_ready": efile_ready})
-        reasons += _blockers(self._review_context(rid, True))
-        if self.current_package_hash(rid) != st.facts.get("approved_hash"):
-            reasons.append("the current return is not the approved and signed package")
-        result = self.latest(rid)["result"] or {}
-        blockers = (result.get("coverage") or {}).get("filing_blockers")
-        if blockers is None:
-            blockers = self._coverage(list(result.get("forms", {})), self.get(rid)["tax_year"])["filing_blockers"]
-        if blockers:
-            reasons.append("coverage does not allow filing: " + ", ".join(f"{b['form']} is {b['status']}" for b in blockers))
-        if reasons:
-            raise TransitionError("; ".join(reasons))
-        key = f"{rid}:{st.facts['approved_hash'][:16]}"
-        try:
-            result = self.wf.activity(rid, "transmit", st.facts["approved_hash"], lambda: submit(key), actor=actor,
-                                      reconcile=(lambda: lookup(key)) if lookup else None)
-        except UncertainOutcome as e:
-            self.wf.send(rid, "outcome_unknown", actor, note=str(e))
-            raise
-        return self.wf.send(rid, "transmit", actor, role=role, context={"efile_ready": efile_ready},
-                            facts={"submission_id": result.get("submission_id"), "idempotency_key": key})
+        Two roles may call this, and neither bypasses the other (see TRANSMITTERS): a CPA transmits a signed return
+        directly, which approves the release in the same act and is recorded as such; the workflow ("system")
+        transmits only after a CPA approved the release, and only that package. Every check runs before anything
+        leaves the system; the federal submission row and stream are written with the return's events."""
+        from .filing import Filing
+
+        return Filing(self).transmit_return(rid, actor, role, efile_ready=efile_ready, send=submit, lookup=lookup)
+
+    def filing_summary(self, rid: str) -> dict[str, Any]:
+        """The release and every submission of the return, and whether all required ones are accepted."""
+        from .filing import Filing
+
+        return Filing(self).summary(rid)
+
+    def retransmit(self, sub_id: str, actor: str, role: str) -> dict[str, Any]:
+        """A CPA replaces a rejected state submission with a retransmission (returns/filing.py)."""
+        from .filing import Filing
+
+        return Filing(self).retransmit(sub_id, actor, role)
 
     def _transmission_started(self, rid: str) -> bool:
         events = [h.get("event") for h in self.wf.state(rid).history]
@@ -968,19 +1073,29 @@ class Returns:
     def void(self, rid: str, actor: str, role: str, note: str) -> State:
         """A CPA voids a return that will not be filed through AgentLedger (abandoned, or filed elsewhere: record that
         filing with evidence.records.record_tax_event). Irreversible; an amendment or a new return starts afresh."""
-        return self.wf.send(rid, "void", actor, role=role, note=note,
-                            context={"note": note, "transmission_started": self._transmission_started(rid)})
+        from .filing import Filing
+
+        with unit_of_work(self.conn):
+            st = self.wf.send(rid, "void", actor, role=role, note=note,
+                              context={"note": note, "transmission_started": self._transmission_started(rid)})
+            Filing(self).cancel_queued(rid, actor, "the return was voided")
+        return st
 
     def mark_paper_filed(self, rid: str, actor: str, role: str, note: str) -> State:
         """A CPA records that the signed return was filed on paper, how and when (every filing check runs first)."""
+        from .filing import Filing
+
         ctx = {**self._review_context(rid, True), "note": note, "transmission_started": self._transmission_started(rid)}
-        return self.wf.send(rid, "mark_paper_filed", actor, role=role, context=ctx, note=note)
+        with unit_of_work(self.conn):
+            st = self.wf.send(rid, "mark_paper_filed", actor, role=role, context=ctx, note=note)
+            Filing(self).cancel_queued(rid, actor, "the return was filed on paper")
+        return st
 
     def reconcile_transmission(self, rid: str, actor: str, role: str, *, submitted: bool, submission_id: str = "",
                                evidence: str = "") -> State:
-        """A person confirms with the transmitter what happened to an attempt whose outcome was unknown."""
-        if role != "cpa":
-            raise TransitionError("reconciling a transmission needs a CPA")
-        if submitted:
-            return self.wf.send(rid, "reconciled_submitted", actor, note=evidence, facts={"submission_id": submission_id})
-        return self.wf.send(rid, "reconciled_not_submitted", actor, note=evidence)
+        """A person confirms with the transmitter what happened to an attempt whose outcome was unknown (the federal
+        submission row, when there is one, moves with the return)."""
+        from .filing import Filing
+
+        return Filing(self).reconcile_return(rid, actor, role, submitted=submitted, provider_submission_id=submission_id,
+                                             evidence=evidence)
