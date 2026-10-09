@@ -16,6 +16,9 @@ const SCREENS: { path: string; me: Me | null; heading: RegExp }[] = [
   { path: "/clients/ortiz-auto/documents", me: fx.firmAdmin, heading: /^Ortiz Auto$/ },
   { path: "/clients/ortiz-auto/documents/doc_1", me: fx.firmAdmin, heading: /^Ortiz Auto$/ },
   { path: "/clients/ortiz-auto/profile", me: fx.firmAdmin, heading: /^Ortiz Auto$/ },
+  { path: "/clients/ortiz-auto/returns", me: fx.firmAdmin, heading: /^Ortiz Auto$/ },
+  { path: "/returns/ret_1", me: fx.cpa, heading: /^Form 1040 · 2026$/ },
+  { path: "/returns/ret_1/review", me: fx.cpa, heading: /^Form 1040 · 2026$/ },
   { path: "/inbox", me: fx.firmAdmin, heading: /^Intake inbox$/ },
   { path: "/team", me: fx.cpa, heading: /^Team & access$/ },
   { path: "/platform/firms", me: fx.platformAdmin, heading: /^Firms$/ },
@@ -28,6 +31,12 @@ describe.each(SCREENS)("$path", ({ path, me, heading }) => {
     await screen.findByRole("heading", { level: 1, name: heading });
     if (path.includes("ortiz-auto")) await screen.findByTestId("context-basis");
     if (path === "/team") await screen.findByText("Lee Park");
+    if (path === "/clients/ortiz-auto/returns") await screen.findByRole("link", { name: /Form 1040 · 2026/ });
+    if (path === "/returns/ret_1") await screen.findByRole("list", { name: "Blocking checklist" });
+    if (path === "/returns/ret_1/review") {
+      await screen.findByTestId("inputs-editor");
+      await screen.findByRole("list", { name: "Open conflicts" });
+    }
     const results = await axe(container, { rules: { "color-contrast": { enabled: false } } });
     expect(results).toHaveNoViolations();
   });

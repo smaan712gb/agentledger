@@ -1,9 +1,11 @@
 # The web app (apps/web) and the API contract (packages/contracts)
 
 Backlog F-10, slice 1: the React application shell with sign-in, the firm workspace, clients with documents, the
-intake inbox and the team screen. This document is the working notes for the people who continue it: the layout,
-how to run and test it, what the API has to change next, what to wire at integration (Cloudflare, CI), the
-decisions taken and the open risks. ADR-0005 holds the architecture decision; this is the operating manual.
+intake inbox and the team screen. Slice 2 (section 10): the return workspace, with the inputs editor generated from
+the return model, the document beside the field, conflicts, fact history and dispositions. This document is the working
+notes for the people who continue it: the layout, how to run and test it, what the API has to change next, what to wire
+at integration (Cloudflare, CI), the decisions taken and the open risks. ADR-0005 holds the architecture decision; this
+is the operating manual.
 
 ## 1. Layout
 
@@ -26,11 +28,19 @@ apps/web/                    the app: Vite 7 + React 19 + TypeScript 5.9 (strict
                              (TanStack Table + Virtual); ui/states: every required state and QueryBoundary
   src/routes/                file-based routes (TanStack Router); routeTree.gen.ts is generated and committed
   src/screens/               one component per screen; RouteError maps thrown errors to states
+  src/screens/returns/       slice 2: the returns list, the return layout (context strip, Status | Review tabs), the
+                             status screen (actions, checklist, cross-check, filing, history), the review screen, the
+                             pure helpers (returnState.ts) and editor/ (the generated inputs editor: schema.ts,
+                             labels.ts, rules.ts, paths.ts, InputsEditor, ProvenanceChip, ConflictsPanel, FactHistory,
+                             DispositionsPanel, DocumentViewer)
   src/queries/               query keys and queryOptions factories
   src/styles/                tokens.css (design tokens, dark, high contrast, reduced motion), base.css
   src/test/                  Vitest setup, MSW fixtures/handlers typed from the contract, renderApp, the states
                              contract test, the axe smoke test, interaction flows
   e2e/                       Playwright: servers.mjs (launcher), seed.py (platform seed), helpers.ts, *.spec.ts
+  e2e/fixtures/              two synthetic W-2 PDFs with a text layer, fixtures.json (the extraction answers the API's
+                             fixture router gives for them, keyed by the file's SHA-256) and make-fixtures.mjs, which
+                             writes both deterministically
   .size-limit.js             the 250 kB gzip budget, computed from Vite's manifest (entry + static imports)
   public/_headers            response headers the edge adds to the static assets (frame-ancestors, nosniff,
                              referrer policy, immutable caching of /assets); the page's CSP stays in the meta tag
@@ -39,18 +49,22 @@ packages/contracts/          the contract: openapi.json (written by scripts/expo
                              generated schemas the app uses; hand-written only for what the API does not declare),
                              src/client.ts (fetch layer with the session, step-up and error rules), src/endpoints.ts
                              (typed functions per route), scripts/generate.mjs, check.mjs (+ render.mjs),
-                             snapshot.mjs (from a running server; superseded by the export script)
+                             snapshot.mjs (from a running server; superseded by the export script),
+                             src/return-schema.json (IndividualReturn.model_json_schema(), written by
+                             scripts/return-schema.mjs; the inputs editor is generated from it; --check is its gate)
 src/agentledger/api/schemas.py  the API's request and response models (pydantic v2): the source of openapi.json
+src/agentledger/ai/fixtures.py  scripted document-extraction answers for the local demo and the e2e run (section 10)
 scripts/export_openapi.py    writes openapi.json from the application without a server; --check is the drift gate
 .github/workflows/web.yml    the web job, a reusable workflow called by release.yml (push to main) and ci.yml (PRs)
 docs/WEB.md                  this file
 ```
 
-Routes in this slice: `/sign-in`, `/sign-in/verify`, `/accept/$token`, `/` (dispatch by role), `/clients`,
+Routes in slice 1: `/sign-in`, `/sign-in/verify`, `/accept/$token`, `/` (dispatch by role), `/clients`,
 `/clients/new`, `/clients/$clientId` (overview), `/clients/$clientId/documents`,
 `/clients/$clientId/documents/$docId`, `/clients/$clientId/profile`, `/inbox`, `/team`, `/platform/firms`,
-`/portal`. The previous interface stays reachable at `/legacy#/...` (the API serves it at `/legacy` and still at `/`
-on its own port; at the edge the app owns `/`).
+`/portal`. Slice 2 adds `/clients/$clientId/returns`, `/returns/$rid` and `/returns/$rid/review` (section 10). The
+previous interface stays reachable at `/legacy#/...` (the API serves it at `/legacy` and still at `/` on its own port;
+at the edge the app owns `/`).
 
 ## 2. How to run
 
@@ -65,7 +79,9 @@ npm run -w apps/web dev                  # Vite on http://127.0.0.1:5173, proxyi
 The dev server expects an API. For real multi-firm behaviour start one in non-dev mode (set
 `AGENTLEDGER_MASTER_KEY`, `AGENTLEDGER_ALLOW_SQLITE=1` for a local SQLite trial, `AGENTLEDGER_IDENTITY=local`):
 `.venv/Scripts/python.exe -m agentledger.cli serve --port 8740 --no-agents`. `--dev` (demo identities, no
-sign-in) also works with the app for browsing screens, but the sign-in flows need the real mode.
+sign-in) also works with the app for browsing screens, but the sign-in flows need the real mode. To see a return fill
+itself from documents without a model, add `AGENTLEDGER_AI_FIXTURES=apps/web/e2e/fixtures` (honoured only with `--dev`
+or `AGENTLEDGER_E2E=1`; section 10) and upload the two PDFs in that directory.
 
 Checks (all run in CI's `web` job, section 5):
 
@@ -80,6 +96,8 @@ npm run -w apps/web e2e                  # Playwright (starts the API and vite p
 npm run -w packages/contracts test       # the fetch layer's rules (9 tests)
 npm run -w packages/contracts typecheck
 npm run -w packages/contracts check      # schema.d.ts is what openapi.json generates
+npm run -w packages/contracts return-schema         # src/return-schema.json from IndividualReturn (needs Python)
+npm run -w packages/contracts return-schema:check   # the drift gate for it (CI runs it next to the OpenAPI gate)
 ```
 
 The contract drift gate (CI runs exactly this; run it after any change to `src/agentledger/api/`):
@@ -107,7 +125,9 @@ git diff --exit-code packages/contracts              # anything to commit means 
    suite's environment pins: `AGENTLEDGER_DATABASE=sqlite`, `AGENTLEDGER_ALLOW_SQLITE=1`, `AGENTLEDGER_IDENTITY=local`,
    `AGENTLEDGER_BLOBS=file`, `AGENTLEDGER_OLLAMA_URL=http://127.0.0.1:9`, `AGENTLEDGER_AGENTS=0`, a random
    `AGENTLEDGER_MASTER_KEY`; `AGENTLEDGER_DEV_AUTH` removed; bucket, WorkOS and database URLs blanked so nothing
-   from a developer's `.env` is reached (`.env` is never read: the home is the temp directory).
+   from a developer's `.env` is reached (`.env` is never read: the home is the temp directory). Slice 2 adds
+   `AGENTLEDGER_E2E=1` and `AGENTLEDGER_AI_FIXTURES=<apps/web/e2e/fixtures>`: document extraction is answered from the
+   fixtures, never by a model (section 10).
 4. `vite build` (`E2E_SKIP_BUILD=1` reuses `dist/`) and `vite preview` on 4173 (`E2E_WEB_PORT`), proxying to the
    API (`E2E_API_PORT`, 8740). Python: the repository's `.venv` (`E2E_PYTHON` overrides).
 
@@ -126,11 +146,20 @@ Specs: `signin` (enrolment with QR and manual key, wrong code, lockout after fiv
 creates a firm through the step-up dialog, gets the invite link; 403 on client data), `clients` (create, context
 bar, period in the URL, basis via Profile, search, forced error/forbidden/unreachable states), `documents`
 (multi-file upload with a recognised form and an unreadable binary -> partial success; download through a signed
-link as an attachment; versions; inbox filing), `keyboard` (sign in and reach a client's documents keyboard-only,
-skip link, focus on route change), `fragments` (`#signin_error`, legacy `#/accept/<token>`, `#step_up=ok`,
-`#link=ok`, a bad `#session=`). `@axe-core/playwright` runs on every page after load and in the forced states,
-tags wcag2a, wcag2aa, wcag21aa, wcag22aa; serious and critical findings fail, the rest are printed. Projects:
-`chromium-desktop` (all specs) and `chromium-mobile` (Pixel 7, the sign-in spec).
+link as an attachment; versions; inbox filing), `keyboard` (sign in and reach a client's documents, then its return
+and the review screen's first input, keyboard-only; skip link, focus on route change), `fragments` (`#signin_error`,
+legacy `#/accept/<token>`, `#step_up=ok`, `#link=ok`, a bad `#session=`), `return-review` (slice 2, section 10: the
+seeded firm administrator `ravi` invites two CPAs through the API's invite flow; the preparer uploads the two fixture
+W-2s, creates the 2026 Form 1040 without the SSN and reads the engine's `taxpayer_ssn_missing` on the checklist,
+populates, opens the document beside the field from a provenance chip (the signed inline link is fetched and must
+answer `inline`, `application/pdf`, `sandbox`), edits over the document's wages, saves, populates again, resolves the
+conflict by taking the document's value, confirms, computes and submits; the submitter's Approve is disabled with the
+segregation reason; the reviewer approves through a forced step-up and requests the signature; the review screen is
+then Frozen with the unlock path; a forced 409 on compute renders each reason, and a rewritten GET makes the status
+`unknown` to show the reconciliation form; axe on every page and forced state). `@axe-core/playwright` runs on every
+page after load and in the forced states, tags wcag2a, wcag2aa, wcag21aa, wcag22aa; serious and critical findings
+fail, the rest are printed. Projects: `chromium-desktop` (all specs) and `chromium-mobile` (Pixel 7, the sign-in
+spec). The return-review spec sets its own timeout (300 s): every sign-in and the step-up spend a 30-second TOTP step.
 
 Results of the local run are in the hand-off report (see section 9 for the exact counts of the last run).
 
@@ -180,6 +209,44 @@ still open.
    profile screen sends `null` for a blanked recorded fact; `POST /api/clients` validates `id` against the database's
    rule (`^[a-z0-9][a-z0-9_-]{0,63}$`, a 422 naming the field) and answers 409 for a duplicate; the app's own rule
    was changed to the same (it allowed dots, which PostgreSQL refuses, and required two characters).
+
+What slice 2 (the return workspace, section 10) needs from the API. Every return route still takes and answers
+`dict[str, Any]`; the shapes are hand-typed in `packages/contracts/src/types.ts` from `returns/store.py`,
+`returns/facts.py`, `returns/filing.py` and `workflow/engine.py`, and move into `schema.d.ts` once the API declares
+them:
+
+9. **Return models in `api/schemas.py`**: `ReturnRow`, `ReturnListItem` (`GET /api/clients/{id}/returns`),
+   `CreateReturnRequest {tax_year, inputs?}` with `inputs: IndividualReturn` (which also puts the model into
+   openapi.json, so `return-schema.json` and its separate drift gate can go), `ReturnDetail` (`GET /api/returns/{rid}`:
+   `return, version, status, history[WorkflowEvent], summary, allowed[event], waiting_on, crosscheck, filing`, plus
+   `inputs, provenance, result` for firm staff and `forms` for a client; `response_model_exclude_unset`), `PUT
+   /api/returns/{rid}/inputs` as `IndividualReturn` -> `ReturnResult`, `PopulateResult`, `FactConflict`,
+   `ResolveConflictRequest {choice, note?}`, `FactAssertion` (`?path=`), `ConfirmRequest {paths?}`, `ComputeRequest
+   {crosscheck}`, `RecalculationPreview`, `DispositionRequest {disposition, note}` -> `list[Disposition]`,
+   `VoidRequest {note}`, and one request model per `{action}` (`submit {explanation}`, `request-changes {note}`,
+   `release-approve {jurisdictions}`, `reconcile {submission?, submitted, submission_id?, evidence?}`, `retransmit
+   {submission_id}`) with `ReturnActionResult {status, history, filing?, submission?}`. `Provenance` should be declared
+   too (`source, document_id, box, value, confirmed, confirmed_by, documents[], edited_by, previous_document,
+   previous_value, previous_source, resolved_by, return_id, version`), as should `ReturnDiagnostic` and `Crosscheck`.
+10. **`GET /api/documents/{id}`**: one document (the row the list carries, including `original_name` and `media_type`),
+    so the document viewer can name and type a document whose id it only knows from provenance, and the document page
+    stops saying "not among the 100 most recent" (item 5). Today the viewer learns the type from the inline route's
+    response headers and looks the name up in the client's first page of documents.
+11. **`GET /api/returns/{rid}/dispositions`**: the API lists dispositions only in its answer to `POST .../disposition`,
+    so the app knows the ones recorded in the session and cannot show earlier ones; the "not on the return" check
+    therefore lists a document a colleague accounted for yesterday.
+12. **`GET /api/returns/{rid}/checks`** (the `_review_context` and `_blockers` of `returns/store.py`): the checklist on
+    the status page is derived in the app from `result.diagnostics`, the coverage, the open conflicts, the provenance
+    (unconfirmed amounts), the never-zero rule mirrored from `facts.py` (`editor/rules.ts`) and the client's documents;
+    the API's own list, with codes, would make it exact (drift, unreadable boxes, dispositions) and the app's copy of
+    `REQUIRED`/`IMPLIED`/`CODED` and `TAX_FORMS` unnecessary. The 409 text of a refused transition is shown verbatim
+    meanwhile.
+13. **A `correct` action** (`rejected -> preparing`): the workflow has the transition, the API has no route for it, so a
+    rejected return can only be voided from the app (the review screen says so).
+14. **`updated_at` (the last workflow event) on the returns list**, for "last activity"; the list shows `created_at`.
+15. **Return-level engagement guard**: `requireFirmStaff` guards `/returns/*`, but the client of a return is known only
+    once it loads, so staff not engaged on that client get the API's 403 (rendered) rather than the route guard; a
+    `client_id` in the URL, or the return in the token's scope, would let the guard decide first.
 
 ## 5. Integration (done this round)
 
@@ -307,6 +374,14 @@ read. Live regions: toasts (`aria-live="polite"`; errors `role="alert"`), state 
   format and shows the API's text.
 - The e2e run creates data in a temporary home that the next run deletes; nothing touches `state/` or `tenants/`
   in the repository.
+- Slice 2: whether Chrome renders a PDF inside the sandboxed inline response (`Content-Security-Policy: sandbox`) is still
+  unverified by the e2e run: headless Chromium has no PDF viewer, so the spec asserts the frame, its signed `inline=1`
+  URL and the response headers, not pixels. The viewer always offers the download next to the frame.
+- Slice 2: the model gained `business_use_recaptures` and `dispositions` (a sibling's work in progress) after the
+  sections plan was written; the generated editor shows them under "Other inputs" until `editor/labels.ts` names a
+  section for them. Nothing is hidden; the test suite checks that every root field is placed.
+- Slice 2: the e2e run is longer (the return-review spec signs in three accounts and steps up once, each on its own
+  TOTP step) and the whole suite now takes about a minute; the spec's own timeout is 300 s.
 
 ## 9. Last local run (2026-10-09, after the API follow-up; Windows 11, Node 24, Python 3.13 venv; CI uses Node 22 / Python 3.12)
 
@@ -329,3 +404,112 @@ read. Live regions: toasts (`aria-live="polite"`; errors `role="alert"`), state 
 | `.github/workflows/{ci,web,release}.yml` | parse (`yaml.safe_load`); `staging` needs `[verify, minimum-versions, web]` |
 
 Re-running the suite against servers that are already up (`reuseExistingServer`) replays the data-changing specs on the same seed: the enrolment test finds its accounts enrolled and the lockout test finds them locked (15 minutes), so those four tests fail by design on a second run. `npm run -w apps/web e2e` always starts fresh servers with a fresh seed.
+
+### Slice 2 run (2026-10-09; same machine)
+
+| Check | Result |
+| --- | --- |
+| `npm run -w packages/contracts check` / `return-schema:check` / `typecheck` / `test` | schema.d.ts matches openapi.json (106 paths); return-schema.json matches `IndividualReturn.model_json_schema()`; ok; 9 tests passed |
+| `npm run -w apps/web lint` | eslint 0 errors (the one pre-existing `useReactTable` warning), prettier clean |
+| `npm run -w apps/web typecheck` | ok (app, e2e, configs) |
+| `npm run -w apps/web test` | 12 files, 211 tests passed (states contract 15 routes × up to 9 outcomes, axe smoke on 15 screens, the editor's schema mapping, return-state helpers, return flows) |
+| `npm run -w apps/web build` / `size` | ok; initial JavaScript 169.41 kB gzip of 250 kB (the review screen is a lazy chunk of 24 kB gzip carrying the editor, the viewer and the return schema); initial CSS 3.12 kB |
+| `npm run -w apps/web e2e` (fresh servers) | 18 passed, 0 failed (14 chromium-desktop, 4 chromium-mobile), 33.3 s; `return-review` 13.9 s, `keyboard` 10.7 s; axe 0 serious or critical findings (one serious target-size finding on the editor's section links was found by the first run and fixed) |
+| Python, SQLite: `tests/test_ai_fixtures.py tests/test_health_and_smoke.py` | 13 passed |
+| `ruff check src tests scripts`, `mypy` | clean (mypy: 62 files; `ai/router.py` carries the fixture hook) |
+
+## 10. Slice 2: the return workspace
+
+**Routes.** `/clients/$clientId/returns` lists the client's returns (form, tax year, status, version, outcome,
+created) and creates a Form 1040 for a tax year (tax year, filing status, the taxpayer's names, SSN and date of birth:
+what no document says; everything else is populated). `/returns/$rid` is the status page: the status with its meaning,
+the version, what the return is waiting on, the actions the status permits (store.py `RETURN_1040`), the preparation
+steps (populate, confirm, compute with or without the independent cross-check), the summary figures, the checklist of
+what stops the return from moving on (with stable codes: the engine's diagnostic codes, `coverage:<form>`,
+`not_computed`, `missing_amount`, `unconfirmed`, `orphaned_item`, `fact_conflict`, `unaccounted_document`,
+`crosscheck_differs`), the cross-check, the filing summary (release, one row per submission and jurisdiction, retransmit
+for a rejected state submission), the context (what it amends, why it is void, how it was filed on paper, the what-if
+recalculation preview on a filed return) and the workflow history. `/returns/$rid/review` is the editor beside the
+document: the generated inputs editor on the left; on the right the preparation steps, the selected field (its label,
+path, value, provenance in words and every value it has had, from `GET .../facts?path=<anchor>`), the document
+(opened through a signed link and `GET /api/documents/{id}/file?inline=1`: a PDF in a frame, a PNG or JPEG as an image,
+anything else offered as a download, with the box named since there are no coordinates), the open conflicts and the
+documents of the year with their dispositions. The layout carries the context strip (firm · entity · period · form)
+read from the return itself, and Status | Review tabs.
+
+**The editor is generated.** `packages/contracts/src/return-schema.json` is `IndividualReturn.model_json_schema()`
+in the model's field order, written by `npm run -w packages/contracts return-schema` (Python from `E2E_PYTHON`,
+`AGENTLEDGER_PYTHON`, the repository's `.venv`, or `python`) and gated by `return-schema:check` in CI. The model is not
+in openapi.json because `PUT /api/returns/{rid}/inputs` takes an untyped body (section 4, item 9); the export is the
+decision taken instead of fetching `/openapi.json` at run time, which would carry nothing. `editor/schema.ts` reads the
+schema into a field model: a Decimal (`anyOf [number, string]`) is money, typed and sent as a decimal string, never a
+float; `anyOf [..., null]` marks a field nullable, which the editor renders as "not stated (not 0)" when blank, distinct
+from a defaulted field ("blank = default 0") and from a required one; `$ref` is a nested group (a nullable group, the
+spouse or the prior year, starts as "not stated" with an Add button); `array` is a list of items with add and remove
+(an item from a document carries its `source_document` identity and says so; an item added here is "entered by hand";
+removing an item takes its identity with it, as `returns/facts.py` requires); `object` with `additionalProperties` is a
+keyed map (box 12 codes, Schedule 1 line 8 items; a Literal key becomes a select); dates, booleans (tri-state when
+nullable), enumerations and `date | Literal` all have their control. `editor/labels.ts` groups the root fields into
+sections (people, wages, interest and dividends, investments, retirement, health, other income, business, prior year,
+deductions, credits, payments); a field the plan does not name lands under "Other inputs", and a test checks every root
+field is placed, so a field the model gains appears in the editor once the schema is regenerated. `editor/rules.ts`
+mirrors `facts.REQUIRED`, `IMPLIED` and `CODED` so the engine's never-zero rule is visible at the field: a document
+item's required amount left blank reads "missing — never taken as 0"; the status checklist counts these as
+`missing_amount` with the open `missing:` conflicts. Provenance chips (`provenance[path]`) name the document and box
+(`BOX_LABELS` per input list), the preparer (with what the document said, when an edit replaced it), a resolution or the
+prior return; pressing one (or focusing the field) selects the field and opens the document beside it. Saving sends the
+whole inputs object (`PUT .../inputs`): a 422 maps pydantic's `loc` onto fields, a 400 (an identity or an unknown input,
+`InputRejected`) is shown as the form's error, a 409 (`TransitionError`) as the Conflict state with one line per
+reason; the API recomputes and the result's blocking diagnostics are counted in the toast.
+
+**Conflicts, dispositions, provenance.** The conflicts panel lists the open fact conflicts (`GET .../conflicts`):
+a disagreement shows what the return holds (and its source) against what the document says (document, box label) with
+"Take the document's value" and "Keep mine" (`POST .../conflicts/{id}` with `choice`); a `missing:` conflict (a
+required amount nobody entered) offers only "Keep: I entered it" and shows the API's refusal on the other button; an
+`orphan:` conflict (an item whose document left the return) needs a reason of ten characters to keep. The editor marks a
+field an open conflict names. The documents panel lists the filed tax forms of the year (and the prior year's filed
+return) as `store.py unaccounted_documents` sees them: on the return (relied on, including a document a preparer's edit
+replaced), accounted for, or not on the return, where a disposition (entered by hand, or not applicable, with a reason)
+is recorded through `POST .../documents/{id}/disposition`; the API answers with every disposition, which the session
+keeps (section 4, item 11). The engine's conflict path is a fact: two W-2 documents never conflict with each other
+(each is its own item, keyed by its document); a conflict arises when the return holds a value from another source,
+which is why the e2e spec edits over the document's value and populates again.
+
+**States.** `returnState.editability` follows `store.py`: `preparing` is editable; `in_review` and the hash-bound
+statuses (`approved`, `awaiting_signature`, `signed`, `release_approved`) show the Frozen state with the reason and
+what saving does (the return reopens, approval and signature void, queued submissions cancelled); the editor stays
+locked until "Unlock to edit" is confirmed, then saving reopens the return through the API; the filed statuses
+(`transmitted`, `accepted`, `paper_filed`), `rejected`, `unknown` and `void` are frozen with their own path (the
+amendment and the what-if preview; the missing `correct` route; reconciliation; nothing). A 409 from any action or
+preparation step is the Conflict state listing each reason the workflow gave, with Refresh. The `unknown` status offers
+the reconciliation form (received or not, the transmitter's submission id, the evidence, and which submission when the
+filing has several). Approve, request signature, approve release, void, amend, retransmit and reconcile are
+consequential: the API asks for a recent sign-in and the fetch layer's step-up dialog retries once (the dialog names
+the action). Roles follow `can.ts`: every firm role prepares (`returns.prepare`, inside its engagement); review actions
+need a credentialed reviewer (`returns.review`, app.py `reviewer_only`); the approver cannot be the submitter (the
+actor of the last `submit_for_review` event), with store.py's own words as the disabled reason; the API remains the
+authority and its refusal is rendered when the two disagree. Firm staff only reach `/returns/*`; a client's view of a
+return (the outcome) is slice 4's portal.
+
+**The extraction fixture router.** `src/agentledger/ai/fixtures.py`: `AGENTLEDGER_AI_FIXTURES=<dir>` names a
+directory holding fixture documents and `fixtures.json`, which maps the SHA-256 of each file to the `Classification`
+a model would have answered (`fields` may be written as a mapping). At start the router hashes every fixture file and
+the text intake extracts from it (`intake.extract.explode`, the same code path), and at call time it hashes the
+document text inside the prompt (or the image bytes of a vision call) and answers from the fixture as
+`fixture:<hash>`; a document without a fixture is `Unavailable`, exactly as an unreachable model is, so intake falls
+back to its deterministic detectors and nothing is ever guessed. `Router.structured` consults it first when it is set
+(`ai/router.py`; hits and misses are logged under tier `fixture`), `stream` is unavailable, `status()` reports it. The
+guard mirrors dev mode: the variable is honoured only with `AGENTLEDGER_DEV_AUTH=1` or `AGENTLEDGER_E2E=1`; set
+anywhere else the router, and so the API, refuses to start. A stale mapping (a file that no longer hashes to its key) or
+a missing one is refused the same way. `tests/test_ai_fixtures.py` covers the guard, the hashing (text, image, a PDF's
+text layer), the unavailable miss, intake and a return populated from a fixture document, and an upload through the
+API in multi-firm mode. The e2e launcher sets both variables; `apps/web/e2e/fixtures/make-fixtures.mjs` writes the two
+W-2 PDFs and the mapping deterministically.
+
+**Decisions and deviations.** The inputs editor is generated from an exported schema rather than fetched from
+`/openapi.json` (the model is not in it). The segregation check in the app reads the submitter from the history because
+the API does not expose the workflow's facts. The e2e seed gained one firm administrator (`ravi`), the only account the
+return-review spec needs: it invites its two CPAs through the API's invite flow, and every spec keeps its own accounts.
+The sections plan does not yet name a sibling's in-progress model fields (section 8). The viewer does not add the
+`sandbox` attribute to its frame: the API's response carries the sandbox policy, and whether Chrome's PDF viewer renders
+under it is listed as an open risk.

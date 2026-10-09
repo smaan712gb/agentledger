@@ -67,4 +67,27 @@ describe("can() quotes the API's reasons", () => {
     expect(can(firmAdmin, "users.disable")).toEqual({ allowed: true });
     expect(can(cpa, "users.disable")).toMatchObject({ allowed: false, reason: REASONS.notAllowed });
   });
+
+  it("returns: every firm role prepares inside its engagement; clients and platform staff never", () => {
+    expect(can(staff, "returns.prepare", { clientId: "ortiz-auto" })).toEqual({ allowed: true });
+    expect(can(staff, "returns.prepare", { clientId: "lakeside-fuel" }).reason).toBe(REASONS.notEngaged);
+    expect(can(firmAdmin, "returns.create", { clientId: "lakeside-fuel" })).toEqual({ allowed: true });
+    expect(can(clientUser, "returns.view", { clientId: "ortiz-auto" }).reason).toBe(REASONS.cpaOnly);
+    expect(can(platformAdmin, "returns.view").reason).toBe(REASONS.platformNoClientData);
+  });
+
+  it("returns: review needs a credentialed reviewer, and the approver cannot be the submitter", () => {
+    expect(can(cpa, "returns.review", { clientId: "ortiz-auto" })).toEqual({ allowed: true });
+    expect(can(firmAdmin, "returns.review", { clientId: "ortiz-auto" }).reason).toBe(REASONS.reviewerOnly);
+    expect(can({ ...firmAdmin, reviewer: true }, "returns.review", { clientId: "ortiz-auto" })).toEqual({
+      allowed: true,
+    });
+    expect(can(staff, "returns.review", { clientId: "ortiz-auto" }).reason).toBe(REASONS.reviewerOnly);
+    expect(can(cpa, "returns.review", { clientId: "ortiz-auto", submittedBy: cpa.id }).reason).toBe(
+      REASONS.segregation,
+    );
+    expect(can(cpa, "returns.review", { clientId: "ortiz-auto", submittedBy: "someone-else" })).toEqual({
+      allowed: true,
+    });
+  });
 });

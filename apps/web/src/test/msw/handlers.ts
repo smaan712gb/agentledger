@@ -23,8 +23,45 @@ export function happyHandlers(me: Me = fx.firmAdmin): HttpHandler[] {
       return HttpResponse.json(fx.detailOf(client, year));
     }),
     http.get(`${ORIGIN}/api/clients/:clientId/documents`, ({ params }) => {
-      const items = params.clientId === fx.ortiz.id ? [fx.doc1] : [];
+      const items = params.clientId === fx.ortiz.id ? fx.ortizDocuments : [];
       return HttpResponse.json({ items, next_cursor: null, total: items.length });
+    }),
+    http.get(`${ORIGIN}/api/clients/:clientId/returns`, ({ params }) =>
+      HttpResponse.json(params.clientId === fx.ortiz.id ? fx.returnList : []),
+    ),
+    http.post(`${ORIGIN}/api/clients/:clientId/returns`, () => HttpResponse.json({ id: "ret_new" })),
+    http.get(`${ORIGIN}/api/returns/:rid`, ({ params }) => {
+      if (params.rid === "ret_1") return HttpResponse.json(fx.returnDetail);
+      if (params.rid === "ret_new") return HttpResponse.json(fx.freshReturn);
+      return HttpResponse.json({ detail: "return not found" }, { status: 404 });
+    }),
+    http.put(`${ORIGIN}/api/returns/:rid/inputs`, () => HttpResponse.json(fx.returnResult)),
+    http.post(`${ORIGIN}/api/returns/:rid/populate`, () => HttpResponse.json(fx.populateResult)),
+    http.get(`${ORIGIN}/api/returns/:rid/conflicts`, () => HttpResponse.json(fx.conflicts)),
+    http.post(`${ORIGIN}/api/returns/:rid/conflicts/:conflictId`, () => HttpResponse.json({ open: 1 })),
+    http.get(`${ORIGIN}/api/returns/:rid/facts`, () => HttpResponse.json(fx.factHistory)),
+    http.post(`${ORIGIN}/api/returns/:rid/confirm`, () => HttpResponse.json({ confirmed: 7 })),
+    http.post(`${ORIGIN}/api/returns/:rid/compute`, () => HttpResponse.json(fx.returnResult)),
+    http.get(`${ORIGIN}/api/returns/:rid/recalculation-preview`, () =>
+      HttpResponse.json({ ...fx.returnResult, changes_vs_latest: { total_tax: { latest: "5000", now: "4980" } } }),
+    ),
+    http.post(`${ORIGIN}/api/returns/:rid/amend`, () => HttpResponse.json({ id: "ret_amend" })),
+    http.post(`${ORIGIN}/api/returns/:rid/void`, () => HttpResponse.json({ status: "void" })),
+    http.post(`${ORIGIN}/api/returns/:rid/documents/:docId/disposition`, ({ params }) =>
+      HttpResponse.json([fx.dispositionFor(String(params.docId))]),
+    ),
+    // After every specific route: {action} is submit, approve, request-changes, request-signature, release-approve,
+    // reconcile or retransmit.
+    http.post(`${ORIGIN}/api/returns/:rid/:action`, ({ params }) =>
+      HttpResponse.json({ status: fx.statusAfter(String(params.action)), history: fx.returnDetail.history }),
+    ),
+    http.get(`${ORIGIN}/api/documents/:docId/file`, ({ request }) => {
+      const inline = new URL(request.url).searchParams.get("inline") === "1";
+      return new HttpResponse(fx.PDF_BYTES, {
+        headers: inline
+          ? { "Content-Type": "application/pdf", "Content-Disposition": 'inline; filename="w2.pdf"' }
+          : { "Content-Type": "application/octet-stream", "Content-Disposition": 'attachment; filename="w2.pdf"' },
+      });
     }),
     http.patch(`${ORIGIN}/api/clients/:clientId/facts`, async ({ request }) => {
       const facts = (await request.json()) as Record<string, unknown>;
@@ -101,6 +138,8 @@ export function outcomeHandlers(paths: string[], outcome: Outcome): HttpHandler[
           return undefined;
         case "empty":
           if (path.endsWith("/documents")) return HttpResponse.json({ items: [], next_cursor: null, total: 0 });
+          if (path.endsWith("/returns")) return HttpResponse.json([]);
+          if (path === "/api/returns/:rid") return HttpResponse.json(fx.freshReturn);
           return HttpResponse.json(path.includes(":clientId") ? fx.detailOf({ ...fx.lakeside, facts: {} }) : []);
         case "network":
           return HttpResponse.error();

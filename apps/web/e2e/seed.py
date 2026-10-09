@@ -33,6 +33,7 @@ MEMBERS = [
     ("lee", "lee@rivera.example", "cpa", "Lee Park", True),                  # documents.spec
     ("kai", "kai@rivera.example", "cpa", "Kai Chen", True),                  # keyboard.spec
     ("dana", "dana@rivera.example", "cpa", "Dana Flores", True),             # fragments.spec
+    ("ravi", "ravi@rivera.example", "firm_admin", "Ravi Shah", True),        # return-review.spec (invites its two CPAs)
     # signin.spec runs in two Playwright projects (desktop, mobile); each project gets its own accounts because an
     # enrolment happens once and a lockout lasts 15 minutes.
     ("sora", "sora@rivera.example", "staff", "Sora Ito", True),              # sign-out

@@ -54,6 +54,18 @@ export function ClientLayout() {
         >
           Documents{query.data ? ` (${query.data.documents.length})` : ""}
         </Link>
+        {isFirmStaff(me) ? (
+          <Link
+            to="/clients/$clientId/returns"
+            params={{ clientId }}
+            search={(prev) => prev}
+            className={styles.tab}
+            activeOptions={{ includeSearch: false }}
+            activeProps={{ className: [styles.tab, styles.tabActive].join(" "), "aria-current": "page" }}
+          >
+            Returns
+          </Link>
+        ) : null}
         <Link
           to="/clients/$clientId/profile"
           params={{ clientId }}

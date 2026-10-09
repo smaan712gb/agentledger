@@ -1,0 +1,58 @@
+{
+  "a0ab09d068bcc901139715c18324d40737d855d549a7184217de0dbc112a3d16": {
+    "file": "w2-brightline-2026.pdf",
+    "response": {
+      "doc_type": "W-2",
+      "tax_year": 2026,
+      "party_names": [
+        "Jordan Lee",
+        "Brightline LLC"
+      ],
+      "tin_last4": [
+        "0009"
+      ],
+      "fields": {
+        "employer_name": "Brightline LLC",
+        "employer_ein": "82-1234567",
+        "recipient_name": "Jordan Lee",
+        "recipient_tin_last4": "0009",
+        "box1": "61200.00",
+        "box2": "6400.00",
+        "box3": "61200.00",
+        "box4": "3794.40",
+        "box5": "61200.00",
+        "box6": "887.40"
+      },
+      "summary": "2026 Form W-2 from Brightline LLC for Jordan Lee",
+      "confidence": 0.97
+    }
+  },
+  "551f589235163ec01aaa93b35c0cf4e56830bc492ceaee4538b36e2e1fe564a9": {
+    "file": "w2-harbor-2026.pdf",
+    "response": {
+      "doc_type": "W-2",
+      "tax_year": 2026,
+      "party_names": [
+        "Jordan Lee",
+        "Harbor Coffee Co."
+      ],
+      "tin_last4": [
+        "0009"
+      ],
+      "fields": {
+        "employer_name": "Harbor Coffee Co.",
+        "employer_ein": "47-7654321",
+        "recipient_name": "Jordan Lee",
+        "recipient_tin_last4": "0009",
+        "box1": "8400.00",
+        "box2": "600.00",
+        "box3": "8400.00",
+        "box4": "520.80",
+        "box5": "8400.00",
+        "box6": "121.80"
+      },
+      "summary": "2026 Form W-2 from Harbor Coffee Co. for Jordan Lee",
+      "confidence": 0.97
+    }
+  }
+}

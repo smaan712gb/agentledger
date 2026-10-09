@@ -1,0 +1,333 @@
+/* The return workspace: status page, review screen (editor beside the document) and the generated inputs editor. */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.side {
+  position: sticky;
+  top: var(--space-3);
+  display: grid;
+  gap: var(--space-4);
+  max-height: calc(100vh - var(--space-5));
+  overflow: auto;
+}
+
+@media (max-width: 1100px) {
+  .side {
+    position: static;
+    max-height: none;
+  }
+}
+
+.sectionNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.sectionNav ul {
+  display: contents;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* WCAG 2.2 target size (2.5.8): every section link is at least 24 px tall, whatever the text size. */
+.sectionNav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+}
+
+.fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4) 0;
+  margin: 0 0 var(--space-3);
+  min-width: 0;
+}
+
+.legend {
+  font-weight: 600;
+  padding: 0 var(--space-2);
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0 var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+  min-width: 0;
+}
+
+.label {
+  font-weight: 500;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.control {
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--ink);
+  width: 100%;
+}
+
+.control[aria-invalid="true"] {
+  border-color: var(--bad);
+}
+
+.control:disabled {
+  background: var(--panel-2);
+  color: var(--ink-2);
+}
+
+.selected .control {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  min-height: 20px;
+}
+
+.cue {
+  font-size: var(--text-sm);
+}
+
+.cueMissing {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.cueNotStated {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.error {
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+
+.provChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  max-width: 100%;
+  text-align: left;
+}
+
+.provChip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.provDocument {
+  border-color: var(--info);
+  color: var(--info);
+  background: var(--info-soft);
+}
+
+.provUnconfirmed {
+  border-style: dashed;
+}
+
+.provPreparer {
+  border-color: var(--line-strong);
+}
+
+.provResolution {
+  border-color: var(--good);
+  color: var(--good);
+  background: var(--good-soft);
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.mapRow {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(120px, 2fr) auto;
+  gap: var(--space-2);
+  align-items: end;
+  margin-bottom: var(--space-2);
+}
+
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-top: var(--space-3);
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.timelineItem {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.timelineItem:last-child {
+  border-bottom: 0;
+}
+
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.checklistItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.code {
+  font-family: var(--mono);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.viewerFrame {
+  width: 100%;
+  height: 480px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+
+.viewerImage {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.conflict {
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.values {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.values dt {
+  color: var(--ink-3);
+}
+
+.values dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.docRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.docRow:last-child {
+  border-bottom: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.reasons {
+  margin: 0;
+  padding-left: 1.2em;
+}

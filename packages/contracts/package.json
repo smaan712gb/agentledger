@@ -7,12 +7,15 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./return-schema.json": "./src/return-schema.json"
   },
   "scripts": {
     "snapshot": "node ./scripts/snapshot.mjs",
     "generate": "node ./scripts/generate.mjs",
     "check": "node ./scripts/check.mjs",
+    "return-schema": "node ./scripts/return-schema.mjs",
+    "return-schema:check": "node ./scripts/return-schema.mjs --check",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },

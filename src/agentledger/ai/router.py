@@ -20,6 +20,7 @@ import yaml
 from pydantic import BaseModel
 
 from .. import audit
+from .fixtures import FixtureRouter, from_env as fixtures_from_env
 from .frontier import ClaudeClient, FrontierError
 from .local import LocalUnavailable, OllamaClient
 
@@ -126,6 +127,9 @@ class Router:
         # AGENTLEDGER_OLLAMA_URL overrides config/models.yaml (tests point it at a closed port)
         self.local = local or OllamaClient(os.environ.get("AGENTLEDGER_OLLAMA_URL") or registry.data["ollama_url"])
         self.frontier = frontier or ClaudeClient()
+        # AGENTLEDGER_AI_FIXTURES (fixtures.py): scripted extraction answers for the local demo and the end-to-end run,
+        # refused anywhere else. When set, structured calls never reach a model.
+        self.fixtures: FixtureRouter | None = fixtures_from_env()
 
     # -- budget & accounting ---------------------------------------------------------
     def frontier_calls_today(self) -> int:
@@ -172,6 +176,15 @@ class Router:
 
         Local models run inside our infrastructure. Any external (frontier) call first passes `external_policy`:
         taxpayer data needs a §7216 consent for that client, is redacted, and never carries images."""
+        if self.fixtures is not None:
+            try:
+                result, by = self.fixtures.structured(role, system=system, user=user, schema=schema, images=images,
+                                                      escalate=escalate, client_id=client_id, effort=effort, data_class=data_class)
+            except Unavailable as e:
+                self._log("fixture", "none", role, False, None, client_id, str(e)[:300])
+                raise
+            self._log("fixture", by, role, True, None, client_id)
+            return result, by
         rm = self.registry.role(role)
         targets = [(rm.tier, rm.model)]
         if escalate and rm.tier == "local":
@@ -213,6 +226,8 @@ class Router:
 
     def stream(self, role: str, *, system: str, messages: list[dict[str, Any]], client_id: str | None = None,
                data_class: str = "taxpayer") -> tuple[Iterator[str], str]:
+        if self.fixtures is not None:
+            return self.fixtures.stream(role, system=system, messages=messages, client_id=client_id, data_class=data_class)
         rm = self.registry.role(role)
         if rm.tier == "local":
             gen = self.local.stream(rm.model, [{"role": "system", "content": system}, *messages])
@@ -239,4 +254,5 @@ class Router:
                          "daily_budget": self.registry.data["frontier"].get("daily_call_budget")},
             "roles": {k: {**v, "purpose": ROLES.get(k, "")} for k, v in self.registry.data["roles"].items()},
             "history": self.registry.data["history"][-20:],
+            **({"fixtures": self.fixtures.describe()} if self.fixtures is not None else {}),
         }

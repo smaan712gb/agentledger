@@ -7,18 +7,26 @@ import type { ApiClient } from "./client";
 import type {
   AcceptBody,
   AcceptResult,
+  AmendResult,
   AssignedDocument,
   AuthConfig,
   AuthEvent,
   Client,
   ClientDetail,
   ClientFacts,
+  ConfirmResult,
   CreateClientBody,
   CreateClientResult,
   CreateFirmBody,
   CreateFirmResult,
+  CreateReturnBody,
+  CreateReturnResult,
+  Disposition,
+  DispositionBody,
   DocumentPage,
   DocumentVersion,
+  FactAssertion,
+  FactConflict,
   Firm,
   FirmUser,
   Health,
@@ -34,11 +42,23 @@ import type {
   Ok,
   Pack,
   Pipeline,
+  PopulateResult,
+  RecalculationPreview,
+  ResolveConflictBody,
+  ResolveConflictResult,
+  ReturnAction,
+  ReturnActionBody,
+  ReturnActionResult,
+  ReturnDetail,
+  ReturnInputs,
+  ReturnListItem,
+  ReturnResult,
   ReviewDocument,
   SignedLink,
   Task,
   UpdatedFacts,
   UploadResult,
+  VoidResult,
 } from "./types";
 
 export function endpoints(api: ApiClient) {
@@ -110,6 +130,41 @@ export function endpoints(api: ApiClient) {
     links: {
       /** A signed URL (120 s) for a file or export path; the response carries Content-Disposition: attachment. */
       create: (path: string) => api.request<SignedLink>("POST", "/api/links", { json: { path } }),
+    },
+
+    /** Tax returns (app.py "tax returns"; the bodies are the API's dicts, typed by hand in types.ts). */
+    returns: {
+      list: (clientId: string) => api.request<ReturnListItem[]>("GET", `/api/clients/${enc(clientId)}/returns`),
+      create: (clientId: string, body: CreateReturnBody) =>
+        api.request<CreateReturnResult>("POST", `/api/clients/${enc(clientId)}/returns`, { json: body }),
+      get: (rid: string) => api.request<ReturnDetail>("GET", `/api/returns/${enc(rid)}`),
+      /** The whole inputs object (list items keep their `source_document`); the API recomputes and answers the result. */
+      saveInputs: (rid: string, inputs: ReturnInputs) =>
+        api.request<ReturnResult>("PUT", `/api/returns/${enc(rid)}/inputs`, { json: inputs }),
+      populate: (rid: string) => api.request<PopulateResult>("POST", `/api/returns/${enc(rid)}/populate`),
+      conflicts: (rid: string) => api.request<FactConflict[]>("GET", `/api/returns/${enc(rid)}/conflicts`),
+      resolveConflict: (rid: string, conflictId: number, body: ResolveConflictBody) =>
+        api.request<ResolveConflictResult>("POST", `/api/returns/${enc(rid)}/conflicts/${conflictId}`, { json: body }),
+      /** The history of one anchor (`w2s[<document>].wages`, `taxpayer.ssn`), oldest first. */
+      factHistory: (rid: string, anchor: string) =>
+        api.request<FactAssertion[]>("GET", `/api/returns/${enc(rid)}/facts`, { query: { path: anchor } }),
+      /** Confirms the named document-sourced amounts, or all of them. */
+      confirm: (rid: string, paths?: string[]) =>
+        api.request<ConfirmResult>("POST", `/api/returns/${enc(rid)}/confirm`, { json: paths ? { paths } : {} }),
+      compute: (rid: string, crosscheck = false) =>
+        api.request<ReturnResult>("POST", `/api/returns/${enc(rid)}/compute`, { json: { crosscheck } }),
+      recalculationPreview: (rid: string) =>
+        api.request<RecalculationPreview>("GET", `/api/returns/${enc(rid)}/recalculation-preview`),
+      disposition: (rid: string, docId: string, body: DispositionBody) =>
+        api.request<Disposition[]>("POST", `/api/returns/${enc(rid)}/documents/${enc(docId)}/disposition`, {
+          json: body,
+        }),
+      void: (rid: string, note: string) =>
+        api.request<VoidResult>("POST", `/api/returns/${enc(rid)}/void`, { json: { note } }),
+      amend: (rid: string) => api.request<AmendResult>("POST", `/api/returns/${enc(rid)}/amend`),
+      /** submit, approve, request-changes, request-signature, release-approve, reconcile, retransmit. */
+      action: (rid: string, action: ReturnAction, body: ReturnActionBody = {}) =>
+        api.request<ReturnActionResult>("POST", `/api/returns/${enc(rid)}/${action}`, { json: body }),
     },
 
     crm: {

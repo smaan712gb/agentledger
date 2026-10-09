@@ -94,6 +94,10 @@ const env = {
   AGENTLEDGER_BLOBS: "file",
   AGENTLEDGER_OLLAMA_URL: "http://127.0.0.1:9",
   AGENTLEDGER_AGENTS: "0",
+  // Document extraction answers come from e2e/fixtures (src/agentledger/ai/fixtures.py), never from a model; the
+  // fixture router is refused unless this run is marked as an end-to-end run (or dev mode, which never runs here).
+  AGENTLEDGER_E2E: "1",
+  AGENTLEDGER_AI_FIXTURES: path.join(webDir, "e2e", "fixtures"),
   PYTHONPATH: path.join(repoRoot, "src"),
   PYTHONUTF8: "1",
   PYTHONIOENCODING: "utf-8",

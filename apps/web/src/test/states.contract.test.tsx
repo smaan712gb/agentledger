@@ -43,6 +43,15 @@ const ROUTES: RouteCase[] = [
   },
   { path: "/clients/ortiz-auto/profile", me: fx.firmAdmin, primary: ["/api/clients/:clientId"], happy: /^Ortiz Auto$/ },
   {
+    path: "/clients/ortiz-auto/returns",
+    me: fx.firmAdmin,
+    primary: ["/api/clients/:clientId", "/api/clients/:clientId/returns"],
+    emptyTitle: "No returns yet",
+    happy: /^Ortiz Auto$/,
+  },
+  { path: "/returns/ret_1", me: fx.firmAdmin, primary: ["/api/returns/:rid"], happy: /^Form 1040 · 2026$/ },
+  { path: "/returns/ret_1/review", me: fx.cpa, primary: ["/api/returns/:rid"], happy: /^Form 1040 · 2026$/ },
+  {
     path: "/inbox",
     me: fx.firmAdmin,
     primary: ["/api/documents/review"],

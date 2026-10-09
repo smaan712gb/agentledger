@@ -31,6 +31,22 @@ const STATUS_TONES: Record<string, ChipTone> = {
   explained: "info",
   corrected: "good",
   accepted_risk: "warn",
+  // Return workflow statuses (returns/store.py RETURN_1040) and submission statuses (returns/filing.py).
+  preparing: "neutral",
+  in_review: "info",
+  approved: "good",
+  awaiting_signature: "info",
+  signed: "good",
+  release_approved: "info",
+  transmitted: "info",
+  accepted: "good",
+  rejected: "bad",
+  paper_filed: "good",
+  unknown: "warn",
+  void: "bad",
+  queued: "neutral",
+  cancelled: "neutral",
+  superseded: "neutral",
 };
 
 export function StatusChip({ status }: { status: string | null | undefined }) {

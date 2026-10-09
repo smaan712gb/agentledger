@@ -30,6 +30,8 @@ jobs:
           npm run -w packages/contracts generate
           git diff --exit-code packages/contracts
       - run: npm run -w packages/contracts check
+      - name: Return inputs schema drift gate (return-schema.json must be what IndividualReturn.model_json_schema() produces)
+        run: npm run -w packages/contracts return-schema:check
       - run: npm run -w packages/contracts typecheck
       - run: npm run -w packages/contracts test
       - run: npm run -w apps/web lint

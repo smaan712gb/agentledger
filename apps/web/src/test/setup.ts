@@ -42,3 +42,8 @@ if (!("PointerEvent" in globalThis)) {
 }
 // The router's scroll restoration calls window.scrollTo, which jsdom only logs as "not implemented".
 Object.defineProperty(window, "scrollTo", { value: () => {}, writable: true });
+// The document viewer shows an inline image through an object URL; jsdom has no URL.createObjectURL.
+if (typeof URL.createObjectURL !== "function") {
+  Object.defineProperty(URL, "createObjectURL", { value: () => "blob:jsdom/test", writable: true });
+  Object.defineProperty(URL, "revokeObjectURL", { value: () => {}, writable: true });
+}

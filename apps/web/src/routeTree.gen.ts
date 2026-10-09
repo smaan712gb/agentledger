@@ -21,8 +21,12 @@ import { Route as AppClientsIndexRouteImport } from './routes/_app/clients/index
 import { Route as AppClientsClientIdRouteImport } from './routes/_app/clients/$clientId'
 import { Route as AppClientsNewRouteImport } from './routes/_app/clients/new'
 import { Route as AppPlatformFirmsRouteImport } from './routes/_app/platform/firms'
+import { Route as AppReturnsRidRouteImport } from './routes/_app/returns/$rid'
 import { Route as AppClientsClientIdIndexRouteImport } from './routes/_app/clients/$clientId/index'
 import { Route as AppClientsClientIdProfileRouteImport } from './routes/_app/clients/$clientId/profile'
+import { Route as AppClientsClientIdReturnsRouteImport } from './routes/_app/clients/$clientId/returns'
+import { Route as AppReturnsRidIndexRouteImport } from './routes/_app/returns/$rid/index'
+import { Route as AppReturnsRidReviewRouteImport } from './routes/_app/returns/$rid/review'
 import { Route as AppClientsClientIdDocumentsIndexRouteImport } from './routes/_app/clients/$clientId/documents/index'
 import { Route as AppClientsClientIdDocumentsDocIdRouteImport } from './routes/_app/clients/$clientId/documents/$docId'
 
@@ -85,6 +89,11 @@ const AppPlatformFirmsRoute = AppPlatformFirmsRouteImport.update({
   path: '/platform/firms',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReturnsRidRoute = AppReturnsRidRouteImport.update({
+  id: '/returns/$rid',
+  path: '/returns/$rid',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppClientsClientIdIndexRoute = AppClientsClientIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -96,6 +105,22 @@ const AppClientsClientIdProfileRoute =
     path: '/profile',
     getParentRoute: () => AppClientsClientIdRoute,
   } as any)
+const AppClientsClientIdReturnsRoute =
+  AppClientsClientIdReturnsRouteImport.update({
+    id: '/returns',
+    path: '/returns',
+    getParentRoute: () => AppClientsClientIdRoute,
+  } as any)
+const AppReturnsRidIndexRoute = AppReturnsRidIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppReturnsRidRoute,
+} as any)
+const AppReturnsRidReviewRoute = AppReturnsRidReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => AppReturnsRidRoute,
+} as any)
 const AppClientsClientIdDocumentsIndexRoute =
   AppClientsClientIdDocumentsIndexRouteImport.update({
     id: '/documents/',
@@ -120,9 +145,13 @@ export interface FileRoutesByFullPath {
   '/clients/$clientId': typeof AppClientsClientIdRouteWithChildren
   '/clients/new': typeof AppClientsNewRoute
   '/platform/firms': typeof AppPlatformFirmsRoute
+  '/returns/$rid': typeof AppReturnsRidRouteWithChildren
   '/clients/': typeof AppClientsIndexRoute
   '/clients/$clientId/profile': typeof AppClientsClientIdProfileRoute
+  '/clients/$clientId/returns': typeof AppClientsClientIdReturnsRoute
+  '/returns/$rid/review': typeof AppReturnsRidReviewRoute
   '/clients/$clientId/': typeof AppClientsClientIdIndexRoute
+  '/returns/$rid/': typeof AppReturnsRidIndexRoute
   '/clients/$clientId/documents/$docId': typeof AppClientsClientIdDocumentsDocIdRoute
   '/clients/$clientId/documents/': typeof AppClientsClientIdDocumentsIndexRoute
 }
@@ -138,7 +167,10 @@ export interface FileRoutesByTo {
   '/platform/firms': typeof AppPlatformFirmsRoute
   '/clients': typeof AppClientsIndexRoute
   '/clients/$clientId/profile': typeof AppClientsClientIdProfileRoute
+  '/clients/$clientId/returns': typeof AppClientsClientIdReturnsRoute
+  '/returns/$rid/review': typeof AppReturnsRidReviewRoute
   '/clients/$clientId': typeof AppClientsClientIdIndexRoute
+  '/returns/$rid': typeof AppReturnsRidIndexRoute
   '/clients/$clientId/documents/$docId': typeof AppClientsClientIdDocumentsDocIdRoute
   '/clients/$clientId/documents': typeof AppClientsClientIdDocumentsIndexRoute
 }
@@ -155,9 +187,13 @@ export interface FileRoutesById {
   '/_app/clients/$clientId': typeof AppClientsClientIdRouteWithChildren
   '/_app/clients/new': typeof AppClientsNewRoute
   '/_app/platform/firms': typeof AppPlatformFirmsRoute
+  '/_app/returns/$rid': typeof AppReturnsRidRouteWithChildren
   '/_app/clients/': typeof AppClientsIndexRoute
   '/_app/clients/$clientId/profile': typeof AppClientsClientIdProfileRoute
+  '/_app/clients/$clientId/returns': typeof AppClientsClientIdReturnsRoute
+  '/_app/returns/$rid/review': typeof AppReturnsRidReviewRoute
   '/_app/clients/$clientId/': typeof AppClientsClientIdIndexRoute
+  '/_app/returns/$rid/': typeof AppReturnsRidIndexRoute
   '/_app/clients/$clientId/documents/$docId': typeof AppClientsClientIdDocumentsDocIdRoute
   '/_app/clients/$clientId/documents/': typeof AppClientsClientIdDocumentsIndexRoute
 }
@@ -174,9 +210,13 @@ export interface FileRouteTypes {
     | '/clients/$clientId'
     | '/clients/new'
     | '/platform/firms'
+    | '/returns/$rid'
     | '/clients/'
     | '/clients/$clientId/profile'
+    | '/clients/$clientId/returns'
+    | '/returns/$rid/review'
     | '/clients/$clientId/'
+    | '/returns/$rid/'
     | '/clients/$clientId/documents/$docId'
     | '/clients/$clientId/documents/'
   fileRoutesByTo: FileRoutesByTo
@@ -192,7 +232,10 @@ export interface FileRouteTypes {
     | '/platform/firms'
     | '/clients'
     | '/clients/$clientId/profile'
+    | '/clients/$clientId/returns'
+    | '/returns/$rid/review'
     | '/clients/$clientId'
+    | '/returns/$rid'
     | '/clients/$clientId/documents/$docId'
     | '/clients/$clientId/documents'
   id:
@@ -208,9 +251,13 @@ export interface FileRouteTypes {
     | '/_app/clients/$clientId'
     | '/_app/clients/new'
     | '/_app/platform/firms'
+    | '/_app/returns/$rid'
     | '/_app/clients/'
     | '/_app/clients/$clientId/profile'
+    | '/_app/clients/$clientId/returns'
+    | '/_app/returns/$rid/review'
     | '/_app/clients/$clientId/'
+    | '/_app/returns/$rid/'
     | '/_app/clients/$clientId/documents/$docId'
     | '/_app/clients/$clientId/documents/'
   fileRoutesById: FileRoutesById
@@ -309,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlatformFirmsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/returns/$rid': {
+      id: '/_app/returns/$rid'
+      path: '/returns/$rid'
+      fullPath: '/returns/$rid'
+      preLoaderRoute: typeof AppReturnsRidRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/clients/$clientId/': {
       id: '/_app/clients/$clientId/'
       path: '/'
@@ -322,6 +376,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/clients/$clientId/profile'
       preLoaderRoute: typeof AppClientsClientIdProfileRouteImport
       parentRoute: typeof AppClientsClientIdRoute
+    }
+    '/_app/clients/$clientId/returns': {
+      id: '/_app/clients/$clientId/returns'
+      path: '/returns'
+      fullPath: '/clients/$clientId/returns'
+      preLoaderRoute: typeof AppClientsClientIdReturnsRouteImport
+      parentRoute: typeof AppClientsClientIdRoute
+    }
+    '/_app/returns/$rid/': {
+      id: '/_app/returns/$rid/'
+      path: '/'
+      fullPath: '/returns/$rid/'
+      preLoaderRoute: typeof AppReturnsRidIndexRouteImport
+      parentRoute: typeof AppReturnsRidRoute
+    }
+    '/_app/returns/$rid/review': {
+      id: '/_app/returns/$rid/review'
+      path: '/review'
+      fullPath: '/returns/$rid/review'
+      preLoaderRoute: typeof AppReturnsRidReviewRouteImport
+      parentRoute: typeof AppReturnsRidRoute
     }
     '/_app/clients/$clientId/documents/': {
       id: '/_app/clients/$clientId/documents/'
@@ -342,6 +417,7 @@ declare module '@tanstack/react-router' {
 
 interface AppClientsClientIdRouteChildren {
   AppClientsClientIdProfileRoute: typeof AppClientsClientIdProfileRoute
+  AppClientsClientIdReturnsRoute: typeof AppClientsClientIdReturnsRoute
   AppClientsClientIdIndexRoute: typeof AppClientsClientIdIndexRoute
   AppClientsClientIdDocumentsDocIdRoute: typeof AppClientsClientIdDocumentsDocIdRoute
   AppClientsClientIdDocumentsIndexRoute: typeof AppClientsClientIdDocumentsIndexRoute
@@ -349,6 +425,7 @@ interface AppClientsClientIdRouteChildren {
 
 const AppClientsClientIdRouteChildren: AppClientsClientIdRouteChildren = {
   AppClientsClientIdProfileRoute: AppClientsClientIdProfileRoute,
+  AppClientsClientIdReturnsRoute: AppClientsClientIdReturnsRoute,
   AppClientsClientIdIndexRoute: AppClientsClientIdIndexRoute,
   AppClientsClientIdDocumentsDocIdRoute: AppClientsClientIdDocumentsDocIdRoute,
   AppClientsClientIdDocumentsIndexRoute: AppClientsClientIdDocumentsIndexRoute,
@@ -357,6 +434,20 @@ const AppClientsClientIdRouteChildren: AppClientsClientIdRouteChildren = {
 const AppClientsClientIdRouteWithChildren =
   AppClientsClientIdRoute._addFileChildren(AppClientsClientIdRouteChildren)
 
+interface AppReturnsRidRouteChildren {
+  AppReturnsRidReviewRoute: typeof AppReturnsRidReviewRoute
+  AppReturnsRidIndexRoute: typeof AppReturnsRidIndexRoute
+}
+
+const AppReturnsRidRouteChildren: AppReturnsRidRouteChildren = {
+  AppReturnsRidReviewRoute: AppReturnsRidReviewRoute,
+  AppReturnsRidIndexRoute: AppReturnsRidIndexRoute,
+}
+
+const AppReturnsRidRouteWithChildren = AppReturnsRidRoute._addFileChildren(
+  AppReturnsRidRouteChildren,
+)
+
 interface AppRouteChildren {
   AppInboxRoute: typeof AppInboxRoute
   AppPortalRoute: typeof AppPortalRoute
@@ -364,6 +455,7 @@ interface AppRouteChildren {
   AppClientsClientIdRoute: typeof AppClientsClientIdRouteWithChildren
   AppClientsNewRoute: typeof AppClientsNewRoute
   AppPlatformFirmsRoute: typeof AppPlatformFirmsRoute
+  AppReturnsRidRoute: typeof AppReturnsRidRouteWithChildren
   AppClientsIndexRoute: typeof AppClientsIndexRoute
 }
 
@@ -374,6 +466,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppClientsClientIdRoute: AppClientsClientIdRouteWithChildren,
   AppClientsNewRoute: AppClientsNewRoute,
   AppPlatformFirmsRoute: AppPlatformFirmsRoute,
+  AppReturnsRidRoute: AppReturnsRidRouteWithChildren,
   AppClientsIndexRoute: AppClientsIndexRoute,
 }
 

@@ -1,0 +1,5358 @@
+{
+  "$defs": {
+    "Adjustments": {
+      "properties": {
+        "educator_expenses_taxpayer": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Educator Expenses Taxpayer"
+        },
+        "educator_expenses_spouse": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Educator Expenses Spouse"
+        },
+        "hsa_deduction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Hsa Deduction"
+        },
+        "self_employed_retirement": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Self Employed Retirement"
+        },
+        "self_employed_health_insurance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Self Employed Health Insurance"
+        },
+        "alimony_paid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Alimony Paid"
+        },
+        "alimony_recipient_ssn": {
+          "default": "",
+          "title": "Alimony Recipient Ssn",
+          "type": "string"
+        },
+        "ira_deduction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ira Deduction"
+        },
+        "student_loan_interest_paid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Student Loan Interest Paid"
+        },
+        "other": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other"
+        }
+      },
+      "title": "Adjustments",
+      "type": "object"
+    },
+    "Business": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "ein": {
+          "default": "",
+          "title": "Ein",
+          "type": "string"
+        },
+        "principal_business_code": {
+          "default": "",
+          "title": "Principal Business Code",
+          "type": "string"
+        },
+        "accounting_method": {
+          "default": "cash",
+          "enum": [
+            "cash",
+            "accrual",
+            "other"
+          ],
+          "title": "Accounting Method",
+          "type": "string"
+        },
+        "gross_receipts": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Gross Receipts"
+        },
+        "returns_allowances": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Returns Allowances"
+        },
+        "cost_of_goods_sold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Cost Of Goods Sold"
+        },
+        "other_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Income"
+        },
+        "expenses": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Expenses",
+          "type": "object"
+        },
+        "meals": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Meals"
+        },
+        "home_office_sqft": {
+          "default": 0,
+          "title": "Home Office Sqft",
+          "type": "integer"
+        },
+        "materially_participates": {
+          "default": true,
+          "title": "Materially Participates",
+          "type": "boolean"
+        },
+        "sstb": {
+          "default": false,
+          "title": "Sstb",
+          "type": "boolean"
+        },
+        "w2_wages": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "W2 Wages"
+        },
+        "ubia": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ubia"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        },
+        "qualified_tips": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qualified Tips"
+        },
+        "tipped_occupation_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tipped Occupation Code"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Business",
+      "type": "object"
+    },
+    "BusinessUseRecapture": {
+      "description": "Form 4797 Part IV: property placed in service in an earlier year whose business use dropped to 50% or less this year,\nso that the section 179 expense deduction (column (a), IRC \u00a7179(d)(10); Reg. \u00a71.179-1(e)) or the excess depreciation\non listed property (column (b), IRC \u00a7280F(b)(2)) is recaptured as other income on the schedule that took the\ndeduction. Amounts default to None: an item without its line 33 or line 34 amount blocks.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "section_179",
+            "section_280f"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "deduction_claimed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deduction Claimed"
+        },
+        "recomputed_depreciation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recomputed Depreciation"
+        },
+        "schedule_c": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schedule C"
+        },
+        "rental": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rental"
+        }
+      },
+      "required": [
+        "description",
+        "kind"
+      ],
+      "title": "BusinessUseRecapture",
+      "type": "object"
+    },
+    "CapitalTransaction": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "acquired": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "enum": [
+                "various",
+                "inherited"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acquired"
+        },
+        "sold": {
+          "format": "date",
+          "title": "Sold",
+          "type": "string"
+        },
+        "proceeds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Proceeds"
+        },
+        "cost_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Cost Basis"
+        },
+        "adjustment": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Adjustment"
+        },
+        "adjustment_codes": {
+          "default": "",
+          "title": "Adjustment Codes",
+          "type": "string"
+        },
+        "term": {
+          "anyOf": [
+            {
+              "enum": [
+                "short",
+                "long"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Term"
+        },
+        "basis_reported_to_irs": {
+          "default": true,
+          "title": "Basis Reported To Irs",
+          "type": "boolean"
+        },
+        "form_1099_received": {
+          "default": true,
+          "title": "Form 1099 Received",
+          "type": "boolean"
+        },
+        "collectible": {
+          "default": false,
+          "title": "Collectible",
+          "type": "boolean"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        }
+      },
+      "required": [
+        "description",
+        "sold",
+        "proceeds",
+        "cost_basis"
+      ],
+      "title": "CapitalTransaction",
+      "type": "object"
+    },
+    "CarLoan": {
+      "properties": {
+        "vin": {
+          "title": "Vin",
+          "type": "string"
+        },
+        "interest_paid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Interest Paid"
+        },
+        "qualifies": {
+          "default": true,
+          "title": "Qualifies",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "vin",
+        "interest_paid"
+      ],
+      "title": "CarLoan",
+      "type": "object"
+    },
+    "Dependent": {
+      "properties": {
+        "first_name": {
+          "title": "First Name",
+          "type": "string"
+        },
+        "last_name": {
+          "default": "",
+          "title": "Last Name",
+          "type": "string"
+        },
+        "ssn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ssn"
+        },
+        "tin_type": {
+          "default": "ssn",
+          "enum": [
+            "ssn",
+            "itin",
+            "atin",
+            "none"
+          ],
+          "title": "Tin Type",
+          "type": "string"
+        },
+        "ssn_valid_for_employment": {
+          "default": true,
+          "title": "Ssn Valid For Employment",
+          "type": "boolean"
+        },
+        "dob": {
+          "format": "date",
+          "title": "Dob",
+          "type": "string"
+        },
+        "relationship": {
+          "enum": [
+            "son",
+            "daughter",
+            "stepchild",
+            "foster_child",
+            "brother",
+            "sister",
+            "half_brother",
+            "half_sister",
+            "stepbrother",
+            "stepsister",
+            "grandchild",
+            "niece",
+            "nephew",
+            "parent",
+            "grandparent",
+            "aunt",
+            "uncle",
+            "in_law",
+            "other_household_member"
+          ],
+          "title": "Relationship",
+          "type": "string"
+        },
+        "months_in_home": {
+          "default": 12,
+          "maximum": 12,
+          "minimum": 0,
+          "title": "Months In Home",
+          "type": "integer"
+        },
+        "lived_in_us_over_half_year": {
+          "default": true,
+          "title": "Lived In Us Over Half Year",
+          "type": "boolean"
+        },
+        "full_time_student": {
+          "default": false,
+          "title": "Full Time Student",
+          "type": "boolean"
+        },
+        "permanently_disabled": {
+          "default": false,
+          "title": "Permanently Disabled",
+          "type": "boolean"
+        },
+        "provided_over_half_own_support": {
+          "default": false,
+          "title": "Provided Over Half Own Support",
+          "type": "boolean"
+        },
+        "files_joint_return": {
+          "default": false,
+          "title": "Files Joint Return",
+          "type": "boolean"
+        },
+        "gross_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Gross Income"
+        },
+        "taxpayer_provided_over_half_support": {
+          "default": true,
+          "title": "Taxpayer Provided Over Half Support",
+          "type": "boolean"
+        },
+        "qualifying_child_of_another_taxpayer": {
+          "default": false,
+          "title": "Qualifying Child Of Another Taxpayer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "first_name",
+        "dob",
+        "relationship"
+      ],
+      "title": "Dependent",
+      "type": "object"
+    },
+    "Disposition": {
+      "description": "One sale or exchange of property used in a trade or business or held for the production of rents (Form 4797 line 2,\n10 or 19). Amounts default to None, not zero: a disposition whose price, basis or depreciation is not stated cannot be\nfigured and blocks (never taken as zero; enter 0 for the depreciation of land). Column letters are Form 4797 (2025):\n(b) date acquired, (c) date sold, (d) gross sales price, (e) depreciation allowed or allowable since acquisition, (f)\ncost or other basis plus improvements and expense of sale, (g) gain or loss = (d) + (e) - (f).",
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "acquired": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "const": "inherited",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acquired"
+        },
+        "sold": {
+          "format": "date",
+          "title": "Sold",
+          "type": "string"
+        },
+        "gross_sales_price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gross Sales Price"
+        },
+        "cost_or_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Or Basis"
+        },
+        "depreciation_allowed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depreciation Allowed"
+        },
+        "selling_expenses": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Selling Expenses"
+        },
+        "property_class": {
+          "anyOf": [
+            {
+              "enum": [
+                "section_1245",
+                "section_1250",
+                "land",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Property Class"
+        },
+        "holding_period": {
+          "anyOf": [
+            {
+              "enum": [
+                "short",
+                "long"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holding Period"
+        },
+        "additional_depreciation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additional Depreciation"
+        },
+        "low_income_housing": {
+          "default": false,
+          "title": "Low Income Housing",
+          "type": "boolean"
+        },
+        "schedule_c": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schedule C"
+        },
+        "rental": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rental"
+        },
+        "k1": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K1"
+        },
+        "entire_interest_disposed": {
+          "default": false,
+          "title": "Entire Interest Disposed",
+          "type": "boolean"
+        },
+        "installment_sale": {
+          "default": false,
+          "title": "Installment Sale",
+          "type": "boolean"
+        },
+        "like_kind_exchange": {
+          "default": false,
+          "title": "Like Kind Exchange",
+          "type": "boolean"
+        },
+        "casualty_or_theft": {
+          "default": false,
+          "title": "Casualty Or Theft",
+          "type": "boolean"
+        },
+        "partial_disposition": {
+          "default": false,
+          "title": "Partial Disposition",
+          "type": "boolean"
+        },
+        "related_party": {
+          "default": false,
+          "title": "Related Party",
+          "type": "boolean"
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
+        }
+      },
+      "required": [
+        "description",
+        "sold"
+      ],
+      "title": "Disposition",
+      "type": "object"
+    },
+    "Dividends": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "payer": {
+          "default": "",
+          "title": "Payer",
+          "type": "string"
+        },
+        "ordinary": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ordinary"
+        },
+        "qualified": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qualified"
+        },
+        "capital_gain_distributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Capital Gain Distributions"
+        },
+        "unrecaptured_1250_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Unrecaptured 1250 Gain"
+        },
+        "section_1202_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Section 1202 Gain"
+        },
+        "collectibles_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Collectibles Gain"
+        },
+        "nondividend_distributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Nondividend Distributions"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        },
+        "section_199a_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Section 199A Dividends"
+        },
+        "foreign_tax_paid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Foreign Tax Paid"
+        },
+        "foreign_country": {
+          "default": "",
+          "title": "Foreign Country",
+          "type": "string"
+        },
+        "exempt_interest_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Exempt Interest Dividends"
+        },
+        "private_activity_bond_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Private Activity Bond Dividends"
+        },
+        "foreign_source_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Foreign Source Income"
+        },
+        "category": {
+          "default": "passive",
+          "enum": [
+            "passive",
+            "general",
+            "foreign_branch",
+            "section_951a",
+            "treaty",
+            "lump_sum",
+            "section_901j"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "accrued": {
+          "default": false,
+          "title": "Accrued",
+          "type": "boolean"
+        }
+      },
+      "title": "Dividends",
+      "type": "object"
+    },
+    "ForeignTaxCarryover": {
+      "description": "One year's unused foreign tax carried into this year (the prior-year Schedule B, line 8, one column). `from_year` is\nthe year the tax was paid or accrued: the carryover can be used in the 10 years after it and expires with the tenth\n(\u00a7904(c)); a carryover whose year is not stated cannot be placed and blocks. `amt_carryover` is the same year's unused\nAMT foreign tax credit (the AMT Form 1116's Schedule B; the AMT credit has its own carryovers, \u00a759(a)(1)); None: not\nstated, never zero.",
+      "properties": {
+        "category": {
+          "enum": [
+            "passive",
+            "general",
+            "foreign_branch",
+            "section_951a",
+            "treaty",
+            "lump_sum",
+            "section_901j"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "from_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Year"
+        },
+        "carryover": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Carryover"
+        },
+        "amt_carryover": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amt Carryover"
+        }
+      },
+      "required": [
+        "category",
+        "carryover"
+      ],
+      "title": "ForeignTaxCarryover",
+      "type": "object"
+    },
+    "ForeignTaxCredit": {
+      "description": "Form 1116 elections: facts no document carries.\n\n`de_minimis_election` (IRC \u00a7904(j)): claim the credit without Form 1116 when every foreign tax is on passive income\nshown on payee statements and totals $300 or less ($600 on a joint return). The limitation does not apply, and no\nforeign tax may be carried to or from the year (\u00a7904(j)(1)(B)). None: not stated; the engine applies the election and\nrecords it when nothing turns on the choice, and asks when a carryover or an excess would be affected.\n\n`amt_simplified_limitation` (IRC \u00a759(a)(3)): figure the AMT foreign tax credit from the regular tax's foreign-source\ntaxable income over alternative minimum taxable income. The election is made for the first year an AMT foreign tax\ncredit is claimed and binds every later year unless revoked with the IRS's consent (\u00a759(a)(3)(B)). None: not stated;\nan AMT credit is never figured while it is unknown.",
+      "properties": {
+        "de_minimis_election": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "De Minimis Election"
+        },
+        "amt_simplified_limitation": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amt Simplified Limitation"
+        }
+      },
+      "title": "ForeignTaxCredit",
+      "type": "object"
+    },
+    "Form8615Facts": {
+      "description": "Form 8615 (tax for certain children who have unearned income, IRC \u00a71(g)) facts that no document carries. The\nchild's own facts (age, student status, support, a living parent) are on the taxpayer's Person.",
+      "properties": {
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParentFacts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parent_return_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Return Id"
+        },
+        "which_parent": {
+          "anyOf": [
+            {
+              "enum": [
+                "joint_return",
+                "greater_taxable_income",
+                "custodial_parent"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Which Parent"
+        },
+        "form_8814_election": {
+          "default": false,
+          "title": "Form 8814 Election",
+          "type": "boolean"
+        },
+        "other_children_net_unearned_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Children Net Unearned Income"
+        },
+        "other_children_qualified_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Children Qualified Dividends"
+        },
+        "other_children_net_capital_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Children Net Capital Gain"
+        },
+        "other_children_rate_28_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Children Rate 28 Gain"
+        },
+        "other_children_unrecaptured_1250_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Children Unrecaptured 1250 Gain"
+        },
+        "directly_connected_deductions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directly Connected Deductions"
+        },
+        "directly_connected_to_dividends_and_gains": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directly Connected To Dividends And Gains"
+        }
+      },
+      "title": "Form8615Facts",
+      "type": "object"
+    },
+    "HSAContribution": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "trustee": {
+          "default": "",
+          "title": "Trustee",
+          "type": "string"
+        },
+        "archer_msa_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Archer Msa Contributions"
+        },
+        "total_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Contributions"
+        },
+        "following_year_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Following Year Contributions"
+        },
+        "rollover_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rollover Contributions"
+        },
+        "fmv": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fmv"
+        },
+        "account_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "hsa",
+                "archer_msa",
+                "ma_msa"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Type"
+        }
+      },
+      "title": "HSAContribution",
+      "type": "object"
+    },
+    "HSADistribution": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "trustee": {
+          "default": "",
+          "title": "Trustee",
+          "type": "string"
+        },
+        "gross_distribution": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gross Distribution"
+        },
+        "earnings_on_excess": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Earnings On Excess"
+        },
+        "distribution_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distribution Code"
+        },
+        "fmv_on_date_of_death": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fmv On Date Of Death"
+        },
+        "account_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "hsa",
+                "archer_msa",
+                "ma_msa"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Type"
+        }
+      },
+      "title": "HSADistribution",
+      "type": "object"
+    },
+    "HSAFacts": {
+      "description": "Form 8889 facts for one HSA beneficiary that no information return carries. Contributions come from Form 5498-SA\n(boxes 2-4) and W-2 box 12 code W, distributions from Form 1099-SA; these are the eligibility and use facts.",
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "coverage_01": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 01"
+        },
+        "coverage_02": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 02"
+        },
+        "coverage_03": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 03"
+        },
+        "coverage_04": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 04"
+        },
+        "coverage_05": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 05"
+        },
+        "coverage_06": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 06"
+        },
+        "coverage_07": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 07"
+        },
+        "coverage_08": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 08"
+        },
+        "coverage_09": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 09"
+        },
+        "coverage_10": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 10"
+        },
+        "coverage_11": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 11"
+        },
+        "coverage_12": {
+          "anyOf": [
+            {
+              "enum": [
+                "self_only",
+                "family",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage 12"
+        },
+        "medicare_from_month": {
+          "anyOf": [
+            {
+              "maximum": 12,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Medicare From Month"
+        },
+        "qualified_medical_expenses": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qualified Medical Expenses"
+        },
+        "rollovers_and_withdrawn_excess": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Rollovers And Withdrawn Excess"
+        },
+        "qualified_funding_distribution": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qualified Funding Distribution"
+        },
+        "contributions_for_last_year": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Contributions For Last Year"
+        },
+        "family_limit_share": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family Limit Share"
+        },
+        "testing_period_failed": {
+          "default": false,
+          "title": "Testing Period Failed",
+          "type": "boolean"
+        },
+        "additional_tax_exception": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additional Tax Exception"
+        }
+      },
+      "title": "HSAFacts",
+      "type": "object"
+    },
+    "IRAAccount": {
+      "description": "Amounts default to None, not zero: a box the trustee left blank is unknown until a person reads the form.",
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "trustee": {
+          "default": "",
+          "title": "Trustee",
+          "type": "string"
+        },
+        "ira_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ira Contributions"
+        },
+        "rollover_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rollover Contributions"
+        },
+        "roth_conversion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roth Conversion"
+        },
+        "recharacterized_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recharacterized Contributions"
+        },
+        "fmv": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fmv"
+        },
+        "account_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "ira",
+                "sep",
+                "simple",
+                "roth"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Type"
+        },
+        "sep_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sep Contributions"
+        },
+        "simple_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Simple Contributions"
+        },
+        "roth_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roth Contributions"
+        },
+        "rmd_required_next_year": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rmd Required Next Year"
+        }
+      },
+      "title": "IRAAccount",
+      "type": "object"
+    },
+    "IRAFacts": {
+      "description": "IRA Deduction Worksheet and Form 8606 facts for one person that no information return carries. Contributions come\nfrom Form 5498 (boxes 1, 3, 10), distributions from Form 1099-R, plan coverage from W-2 box 13 and 5498 boxes 8-9.",
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "covered_by_employer_plan": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covered By Employer Plan"
+        },
+        "nondeductible_election": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nondeductible Election"
+        },
+        "contributions_after_year_end": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contributions After Year End"
+        },
+        "outstanding_rollovers": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Outstanding Rollovers"
+        },
+        "roth_five_year_period_met": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roth Five Year Period Met"
+        },
+        "first_time_homebuyer_expenses": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "First Time Homebuyer Expenses"
+        }
+      },
+      "title": "IRAFacts",
+      "type": "object"
+    },
+    "Interest": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "payer": {
+          "default": "",
+          "title": "Payer",
+          "type": "string"
+        },
+        "interest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Interest"
+        },
+        "early_withdrawal_penalty": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Early Withdrawal Penalty"
+        },
+        "us_savings_bond_interest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Us Savings Bond Interest"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        },
+        "foreign_tax_paid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Foreign Tax Paid"
+        },
+        "foreign_country": {
+          "default": "",
+          "title": "Foreign Country",
+          "type": "string"
+        },
+        "tax_exempt_interest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Tax Exempt Interest"
+        },
+        "private_activity_bond_interest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Private Activity Bond Interest"
+        },
+        "foreign_source_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Foreign Source Income"
+        },
+        "category": {
+          "default": "passive",
+          "enum": [
+            "passive",
+            "general",
+            "foreign_branch",
+            "section_951a",
+            "treaty",
+            "lump_sum",
+            "section_901j"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "accrued": {
+          "default": false,
+          "title": "Accrued",
+          "type": "boolean"
+        }
+      },
+      "title": "Interest",
+      "type": "object"
+    },
+    "Itemized": {
+      "properties": {
+        "medical": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Medical"
+        },
+        "state_local_income_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "State Local Income Tax"
+        },
+        "general_sales_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "General Sales Tax"
+        },
+        "use_sales_tax": {
+          "default": false,
+          "title": "Use Sales Tax",
+          "type": "boolean"
+        },
+        "real_estate_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Real Estate Tax"
+        },
+        "personal_property_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Personal Property Tax"
+        },
+        "other_taxes": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Taxes"
+        },
+        "mortgage_interest_1098": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Mortgage Interest 1098"
+        },
+        "mortgage_interest_other": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Mortgage Interest Other"
+        },
+        "points_not_on_1098": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Points Not On 1098"
+        },
+        "mortgage_insurance_premiums": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Mortgage Insurance Premiums"
+        },
+        "investment_interest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Investment Interest"
+        },
+        "charity_cash": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Charity Cash"
+        },
+        "charity_noncash": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Charity Noncash"
+        },
+        "charity_carryover": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Charity Carryover"
+        },
+        "casualty_loss": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Casualty Loss"
+        },
+        "other": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other"
+        },
+        "force_itemize": {
+          "default": false,
+          "title": "Force Itemize",
+          "type": "boolean"
+        }
+      },
+      "title": "Itemized",
+      "type": "object"
+    },
+    "K1": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "entity_name": {
+          "title": "Entity Name",
+          "type": "string"
+        },
+        "entity_ein": {
+          "default": "",
+          "title": "Entity Ein",
+          "type": "string"
+        },
+        "entity_type": {
+          "default": "partnership",
+          "enum": [
+            "partnership",
+            "s_corporation",
+            "estate_trust"
+          ],
+          "title": "Entity Type",
+          "type": "string"
+        },
+        "passive": {
+          "default": false,
+          "title": "Passive",
+          "type": "boolean"
+        },
+        "ordinary_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ordinary Income"
+        },
+        "net_rental_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Net Rental Income"
+        },
+        "interest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Interest"
+        },
+        "ordinary_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ordinary Dividends"
+        },
+        "qualified_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qualified Dividends"
+        },
+        "net_short_term_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Net Short Term Gain"
+        },
+        "net_long_term_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Net Long Term Gain"
+        },
+        "guaranteed_payments": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Guaranteed Payments"
+        },
+        "section_179": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Section 179"
+        },
+        "self_employment_earnings": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Self Employment Earnings"
+        },
+        "qbi": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qbi"
+        },
+        "w2_wages": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "W2 Wages"
+        },
+        "ubia": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ubia"
+        },
+        "sstb": {
+          "default": false,
+          "title": "Sstb",
+          "type": "boolean"
+        },
+        "foreign_tax_paid": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Foreign Tax Paid"
+        },
+        "foreign_source_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Foreign Source Income"
+        },
+        "foreign_country": {
+          "default": "",
+          "title": "Foreign Country",
+          "type": "string"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "passive",
+                "general",
+                "foreign_branch",
+                "section_951a",
+                "treaty",
+                "lump_sum",
+                "section_901j"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category"
+        },
+        "accrued": {
+          "default": false,
+          "title": "Accrued",
+          "type": "boolean"
+        },
+        "net_section_1231_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Net Section 1231 Gain"
+        },
+        "unrecaptured_1250_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Unrecaptured 1250 Gain"
+        }
+      },
+      "required": [
+        "entity_name"
+      ],
+      "title": "K1",
+      "type": "object"
+    },
+    "MarketplaceCoverage": {
+      "description": "Part III columns A (enrollment premiums), B (SLCSP premium) and C (advance payment of the premium tax credit), one\nfield per month so that every amount has its own provenance, plus the line 33 annual totals.",
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "marketplace": {
+          "default": "",
+          "title": "Marketplace",
+          "type": "string"
+        },
+        "policy_number": {
+          "default": "",
+          "title": "Policy Number",
+          "type": "string"
+        },
+        "issuer": {
+          "default": "",
+          "title": "Issuer",
+          "type": "string"
+        },
+        "covered_individuals": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Covered Individuals",
+          "type": "array"
+        },
+        "premium_01": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 01"
+        },
+        "premium_02": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 02"
+        },
+        "premium_03": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 03"
+        },
+        "premium_04": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 04"
+        },
+        "premium_05": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 05"
+        },
+        "premium_06": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 06"
+        },
+        "premium_07": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 07"
+        },
+        "premium_08": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 08"
+        },
+        "premium_09": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 09"
+        },
+        "premium_10": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 10"
+        },
+        "premium_11": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 11"
+        },
+        "premium_12": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Premium 12"
+        },
+        "slcsp_01": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 01"
+        },
+        "slcsp_02": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 02"
+        },
+        "slcsp_03": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 03"
+        },
+        "slcsp_04": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 04"
+        },
+        "slcsp_05": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 05"
+        },
+        "slcsp_06": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 06"
+        },
+        "slcsp_07": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 07"
+        },
+        "slcsp_08": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 08"
+        },
+        "slcsp_09": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 09"
+        },
+        "slcsp_10": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 10"
+        },
+        "slcsp_11": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 11"
+        },
+        "slcsp_12": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slcsp 12"
+        },
+        "aptc_01": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 01"
+        },
+        "aptc_02": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 02"
+        },
+        "aptc_03": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 03"
+        },
+        "aptc_04": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 04"
+        },
+        "aptc_05": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 05"
+        },
+        "aptc_06": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 06"
+        },
+        "aptc_07": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 07"
+        },
+        "aptc_08": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 08"
+        },
+        "aptc_09": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 09"
+        },
+        "aptc_10": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 10"
+        },
+        "aptc_11": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 11"
+        },
+        "aptc_12": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aptc 12"
+        },
+        "annual_premium": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annual Premium"
+        },
+        "annual_slcsp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annual Slcsp"
+        },
+        "annual_aptc": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Annual Aptc"
+        }
+      },
+      "title": "MarketplaceCoverage",
+      "type": "object"
+    },
+    "ParentFacts": {
+      "description": "Form 8615 lines A-C, 6 and 10 and the capital gain items of the parent whose return the form uses, transcribed\nfrom that parent's Form 1040 by the preparer (hand-entered, with the preparer's provenance). A parent's return kept\nby the same firm is read instead through Form8615Facts.parent_return_id. None means not stated, never zero.",
+      "properties": {
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "ssn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ssn"
+        },
+        "filing_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "mfj",
+                "mfs",
+                "hoh",
+                "qss"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filing Status"
+        },
+        "taxable_income": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Taxable Income"
+        },
+        "tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tax"
+        },
+        "qualified_dividends": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qualified Dividends"
+        },
+        "net_capital_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Net Capital Gain"
+        },
+        "rate_28_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Rate 28 Gain"
+        },
+        "unrecaptured_1250_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Unrecaptured 1250 Gain"
+        }
+      },
+      "title": "ParentFacts",
+      "type": "object"
+    },
+    "Payments": {
+      "properties": {
+        "estimated_tax_payments": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Estimated Tax Payments"
+        },
+        "prior_year_overpayment_applied": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Prior Year Overpayment Applied"
+        },
+        "extension_payment": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Extension Payment"
+        },
+        "other_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Other Withholding"
+        },
+        "apply_to_next_year": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Apply To Next Year"
+        }
+      },
+      "title": "Payments",
+      "type": "object"
+    },
+    "Person": {
+      "properties": {
+        "first_name": {
+          "default": "",
+          "title": "First Name",
+          "type": "string"
+        },
+        "last_name": {
+          "default": "",
+          "title": "Last Name",
+          "type": "string"
+        },
+        "ssn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ssn"
+        },
+        "ssn_valid_for_employment": {
+          "default": true,
+          "title": "Ssn Valid For Employment",
+          "type": "boolean"
+        },
+        "dob": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dob"
+        },
+        "blind": {
+          "default": false,
+          "title": "Blind",
+          "type": "boolean"
+        },
+        "can_be_claimed_as_dependent": {
+          "default": false,
+          "title": "Can Be Claimed As Dependent",
+          "type": "boolean"
+        },
+        "full_time_student": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Full Time Student"
+        },
+        "support_from_earned_income_over_half": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Support From Earned Income Over Half"
+        },
+        "has_living_parent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Has Living Parent"
+        },
+        "occupation": {
+          "default": "",
+          "title": "Occupation",
+          "type": "string"
+        }
+      },
+      "title": "Person",
+      "type": "object"
+    },
+    "PriorYear": {
+      "description": "Amounts carried from the prior-year return (a 2025 Form 1040 for a 2026 return), with the return as their\ndocument. None means not stated, never zero: a line the preparer or the document did not supply is unknown, and a\ncomputation that needs it blocks instead of assuming zero.",
+      "properties": {
+        "tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tax"
+        },
+        "agi": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agi"
+        },
+        "filing_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "mfj",
+                "mfs",
+                "hoh",
+                "qss"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filing Status"
+        },
+        "capital_loss_carryover_short": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capital Loss Carryover Short"
+        },
+        "capital_loss_carryover_long": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capital Loss Carryover Long"
+        },
+        "ftc_carryovers": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ForeignTaxCarryover"
+          },
+          "title": "Ftc Carryovers",
+          "type": "array"
+        },
+        "ftc_excess_limitation": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "propertyNames": {
+            "enum": [
+              "passive",
+              "general",
+              "foreign_branch",
+              "section_951a",
+              "treaty",
+              "lump_sum",
+              "section_901j"
+            ]
+          },
+          "title": "Ftc Excess Limitation",
+          "type": "object"
+        },
+        "ftc_amt_excess_limitation": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "propertyNames": {
+            "enum": [
+              "passive",
+              "general",
+              "foreign_branch",
+              "section_951a",
+              "treaty",
+              "lump_sum",
+              "section_901j"
+            ]
+          },
+          "title": "Ftc Amt Excess Limitation",
+          "type": "object"
+        },
+        "amt_ftc_simplified_election": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amt Ftc Simplified Election"
+        },
+        "nonrecaptured_1231_losses": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Section1231Loss"
+          },
+          "title": "Nonrecaptured 1231 Losses",
+          "type": "array"
+        },
+        "traditional_ira_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traditional Ira Basis"
+        },
+        "spouse_traditional_ira_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spouse Traditional Ira Basis"
+        },
+        "roth_ira_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roth Ira Basis"
+        },
+        "spouse_roth_ira_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spouse Roth Ira Basis"
+        },
+        "roth_conversion_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Roth Conversion Basis"
+        },
+        "spouse_roth_conversion_basis": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spouse Roth Conversion Basis"
+        },
+        "hsa_last_month_rule_excess": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hsa Last Month Rule Excess"
+        },
+        "spouse_hsa_last_month_rule_excess": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spouse Hsa Last Month Rule Excess"
+        }
+      },
+      "title": "PriorYear",
+      "type": "object"
+    },
+    "Rental": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "property_type": {
+          "default": "single_family",
+          "enum": [
+            "single_family",
+            "multi_family",
+            "vacation",
+            "commercial",
+            "land",
+            "royalties",
+            "self_rental",
+            "short_term",
+            "other"
+          ],
+          "title": "Property Type",
+          "type": "string"
+        },
+        "fair_rental_days": {
+          "default": 365,
+          "title": "Fair Rental Days",
+          "type": "integer"
+        },
+        "personal_use_days": {
+          "default": 0,
+          "title": "Personal Use Days",
+          "type": "integer"
+        },
+        "rents": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Rents"
+        },
+        "royalties": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Royalties"
+        },
+        "expenses": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Expenses",
+          "type": "object"
+        },
+        "depreciation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Depreciation"
+        },
+        "active_participation": {
+          "default": true,
+          "title": "Active Participation",
+          "type": "boolean"
+        },
+        "real_estate_professional": {
+          "default": false,
+          "title": "Real Estate Professional",
+          "type": "boolean"
+        },
+        "prior_year_unallowed_loss": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Prior Year Unallowed Loss"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "title": "Rental",
+      "type": "object"
+    },
+    "Retirement": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "payer": {
+          "default": "",
+          "title": "Payer",
+          "type": "string"
+        },
+        "gross_distribution": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Gross Distribution"
+        },
+        "taxable_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Taxable Amount"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        },
+        "distribution_code": {
+          "default": "7",
+          "title": "Distribution Code",
+          "type": "string"
+        },
+        "ira_sep_simple": {
+          "default": false,
+          "title": "Ira Sep Simple",
+          "type": "boolean"
+        },
+        "rollover_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Rollover Amount"
+        },
+        "qcd_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qcd Amount"
+        },
+        "early_distribution_exception": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Early Distribution Exception"
+        }
+      },
+      "title": "Retirement",
+      "type": "object"
+    },
+    "RetirementSavings": {
+      "description": "Form 8880 facts for one person that no information return carries. Contributions on documents (W-2 box 12,\nForm 5498 boxes 1 and 10) are taken from those documents; a 2026 distribution from a 1099-R on this return too.",
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "voluntary_after_tax_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Voluntary After Tax Contributions"
+        },
+        "able_contributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Able Contributions"
+        },
+        "testing_period_distributions": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Testing Period Distributions"
+        }
+      },
+      "title": "RetirementSavings",
+      "type": "object"
+    },
+    "Section1231Loss": {
+      "properties": {
+        "tax_year": {
+          "title": "Tax Year",
+          "type": "integer"
+        },
+        "nonrecaptured_loss": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Nonrecaptured Loss"
+        }
+      },
+      "required": [
+        "tax_year",
+        "nonrecaptured_loss"
+      ],
+      "title": "Section1231Loss",
+      "type": "object"
+    },
+    "SocialSecurity": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "net_benefits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Net Benefits"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        }
+      },
+      "title": "SocialSecurity",
+      "type": "object"
+    },
+    "Student": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "ssn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ssn"
+        },
+        "qualified_expenses": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Qualified Expenses"
+        },
+        "aotc_eligible": {
+          "default": true,
+          "title": "Aotc Eligible",
+          "type": "boolean"
+        },
+        "aotc_years_claimed": {
+          "default": 0,
+          "title": "Aotc Years Claimed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Student",
+      "type": "object"
+    },
+    "Unemployment": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Amount"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        }
+      },
+      "title": "Unemployment",
+      "type": "object"
+    },
+    "W2": {
+      "properties": {
+        "owner": {
+          "default": "taxpayer",
+          "enum": [
+            "taxpayer",
+            "spouse"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "employer_name": {
+          "default": "",
+          "title": "Employer Name",
+          "type": "string"
+        },
+        "employer_ein": {
+          "default": "",
+          "title": "Employer Ein",
+          "type": "string"
+        },
+        "wages": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Wages"
+        },
+        "federal_withholding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Federal Withholding"
+        },
+        "ss_wages": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ss Wages"
+        },
+        "ss_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ss Tax"
+        },
+        "medicare_wages": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Medicare Wages"
+        },
+        "medicare_tax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Medicare Tax"
+        },
+        "ss_tips": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Ss Tips"
+        },
+        "dependent_care_benefits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Dependent Care Benefits"
+        },
+        "box12": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Box12",
+          "type": "object"
+        },
+        "retirement_plan": {
+          "default": false,
+          "title": "Retirement Plan",
+          "type": "boolean"
+        },
+        "statutory_employee": {
+          "default": false,
+          "title": "Statutory Employee",
+          "type": "boolean"
+        },
+        "qualified_tips": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qualified Tips"
+        },
+        "qualified_overtime": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qualified Overtime"
+        },
+        "tipped_occupation_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tipped Occupation Code"
+        },
+        "employer_sstb": {
+          "default": false,
+          "title": "Employer Sstb",
+          "type": "boolean"
+        }
+      },
+      "title": "W2",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "tax_year": {
+      "title": "Tax Year",
+      "type": "integer"
+    },
+    "filing_status": {
+      "enum": [
+        "single",
+        "mfj",
+        "mfs",
+        "hoh",
+        "qss"
+      ],
+      "title": "Filing Status",
+      "type": "string"
+    },
+    "taxpayer": {
+      "$ref": "#/$defs/Person"
+    },
+    "spouse": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Person"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "mfs_lived_apart_all_year": {
+      "default": false,
+      "title": "Mfs Lived Apart All Year",
+      "type": "boolean"
+    },
+    "mfs_spouse_itemizes": {
+      "default": false,
+      "title": "Mfs Spouse Itemizes",
+      "type": "boolean"
+    },
+    "dependents": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Dependent"
+      },
+      "title": "Dependents",
+      "type": "array"
+    },
+    "w2s": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/W2"
+      },
+      "title": "W2S",
+      "type": "array"
+    },
+    "interest": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Interest"
+      },
+      "title": "Interest",
+      "type": "array"
+    },
+    "dividends": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Dividends"
+      },
+      "title": "Dividends",
+      "type": "array"
+    },
+    "capital_transactions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CapitalTransaction"
+      },
+      "title": "Capital Transactions",
+      "type": "array"
+    },
+    "capital_loss_carryover_short": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Capital Loss Carryover Short"
+    },
+    "capital_loss_carryover_long": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Capital Loss Carryover Long"
+    },
+    "prior_year": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PriorYear"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "retirement": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Retirement"
+      },
+      "title": "Retirement",
+      "type": "array"
+    },
+    "ira_accounts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/IRAAccount"
+      },
+      "title": "Ira Accounts",
+      "type": "array"
+    },
+    "hsa_distributions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HSADistribution"
+      },
+      "title": "Hsa Distributions",
+      "type": "array"
+    },
+    "hsa_contributions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HSAContribution"
+      },
+      "title": "Hsa Contributions",
+      "type": "array"
+    },
+    "hsa_facts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HSAFacts"
+      },
+      "title": "Hsa Facts",
+      "type": "array"
+    },
+    "ira_facts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/IRAFacts"
+      },
+      "title": "Ira Facts",
+      "type": "array"
+    },
+    "marketplace_coverage": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/MarketplaceCoverage"
+      },
+      "title": "Marketplace Coverage",
+      "type": "array"
+    },
+    "social_security": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SocialSecurity"
+      },
+      "title": "Social Security",
+      "type": "array"
+    },
+    "unemployment": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Unemployment"
+      },
+      "title": "Unemployment",
+      "type": "array"
+    },
+    "state_refund_taxable": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "State Refund Taxable"
+    },
+    "alimony_received": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Alimony Received"
+    },
+    "businesses": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Business"
+      },
+      "title": "Businesses",
+      "type": "array"
+    },
+    "rentals": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Rental"
+      },
+      "title": "Rentals",
+      "type": "array"
+    },
+    "k1s": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/K1"
+      },
+      "title": "K1S",
+      "type": "array"
+    },
+    "dispositions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Disposition"
+      },
+      "title": "Dispositions",
+      "type": "array"
+    },
+    "business_use_recaptures": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BusinessUseRecapture"
+      },
+      "title": "Business Use Recaptures",
+      "type": "array"
+    },
+    "other_income": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "type": "string"
+          }
+        ]
+      },
+      "default": {},
+      "title": "Other Income",
+      "type": "object"
+    },
+    "qbi_loss_carryforward": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Qbi Loss Carryforward"
+    },
+    "reit_ptp_loss_carryforward": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Reit Ptp Loss Carryforward"
+    },
+    "adjustments": {
+      "$ref": "#/$defs/Adjustments",
+      "default": {
+        "educator_expenses_taxpayer": "0",
+        "educator_expenses_spouse": "0",
+        "hsa_deduction": "0",
+        "self_employed_retirement": "0",
+        "self_employed_health_insurance": "0",
+        "alimony_paid": "0",
+        "alimony_recipient_ssn": "",
+        "ira_deduction": "0",
+        "student_loan_interest_paid": "0",
+        "other": "0"
+      }
+    },
+    "itemized": {
+      "$ref": "#/$defs/Itemized",
+      "default": {
+        "medical": "0",
+        "state_local_income_tax": "0",
+        "general_sales_tax": "0",
+        "use_sales_tax": false,
+        "real_estate_tax": "0",
+        "personal_property_tax": "0",
+        "other_taxes": "0",
+        "mortgage_interest_1098": "0",
+        "mortgage_interest_other": "0",
+        "points_not_on_1098": "0",
+        "mortgage_insurance_premiums": "0",
+        "investment_interest": "0",
+        "charity_cash": "0",
+        "charity_noncash": "0",
+        "charity_carryover": "0",
+        "casualty_loss": "0",
+        "other": "0",
+        "force_itemize": false
+      }
+    },
+    "car_loans": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CarLoan"
+      },
+      "title": "Car Loans",
+      "type": "array"
+    },
+    "tips_form_4137": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Tips Form 4137"
+    },
+    "tips_form_4137_occupation_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tips Form 4137 Occupation Code"
+    },
+    "dependent_care_expenses": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Dependent Care Expenses"
+    },
+    "dependent_care_qualifying_persons": {
+      "default": 0,
+      "title": "Dependent Care Qualifying Persons",
+      "type": "integer"
+    },
+    "students": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Student"
+      },
+      "title": "Students",
+      "type": "array"
+    },
+    "retirement_savings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RetirementSavings"
+      },
+      "title": "Retirement Savings",
+      "type": "array"
+    },
+    "retirement_savings_contributions": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "type": "string"
+          }
+        ]
+      },
+      "default": {},
+      "propertyNames": {
+        "enum": [
+          "taxpayer",
+          "spouse"
+        ]
+      },
+      "title": "Retirement Savings Contributions",
+      "type": "object"
+    },
+    "amt_adjustments": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "type": "string"
+          }
+        ]
+      },
+      "default": {},
+      "title": "Amt Adjustments",
+      "type": "object"
+    },
+    "foreign_tax_credit": {
+      "$ref": "#/$defs/ForeignTaxCredit",
+      "default": {
+        "de_minimis_election": null,
+        "amt_simplified_limitation": null
+      }
+    },
+    "form_8615": {
+      "$ref": "#/$defs/Form8615Facts",
+      "default": {
+        "parent": null,
+        "parent_return_id": null,
+        "which_parent": null,
+        "form_8814_election": false,
+        "other_children_net_unearned_income": "0",
+        "other_children_qualified_dividends": "0",
+        "other_children_net_capital_gain": "0",
+        "other_children_rate_28_gain": "0",
+        "other_children_unrecaptured_1250_gain": "0",
+        "directly_connected_deductions": null,
+        "directly_connected_to_dividends_and_gains": null
+      }
+    },
+    "excess_aptc_repayment": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Excess Aptc Repayment"
+    },
+    "net_premium_tax_credit": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Net Premium Tax Credit"
+    },
+    "household_employment_taxes": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Household Employment Taxes"
+    },
+    "payments": {
+      "$ref": "#/$defs/Payments",
+      "default": {
+        "estimated_tax_payments": "0",
+        "prior_year_overpayment_applied": "0",
+        "extension_payment": "0",
+        "other_withholding": "0",
+        "apply_to_next_year": "0"
+      }
+    },
+    "claim_eic": {
+      "default": true,
+      "title": "Claim Eic",
+      "type": "boolean"
+    },
+    "citizen_or_qualified_alien": {
+      "default": true,
+      "title": "Citizen Or Qualified Alien",
+      "type": "boolean"
+    },
+    "want_federal_public_benefit": {
+      "default": true,
+      "title": "Want Federal Public Benefit",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tax_year",
+    "filing_status",
+    "taxpayer"
+  ],
+  "title": "IndividualReturn",
+  "type": "object"
+}

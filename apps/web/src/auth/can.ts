@@ -44,6 +44,8 @@ export const REASONS = {
   cannotInvite: "you cannot invite users to this firm",
   notAllowed: "not allowed",
   reviewerOnly: "this action needs a credentialed reviewer (CPA), not firm staff or an administrator",
+  /** returns/store.py `_g_approve`: segregation of duties between the preparer and the reviewer. */
+  segregation: "the reviewer must be a different person from the preparer",
 } as const;
 
 export type Action =
@@ -58,7 +60,15 @@ export type Action =
   | "users.invite"
   | "users.disable"
   | "firms.list"
-  | "firms.create";
+  | "firms.create"
+  /** Read a return's working papers, create one, edit its inputs, populate, confirm, compute, submit it for review:
+   * every firm role (app.py `cpa_only`), inside the client's engagement. */
+  | "returns.view"
+  | "returns.create"
+  | "returns.prepare"
+  /** Approve, request changes, request a signature, approve the release, void, amend, reconcile, retransmit: a
+   * credentialed reviewer only (app.py `reviewer_only`); the approver cannot be the submitter (`segregation`). */
+  | "returns.review";
 
 export interface Decision {
   allowed: boolean;
@@ -78,6 +88,8 @@ export interface ActionContext {
   clientId?: string;
   /** For users.invite: the role being invited. */
   role?: BaseRole;
+  /** For returns.review: who submitted the return for review (the approver cannot be that person). */
+  submittedBy?: string | null;
 }
 
 export function can(me: Me, action: Action, ctx: ActionContext = {}): Decision {
@@ -117,6 +129,22 @@ export function can(me: Me, action: Action, ctx: ActionContext = {}): Decision {
     case "firms.list":
     case "firms.create":
       return isPlatformAdmin(me) ? ALLOW : deny(REASONS.platformAdminOnly);
+    case "returns.view":
+    case "returns.create":
+    case "returns.prepare": {
+      if (isPlatformAdmin(me)) return deny(REASONS.platformNoClientData);
+      if (!isFirmStaff(me)) return deny(REASONS.cpaOnly);
+      if (ctx.clientId && !engaged(me, ctx.clientId)) return deny(REASONS.notEngaged);
+      return ALLOW;
+    }
+    case "returns.review": {
+      if (isPlatformAdmin(me)) return deny(REASONS.platformNoClientData);
+      if (!isFirmStaff(me)) return deny(REASONS.cpaOnly);
+      if (ctx.clientId && !engaged(me, ctx.clientId)) return deny(REASONS.notEngaged);
+      if (!isReviewer(me)) return deny(REASONS.reviewerOnly);
+      if (ctx.submittedBy && ctx.submittedBy === me.id) return deny(REASONS.segregation);
+      return ALLOW;
+    }
   }
 }
 

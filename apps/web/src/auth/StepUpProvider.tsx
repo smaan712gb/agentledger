@@ -24,6 +24,15 @@ export function describeAction(request: StepUpRequest): string {
   if (p.includes("/reviewer")) return "the reviewer change";
   if (p.includes("/periods/")) return "closing or reopening the period";
   if (p.includes("/assign")) return "moving the document";
+  if (p.startsWith("/api/returns/")) {
+    if (p.endsWith("/approve")) return "approving the return";
+    if (p.endsWith("/request-signature")) return "requesting the taxpayer's signature";
+    if (p.endsWith("/release-approve")) return "approving the release for filing";
+    if (p.endsWith("/void")) return "voiding the return";
+    if (p.endsWith("/amend")) return "starting the amendment";
+    if (p.endsWith("/retransmit")) return "the retransmission";
+    if (p.endsWith("/reconcile")) return "reconciling the transmission";
+  }
   return `${request.method} ${p}`;
 }
 

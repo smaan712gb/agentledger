@@ -6,7 +6,7 @@ import { PASSWORD, apiPost, nextCode, suffix, user } from "./helpers";
 async function tabTo(
   page: Page,
   name: RegExp | string,
-  role: "link" | "button" | "textbox",
+  role: "link" | "button" | "textbox" | "spinbutton" | "combobox",
   limit = 40,
 ): Promise<void> {
   const target = page.getByRole(role, { name });
@@ -29,6 +29,7 @@ test("sign in and open a client without touching the pointer", async ({ page, re
     await request.post("/api/auth/mfa", { data: { challenge: step.challenge, code: await nextCode(kai) } })
   ).json()) as { token: string };
   await apiPost(request, mfa.token, "/api/clients", { id: clientId, name: "Keyboard Client", kind: "business" });
+  await apiPost(request, mfa.token, `/api/clients/${clientId}/returns`, { tax_year: 2026 });
 
   await page.goto("/sign-in");
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
@@ -65,4 +66,21 @@ test("sign in and open a client without touching the pointer", async ({ page, re
   await tabTo(page, "Documents", "link");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status", { name: "No documents yet" })).toBeVisible();
+
+  // The return workspace: the returns tab, the return, its review screen and the first input, keyboard only.
+  await tabTo(page, "Returns", "link");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("table", { name: /Returns of Keyboard Client/ })).toBeVisible();
+  await tabTo(page, /Form 1040 · 2026/, "link");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "Form 1040 · 2026" })).toBeVisible();
+  await expect(page.locator("#main")).toBeFocused();
+  await tabTo(page, "Review", "link");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("inputs-editor")).toBeVisible();
+  // The Review tab stays on screen and keeps focus (the shell moves focus only when it would otherwise be lost), so
+  // the next Tab continues from it into the new screen.
+  await tabTo(page, /^Tax year/, "spinbutton");
+  // Focusing a field selects it: the side pane follows with its path and history.
+  await expect(page.getByTestId("selected-field")).toContainText("tax_year");
 });
