@@ -63,7 +63,7 @@ jobs:
           agentledger golden
       - name: Open a pull request with the workforce's changes
         id: cpr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: agentledger/autonomy
           commit-message: "AgentLedger agents: scheduled run"
