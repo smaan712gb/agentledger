@@ -108,7 +108,7 @@ jobs:
           NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
         run: agentledger platform provision
       - name: The web app the web job tested (deployed as the Worker's static assets)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with: {name: web-dist, path: apps/web/dist}
       - name: Deploy the Worker, the web app and the API image to staging
         env:
@@ -163,7 +163,7 @@ jobs:
           NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
         run: agentledger platform provision
       - name: The web app the web job tested (deployed as the Worker's static assets)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with: {name: web-dist, path: apps/web/dist}
       - name: Deploy the Worker, the web app and the API image to production
         # `wrangler deploy` (not `versions upload`/`versions deploy`, which do not roll out container images) activates
