@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: "22", cache: npm}
       - run: npm ci
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.12"}
       - run: pip install -e .
       - name: Contract drift gate (openapi.json and schema.d.ts must be what the API and the generator produce)
